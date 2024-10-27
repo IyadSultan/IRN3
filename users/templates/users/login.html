@@ -1,0 +1,12 @@
+{% extends 'users/base.html' %}
+<p>If you forgot your password, send us an email using the email used for registration to aidi@khcc.jo and we will reset your password in 24 hours. You can</p>
+{% load crispy_forms_tags %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<h1>Login</h1>
+<form method="post">
+    {% csrf_token %}
+    {{ form|crispy }}
+    <button type="submit">Login</button>
+</form>
+{% endblock %}

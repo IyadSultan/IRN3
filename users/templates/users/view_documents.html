@@ -1,0 +1,86 @@
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}My Documents{% endblock %}
+{% block content %}
+<h1>My Documents</h1>
+{% if documents %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Document Type</th>
+                <th>Uploaded On</th>
+                <th>Issued On</th>
+                <th>Expires On</th>
+                <th>Comments</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for document in documents|dictsortreversed:"uploaded_at" %}
+            <tr {% if document.days_until_expiry < 30 and document.days_until_expiry >= 0 %}class="text-danger"{% endif %}>
+                <td>
+                    <a href="{% url 'users:display_document' document.id %}" class="document-link" data-document-type="{{ document.get_document_type_display }}" data-file-extension="{{ document.file_extension }}" {% if document.file_extension == '.pdf' %}target="_blank"{% endif %}>
+                        {% if document.document_type == 'Other' %}
+                            {{ document.other_document_name }}
+                        {% else %}
+                            {{ document.get_document_type_display }}
+                        {% endif %}
+                    </a>
+                </td>
+                <td>{{ document.uploaded_at|date:"F d, Y" }}</td>
+                <td>{{ document.issue_date|date:"F d, Y" }}</td>
+                <td>{{ document.expiry_date|date:"F d, Y" }}</td>
+                <td>
+                    {% if document.days_until_expiry < 30 and document.days_until_expiry >= 0 %}
+                        Near expiry
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Modal for image preview -->
+    <div class="modal fade" id="imageModal" tabindex="-1" role="dialog" aria-labelledby="imageModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="imageModalLabel"></h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <img id="imageFrame" style="width: 100%;" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            $('.document-link').click(function(e) {
+                var fileExtension = $(this).data('file-extension');
+                var documentType = $(this).data('document-type');
+                
+                if (fileExtension === '.pdf') {
+                    // For PDF files, let the browser open it in a new tab
+                    return true;
+                } else if (['.jpg', '.jpeg', '.png', '.gif'].includes(fileExtension)) {
+                    // For image files, show in modal
+                    e.preventDefault();
+                    var documentUrl = $(this).attr('href');
+                    $('#imageModalLabel').text(documentType);
+                    $('#imageFrame').attr('src', documentUrl);
+                    $('#imageModal').modal('show');
+                } else {
+                    // For other file types, let the browser handle it
+                    return true;
+                }
+            });
+        });
+    </script>
+{% else %}
+    <p>You haven't uploaded any documents yet.</p>
+{% endif %}
+<a href="{% url 'users:upload_document' %}" class="btn btn-primary">Upload New Document</a>
+{% endblock %}

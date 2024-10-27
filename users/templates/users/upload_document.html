@@ -1,0 +1,12 @@
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Upload Document{% endblock %}
+{% block content %}
+<h1>Upload Document</h1>
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form|crispy }}
+    <button type="submit">Upload</button>
+</form>
+<p>Or <a href="https://khcc.jo">Skip and go to khcc.jo</a></p>
+{% endblock %}

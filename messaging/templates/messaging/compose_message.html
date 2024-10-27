@@ -1,0 +1,20 @@
+{% extends 'users/base.html' %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+{% block extra_head %}
+    {{ form.media.css }}
+{% endblock %}
+
+{% block title %}Compose Message{% endblock %}
+{% block content %}
+<h1>Compose New Message</h1>
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.media }} 
+    {{ form|crispy }}
+    <button type="submit">Send</button>
+</form>
+{% endblock %}
+{% block extra_scripts %}
+    {{ form.media.js }}
+{% endblock %}

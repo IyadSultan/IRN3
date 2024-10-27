@@ -1,0 +1,24 @@
+{% extends 'users/base.html' %}
+{% block title %}View Message{% endblock %}
+{% block content %}
+<h1>{{ message.subject }}</h1>
+<p>From: {{ message.sender.username }}</p>
+<p>To: {% for user in message.recipients.all %}{{ user.username }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+<p>Sent: {{ message.sent_at }}</p>
+<div>
+    {{ message.body|linebreaks }}
+</div>
+{% if message.attachments %}
+<p>Attachments: <a href="{{ message.attachments.url }}">{{ message.attachments.name }}</a></p>
+{% endif %}
+<h2>Comments</h2>
+{% for comment in message.comments.all %}
+<p>{{ comment.user.username }}: {{ comment.body }}</p>
+{% endfor %}
+<form method="post">
+    {% csrf_token %}
+    {{ comment_form.as_p }}
+    <button type="submit">Add Comment</button>
+</form>
+<a href="{% url 'messaging:reply_message' message.id %}">Reply</a>
+{% endblock %}
