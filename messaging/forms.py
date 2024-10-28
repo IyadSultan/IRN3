@@ -17,10 +17,10 @@ class MessageForm(forms.ModelForm):
             'respond_by': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
         }
 
-class CommentForm(forms.ModelForm):
-    class Meta:
-        model = Comment
-        fields = ['body']
+# class CommentForm(forms.ModelForm):
+#     class Meta:
+#         model = Comment
+#         fields = ['body']
 
 class SearchForm(forms.Form):
     query = forms.CharField(max_length=255)

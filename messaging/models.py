@@ -7,6 +7,8 @@ from .validators import validate_file_size
 
 from django.conf import settings
 
+import uuid
+
 User = get_user_model()
 
 # messaging/models.py
@@ -32,6 +34,7 @@ class Message(models.Model):
     is_archived = models.BooleanField(default=False)
     attachments = models.FileField(upload_to='attachments/', validators=[validate_file_size], blank=True, null=True)
     hashtags = models.CharField(max_length=255, blank=True, null=True)
+    thread_id = models.UUIDField(default=uuid.uuid4, editable=False)
     
     objects = MessageManager()
 

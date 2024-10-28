@@ -1,24 +1,79 @@
 {% extends 'users/base.html' %}
+{% load static %}
+
 {% block title %}View Message{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<style>
+    .message-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        padding: 15px;
+    }
+    .message-body {
+        padding: 20px;
+        white-space: pre-wrap;
+    }
+    .message-footer {
+        background-color: #f8f9fa;
+        border-top: 1px solid #dee2e6;
+        padding: 15px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<h1>{{ message.subject }}</h1>
-<p>From: {{ message.sender.username }}</p>
-<p>To: {% for user in message.recipients.all %}{{ user.username }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
-<p>Sent: {{ message.sent_at }}</p>
-<div>
-    {{ message.body|linebreaks }}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header message-header">
+            <h2 class="mb-3">{{ message.subject }}</h2>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>From:</strong> {{ message.sender.username }}</p>
+                    <p><strong>To:</strong> {{ message.recipients.all|join:", " }}</p>
+                    {% if message.cc.all %}
+                        <p><strong>CC:</strong> {{ message.cc.all|join:", " }}</p>
+                    {% endif %}
+                    {% if message.bcc.all %}
+                        <p><strong>BCC:</strong> {{ message.bcc.all|join:", " }}</p>
+                    {% endif %}
+                    {% if message.study_name %}
+                        <p><strong>Study Name:</strong> {{ message.study_name }}</p>
+                    {% endif %}
+                    <p><strong>Sent At:</strong> {{ message.sent_at|date:"F d, Y H:i" }}</p>
+                    <p><strong>Attachments:</strong> {% if message.attachments.all %}{{ message.attachments.all|join:", " }}{% else %}None{% endif %}</p>
+                    <p><strong>Hashtags:</strong> {% if message.hashtags.all %}{{ message.hashtags.all|join:", " }}{% else %}None{% endif %}</p>
+                </div>
+                <div class="col-md-6 text-md-right">
+                    <p><strong>Date:</strong> {{ message.sent_at|date:"F d, Y H:i" }}</p>
+                    <p><strong>Study Name:</strong> {{ message.study_name }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="card-body message-body">
+            {{ message.body|linebreaks }}
+        </div>
+        <div class="card-footer message-footer">
+            <div class="btn-group" role="group">
+                <a href="{% url 'messaging:reply' message.id %}" class="btn btn-primary">Reply</a>
+                <a href="{% url 'messaging:reply_all' message.id %}" class="btn btn-secondary">Reply All</a>
+                <a href="{% url 'messaging:forward' message.id %}" class="btn btn-info">Forward</a>
+                {% if user == message.sender %}
+                    <form method="post" action="{% url 'messaging:archive_message'%}" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to archive this message?');">Archive</button>
+                    </form>
+                {% else %}
+                    <form method="post" action="{% url 'messaging:archive_message' %}" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-warning">Archive</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary mt-3">Back to Inbox</a>
 </div>
-{% if message.attachments %}
-<p>Attachments: <a href="{{ message.attachments.url }}">{{ message.attachments.name }}</a></p>
-{% endif %}
-<h2>Comments</h2>
-{% for comment in message.comments.all %}
-<p>{{ comment.user.username }}: {{ comment.body }}</p>
-{% endfor %}
-<form method="post">
-    {% csrf_token %}
-    {{ comment_form.as_p }}
-    <button type="submit">Add Comment</button>
-</form>
-<a href="{% url 'messaging:reply_message' message.id %}">Reply</a>
 {% endblock %}
