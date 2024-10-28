@@ -79,4 +79,3 @@ class FormDataEntry(models.Model):
 
     def __str__(self):
         return f"{self.submission} - {self.form.name} - {self.field_name}"
-

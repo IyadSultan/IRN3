@@ -14,4 +14,7 @@ urlpatterns = [
     path('<int:submission_id>/research-assistant/', views.add_research_assistant, name='add_research_assistant'),
     path('<int:submission_id>/coinvestigator/', views.add_coinvestigator, name='add_coinvestigator'),
     path('<int:submission_id>/forms/', views.submission_forms, name='submission_forms'),
+    path('<int:submission_id>/update-coinvestigator-order/', 
+         views.update_coinvestigator_order, 
+         name='update_coinvestigator_order'),
 ]

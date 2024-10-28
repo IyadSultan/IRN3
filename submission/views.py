@@ -6,10 +6,11 @@ from django.contrib import messages
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.template.loader import render_to_string
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from dal import autocomplete
+import json
 
 from .models import Submission, CoInvestigator, ResearchAssistant, FormDataEntry
 from .forms import SubmissionForm, ResearchAssistantForm, CoInvestigatorForm
@@ -341,3 +342,22 @@ def download_submission_pdf(request, submission_id):
     p.save()
     return response
 
+@login_required
+def update_coinvestigator_order(request, submission_id):
+    if request.method == 'POST':
+        submission = get_object_or_404(Submission, pk=submission_id)
+        
+        if not has_edit_permission(request.user, submission):
+            return JsonResponse({'error': 'Permission denied'}, status=403)
+            
+        try:
+            order = json.loads(request.POST.get('order', '[]'))
+            for index, coinvestigator_id in enumerate(order):
+                CoInvestigator.objects.filter(
+                    id=coinvestigator_id, 
+                    submission=submission
+                ).update(order=index)
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'error': 'Invalid request'}, status=400)
