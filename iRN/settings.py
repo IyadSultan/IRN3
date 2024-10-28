@@ -160,8 +160,10 @@ AUTH_USER_MODEL = 'auth.User'  # Use this if you're using the default Django Use
 # AUTH_USER_MODEL = 'users.CustomUser'  # Use this if you have a custom User model
 
 # Add these lines near the bottom of the file
+# Authentication settings
 LOGIN_URL = 'users:login'
-LOGIN_REDIRECT_URL = 'users:view_documents'
+LOGIN_REDIRECT_URL = 'submission:dashboard'
+LOGOUT_REDIRECT_URL = 'users:login'
 
 # email settings
 # settings.py
