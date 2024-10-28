@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'dal_select2', # Django Autocomplete Light - Django Select2 UI
     'forms_builder',
     'reversion',
+    'submission',
     
     
 ]

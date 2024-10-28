@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Submission {{ submission.temporary_id }}</title>
+    <style>
+        /* Add styles for PDF */
+    </style>
+</head>
+<body>
+    <h1>Submission {{ submission.temporary_id }}</h1>
+    <p>Title: {{ submission.title }}</p>
+    <p>Primary Investigator: {{ submission.primary_investigator.get_full_name }}</p>
+    <!-- Add more details as needed -->
+    <h2>Form Data</h2>
+    <div class="form-group">
+        {% for entry in entries %}
+            <h3>{{ entry.form.name }}</h3>
+            <p class="form-control">{{ entry.field_name }}: {{ entry.value }}</p>
+        {% endfor %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{% extends "admin/object_history.html" %}
+{% load i18n admin_urls %}
+
+{% block content %}
+<div id="content-main">
+    <h1>History for {{ object|truncatewords:"18" }}</h1>
+    
+    {% if version_list %}
+    <div class="module">
+        {% for version in version_list %}
+        <div class="version-entry" style="margin-bottom: 20px; padding: 10px; border: 1px solid #ccc;">
+            <h3>Revision from {{ version.date_created }}</h3>
+            <p>
+                <strong>User:</strong> {{ version.user }}<br>
+                <strong>Comment:</strong> {{ version.comment }}
+            </p>
+            <div class="json-view" style="background: #f5f5f5; padding: 10px; white-space: pre-wrap;">
+                <code>{{ version.json_data }}</code>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p>{% trans "This object doesn't have a change history." %}</p>
+    {% endif %}
+</div>
+{% endblock %}

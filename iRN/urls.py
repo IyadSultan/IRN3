@@ -12,6 +12,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('users/', include('users.urls', namespace='users')),
     path('messaging/', include('messaging.urls', namespace='messaging')),
+    path('submission/', include('submission.urls', namespace='submission')),
 ]
 
 

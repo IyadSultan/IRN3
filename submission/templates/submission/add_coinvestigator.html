@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Add Co-Investigator{% endblock %}
+{% block content %}
+<h1>Add Co-Investigator</h1>
+<form method="post" novalidate>
+    {% csrf_token %}
+    {{ form|crispy }}
+    <button type="submit" class="btn btn-primary">Add Co-Investigator</button>
+</form>
+<h2>Current Co-Investigators</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Role in Study</th>
+            <th>Order</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for co in coinvestigators %}
+        <tr>
+            <td>{{ co.user.get_full_name }}</td>
+            <td>{{ co.role_in_study }}</td>
+            <td>{{ co.order }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<a href="{% url 'submission:submission_forms' submission_id=submission.temporary_id %}" class="btn btn-secondary">Next: Fill Forms</a>
+{% endblock %}
