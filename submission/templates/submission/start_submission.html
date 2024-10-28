@@ -1,13 +1,65 @@
-{% extends 'base.html' %}
+{% extends 'users/base.html' %}
 {% load crispy_forms_tags %}
+
 {% block title %}Start New Submission{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    .select2-container {
+        width: 100% !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<h1>Start New Submission</h1>
-<form method="post" novalidate>
-    {% csrf_token %}
-    {{ form|crispy }}
-    <button type="submit" name="action" value="save_exit" class="btn btn-primary">Save and Exit</button>
-    <button type="submit" name="action" value="save_continue" class="btn btn-primary">Save and Continue</button>
-    <button type="submit" name="action" value="exit_no_save" class="btn btn-secondary">Exit without Saving</button>
-</form>
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Start New Submission</h2>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <button type="submit" name="action" value="save_exit" class="btn btn-primary me-md-2">Save and Exit</button>
+                            <button type="submit" name="action" value="save_continue" class="btn btn-primary me-md-2">Save and Continue</button>
+                            <button type="submit" name="action" value="exit_no_save" class="btn btn-secondary">Exit without Saving</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+{{ form.media.js }}
+<script>
+    $(document).ready(function() {
+        $('.select2').select2({
+            theme: 'bootstrap4',
+            width: '100%'
+        });
+
+        // Toggle primary investigator field visibility
+        function togglePIField() {
+            if ($('#id_is_primary_investigator').is(':checked')) {
+                $('#div_id_primary_investigator').hide();
+            } else {
+                $('#div_id_primary_investigator').show();
+            }
+        }
+
+        $('#id_is_primary_investigator').change(togglePIField);
+        togglePIField(); // Initial state
+    });
+</script>
 {% endblock %}

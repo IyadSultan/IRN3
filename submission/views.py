@@ -22,11 +22,14 @@ def start_submission(request):
     if request.method == 'POST':
         form = SubmissionForm(request.POST)
         action = request.POST.get('action')
+        
         if action == 'exit_no_save':
             return redirect('submission:dashboard')
+            
         if form.is_valid():
             submission = form.save(commit=False)
             is_pi = form.cleaned_data['is_primary_investigator']
+            
             if is_pi:
                 submission.primary_investigator = request.user
             else:
@@ -36,33 +39,44 @@ def start_submission(request):
                 else:
                     messages.error(request, 'Please select a primary investigator.')
                     return render(request, 'submission/start_submission.html', {'form': form})
+            
             submission.save()
             messages.success(request, f'Temporary submission ID {submission.temporary_id} generated.')
-            # Send message via messaging system
+            
+            # Send notification message
             message = Message.objects.create(
                 sender=request.user,
                 subject='Temporary Submission ID Generated',
                 body=f'Your submission has been created with temporary ID {submission.temporary_id}.'
             )
             message.recipients.add(request.user)
+            
+            # Handle different actions
             if action == 'save_exit':
                 return redirect('submission:dashboard')
             elif action == 'save_continue':
+                # Redirect to the research assistant page
                 return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
-        else:
-            messages.error(request, 'Please correct the errors below.')
     else:
         form = SubmissionForm()
+    
     return render(request, 'submission/start_submission.html', {'form': form})
 
 @login_required
 def add_research_assistant(request, submission_id):
     submission = get_object_or_404(Submission, pk=submission_id)
+    
     if not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to edit this submission.")
         return redirect('submission:dashboard')
+        
     if request.method == 'POST':
         form = ResearchAssistantForm(request.POST)
+        action = request.POST.get('action')
+        
+        if action == 'exit_no_save':
+            return redirect('submission:dashboard')
+            
         if form.is_valid():
             assistant_user = form.cleaned_data['assistant']
             ResearchAssistant.objects.create(
@@ -73,11 +87,18 @@ def add_research_assistant(request, submission_id):
                 can_view_communications=form.cleaned_data['can_view_communications']
             )
             messages.success(request, 'Research assistant added.')
-            return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
-        else:
-            messages.error(request, 'Please correct the errors below.')
+            
+            if action == 'save_exit':
+                return redirect('submission:dashboard')
+            elif action == 'save_continue':
+                # Proceed to co-investigator page
+                return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
+            else:
+                # Stay on the same page to add more research assistants
+                return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
     else:
         form = ResearchAssistantForm()
+        
     assistants = submission.research_assistants.all()
     return render(request, 'submission/add_research_assistant.html', {
         'form': form,
@@ -88,15 +109,23 @@ def add_research_assistant(request, submission_id):
 @login_required
 def add_coinvestigator(request, submission_id):
     submission = get_object_or_404(Submission, pk=submission_id)
+    
     if not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to edit this submission.")
         return redirect('submission:dashboard')
+        
     if request.method == 'POST':
         form = CoInvestigatorForm(request.POST)
+        action = request.POST.get('action')
+        
+        if action == 'exit_no_save':
+            return redirect('submission:dashboard')
+            
         if form.is_valid():
             investigator_user = form.cleaned_data['investigator']
             role_in_study = form.cleaned_data['role_in_study']
             order = submission.coinvestigators.count() + 1
+            
             CoInvestigator.objects.create(
                 submission=submission,
                 user=investigator_user,
@@ -106,13 +135,20 @@ def add_coinvestigator(request, submission_id):
                 can_view_communications=form.cleaned_data['can_view_communications'],
                 order=order
             )
-            messages.success(request, 'Co-investigator added.')
-            return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
-        else:
-            messages.error(request, 'Please correct the errors below.')
+            messages.success(request, 'Co-investigator added successfully.')
+            
+            if action == 'save_exit':
+                return redirect('submission:dashboard')
+            elif action == 'save_continue':
+                # Proceed to forms page
+                return redirect('submission:submission_forms', submission_id=submission.temporary_id)
+            else:
+                # Stay on the same page to add more co-investigators
+                return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
     else:
         form = CoInvestigatorForm()
-    coinvestigators = submission.coinvestigators.all()
+    
+    coinvestigators = submission.coinvestigators.all().order_by('order')
     return render(request, 'submission/add_coinvestigator.html', {
         'form': form,
         'coinvestigators': coinvestigators,
@@ -274,6 +310,9 @@ def edit_submission(request, submission_id):
 
 class UserAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
+        if not self.request.user.is_authenticated:
+            return User.objects.none()
+
         qs = User.objects.all()
         if self.q:
             qs = qs.filter(username__icontains=self.q)
@@ -301,3 +340,4 @@ def download_submission_pdf(request, submission_id):
     p.showPage()
     p.save()
     return response
+
