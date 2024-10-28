@@ -45,6 +45,9 @@ INSTALLED_APPS = [
     "messaging",
     'dal', # Django Autocomplete Light
     'dal_select2', # Django Autocomplete Light - Django Select2 UI
+    'forms_builder',
+    'reversion',
+    
     
 ]
 
@@ -64,7 +67,10 @@ ROOT_URLCONF = "iRN.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / 'users' / 'templates'/'users'],  # Added path to user templates
+        "DIRS": [
+            BASE_DIR / 'users' / 'templates'/'users',  # Added path to user templates
+            BASE_DIR / 'forms_builder' / 'templates' / 'admin' / 'forms_builder',  # Added forms_builder templates
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [

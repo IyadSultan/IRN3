@@ -1,0 +1,35 @@
+{% extends "admin/object_history.html" %}
+{% load admin_urls %}
+{% block content %}
+<h1>Change history: {{ title }}</h1>
+<table class="history">
+    <thead>
+        <tr>
+            <th>Action time</th>
+            <th>Action</th>
+            <th>User</th>
+            <th>Change message</th>
+            <th>Version</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in action_list %}
+        <tr class="{% cycle 'row1' 'row2' %}">
+            <td>{{ entry.action_time }}</td>
+            <td>{{ entry.get_action_flag_display }}</td>
+            <td>{{ entry.user }}</td>
+            <td>{{ entry.get_change_message }}</td>
+            <td>
+                {% if entry.get_action_flag_display == 'Changed' %}
+                    {% with version=versions|get_by_field:"revision_id, entry.revision_id" %}
+                        {% if version %}
+                            <a href="{% url 'admin:forms_builder_dynamicform_revision' object_id=object.pk version_id=version.id %}">View Version</a>
+                        {% endif %}
+                    {% endwith %}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

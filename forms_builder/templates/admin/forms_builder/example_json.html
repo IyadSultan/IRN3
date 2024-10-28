@@ -1,0 +1,9 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+<p>You can use the following example as a template when entering new forms in JSON format:</p>
+<pre>{{ example_json }}</pre>
+<p><a href="javascript:window.close();">Close this window</a></p>
+{% endblock %}
