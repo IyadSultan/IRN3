@@ -1,6 +1,5 @@
 {% extends 'users/base.html' %}
 {% load static %}
-
 {% block title %}Dashboard{% endblock %}
 
 {% block extra_css %}
@@ -11,16 +10,18 @@
 {% block content %}
 <div class="container mt-4">
     <h1 class="mb-4">My Submissions</h1>
-    
     <div class="table-responsive">
         <table id="submissions-table" class="table table-striped table-hover">
             <thead class="thead-light">
                 <tr>
                     <th>ID</th>
+                    <th>IRB Number</th>
                     <th>Title</th>
                     <th>Study Type</th>
                     <th>Status</th>
+                    <th>Version</th>
                     <th>Date Created</th>
+                    <th>Last Modified</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -28,22 +29,27 @@
                 {% for submission in submissions %}
                 <tr>
                     <td>{{ submission.temporary_id|default:"" }}</td>
+                    <td>{{ submission.irb_number|default:"N/A" }}</td>
                     <td>{{ submission.title|default:"" }}</td>
                     <td>{{ submission.study_type|default:"" }}</td>
                     <td>
                         <span class="badge {% if submission.status == 'draft' %}badge-warning{% else %}badge-success{% endif %}">
-                            {{ submission.status|default:"" }}
+                            {{ submission.get_status_display|default:"" }}
                         </span>
                     </td>
-                    <td data-order="{{ submission.created_at|date:'Y-m-d H:i:s' }}">
-                        {{ submission.created_at|date:"M d, Y H:i"|default:"" }}
+                    <td>{{ submission.version }}</td>
+                    <td data-order="{{ submission.date_created|date:'Y-m-d H:i:s' }}">
+                        {{ submission.date_created|date:"M d, Y H:i"|default:"" }}
+                    </td>
+                    <td data-order="{{ submission.last_modified|date:'Y-m-d H:i:s' }}">
+                        {{ submission.last_modified|date:"M d, Y H:i"|default:"" }}
                     </td>
                     <td>
-                        {% if submission.pk %}  {# Only show edit link if we have a valid ID #}
+                        {% if submission.pk %}
                             <a href="{% url 'submission:edit_submission' submission.pk %}" class="btn btn-sm btn-primary">
                                 <i class="fas fa-edit"></i>
                             </a>
-                            <a href="{% url 'submission:pdf_view' submission.pk %}" class="btn btn-sm btn-secondary">
+                            <a href="{% url 'submission:download_submission_pdf' submission.pk %}" class="btn btn-sm btn-secondary">
                                 <i class="fas fa-file-pdf"></i>
                             </a>
                         {% endif %}
@@ -51,7 +57,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center">No submissions found.</td>
+                    <td colspan="9" class="text-center">No submissions found.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -67,9 +73,9 @@
 <script>
     $(document).ready(function() {
         $('#submissions-table').DataTable({
-            "order": [[4, "desc"]],
+            "order": [[6, "desc"]],
             "columnDefs": [
-                { "orderable": false, "targets": 5 }
+                { "orderable": false, "targets": 8 }
             ]
         });
     });

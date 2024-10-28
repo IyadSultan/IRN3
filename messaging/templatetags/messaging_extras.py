@@ -1,14 +1,14 @@
 from django import template
-from django.template.defaultfilters import stringfilter
+from messaging.models import MessageReadStatus
 
 register = template.Library()
 
 @register.filter
-@stringfilter
 def get_read_status(message, user):
     try:
-        return message.read_statuses.get(user=user).is_read
-    except:
+        status = MessageReadStatus.objects.get(message=message, user=user)
+        return status.is_read
+    except MessageReadStatus.DoesNotExist:
         return False
 
 # Define your custom template tags and filters here

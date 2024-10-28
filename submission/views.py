@@ -15,36 +15,11 @@ from .models import Submission, CoInvestigator, ResearchAssistant, FormDataEntry
 from .forms import SubmissionForm, ResearchAssistantForm, CoInvestigatorForm
 from .utils import has_edit_permission, check_researcher_documents
 from forms_builder.models import DynamicForm
-from messaging.models import Message, MessageReadStatus
+from messaging.models import Message
 
 @login_required
 def start_submission(request):
     if request.method == 'POST':
-        # First create the message with required fields only
-        message = Message.objects.create(
-            sender=request.user,
-            subject="New Submission Started",
-            body=f"New submission started by {request.user.username}"
-        )
-        
-        # Get admin users
-        admin_users = User.objects.filter(is_staff=True)
-        
-        # Set recipients after creation
-        message.recipients.set(admin_users)
-        
-        # If you need cc/bcc (optional)
-        # message.cc.set([user1, user2])
-        # message.bcc.set([user3, user4])
-        
-        # Create read status for each recipient
-        for recipient in admin_users:
-            MessageReadStatus.objects.create(
-                user=recipient,
-                message=message,
-                is_read=False
-            )
-        
         form = SubmissionForm(request.POST)
         action = request.POST.get('action')
         if action == 'exit_no_save':
@@ -69,7 +44,7 @@ def start_submission(request):
                 subject='Temporary Submission ID Generated',
                 body=f'Your submission has been created with temporary ID {submission.temporary_id}.'
             )
-            message.recipients.set([request.user])
+            message.recipients.add(request.user)
             if action == 'save_exit':
                 return redirect('submission:dashboard')
             elif action == 'save_continue':
@@ -150,7 +125,7 @@ def submission_forms(request, submission_id):
     if not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to edit this submission.")
         return redirect('submission:dashboard')
-    if submission.status != 'draft':
+    if submission.status not in ['draft', 'under_revision']:
         messages.error(request, "You cannot edit forms after submission.")
         return redirect('submission:dashboard')
     dynamic_forms = submission.study_type.forms.all()
@@ -164,7 +139,7 @@ def submission_forms(request, submission_id):
                         submission=submission,
                         form=dynamic_form,
                         field_name=field_name,
-                        defaults={'value': value}
+                        defaults={'value': value, 'version': submission.version}
                     )
                 messages.success(request, f'Form "{dynamic_form.name}" saved.')
             else:
@@ -183,6 +158,7 @@ def submission_forms(request, submission_id):
             if all_good:
                 submission.status = 'submitted'
                 submission.date_submitted = timezone.now()
+                submission.version += 1
                 submission.save()
                 messages.success(request, 'Submission completed successfully.')
                 # Send messages, lock editing, etc.
@@ -192,14 +168,14 @@ def submission_forms(request, submission_id):
                     subject='Study Submitted',
                     body=f'The study "{submission.title}" has been submitted.'
                 )
-                message.recipients.set([submission.primary_investigator])
+                message.recipients.add(submission.primary_investigator)
                 for assistant in submission.research_assistants.all():
-                    message = Message.objects.create(
+                    assistant_message = Message.objects.create(
                         sender=request.user,
                         subject='Study Submitted',
                         body=f'The study "{submission.title}" has been submitted.'
                     )
-                    message.recipients.set([assistant.user])
+                    assistant_message.recipients.add(assistant.user)
                 return redirect('submission:dashboard')
             else:
                 messages.error(request, 'Cannot submit due to missing or expired documents: ' + ', '.join(missing_docs))
@@ -211,7 +187,9 @@ def submission_forms(request, submission_id):
             # Pre-fill form data if it exists
             initial_data = {
                 entry.field_name: entry.value
-                for entry in FormDataEntry.objects.filter(submission=submission, form=dynamic_form)
+                for entry in FormDataEntry.objects.filter(
+                    submission=submission, form=dynamic_form, version=submission.version
+                )
             }
             form_instance = django_form_class(initial=initial_data, prefix=f'form_{dynamic_form.id}')
             forms_list.append((dynamic_form, form_instance))
@@ -254,73 +232,45 @@ def generate_django_form(dynamic_form):
     return DjangoForm
 
 @login_required
-def submit_submission(request, submission_id):
-    submission = get_object_or_404(Submission, pk=submission_id)
-    if not has_edit_permission(request.user, submission):
-        messages.error(request, "You do not have permission to submit this submission.")
-        return redirect('submission:dashboard')
-    if submission.status != 'draft':
-        messages.error(request, "This submission has already been submitted.")
-        return redirect('submission:dashboard')
-    if request.method == 'POST':
-        all_good, missing_docs = check_researcher_documents(submission)
-        if all_good:
-            # Proceed with submission
-            submission.status = 'submitted'
-            submission.date_submitted = timezone.now()
-            submission.save()
-            messages.success(request, 'Submission completed successfully.')
-            # Send messages, lock editing, etc.
-            # Notify PI and Research Assistants
-            message = Message.objects.create(
-                sender=request.user,
-                subject='Study Submitted',
-                body=f'The study "{submission.title}" has been submitted.'
-            )
-            message.recipients.set([submission.primary_investigator])
-            for assistant in submission.research_assistants.all():
-                message = Message.objects.create(
-                    sender=request.user,
-                    subject='Study Submitted',
-                    body=f'The study "{submission.title}" has been submitted.'
-                )
-                message.recipients.set([assistant.user])
-            return redirect('submission:dashboard')
-        else:
-            messages.error(request, 'Cannot submit due to missing or expired documents: ' + ', '.join(missing_docs))
-            return redirect('submission:submission_forms', submission_id=submission_id)
-    else:
-        # Display a confirmation page
-        return render(request, 'submission/submit_submission.html', {'submission': submission})
-
-@login_required
 def dashboard(request):
-    # Make sure we're getting all necessary fields
     submissions = Submission.objects.filter(
         primary_investigator=request.user
-    ).select_related('study_type')  # Add any other related fields you need
-    
+    ).select_related('study_type')
     return render(request, 'submission/dashboard.html', {'submissions': submissions})
 
 @login_required
-def download_submission_pdf(request, submission_id):
+def edit_submission(request, submission_id):
+    print(f"Edit submission view called with ID: {submission_id}")  # Debug print
     submission = get_object_or_404(Submission, pk=submission_id)
+    print(f"Submission found: {submission}")  # Debug print
+    
+    # Check permissions
     if not has_edit_permission(request.user, submission):
-        messages.error(request, "You do not have permission to view this submission.")
+        messages.error(request, "You do not have permission to edit this submission.")
         return redirect('submission:dashboard')
-    entries = FormDataEntry.objects.filter(submission=submission)
-    context = {
+    
+    # Check if submission is editable
+    if submission.status not in ['draft', 'under_revision']:
+        messages.error(request, "This submission cannot be edited.")
+        return redirect('submission:dashboard')
+    
+    if request.method == 'POST':
+        form = SubmissionForm(request.POST, instance=submission)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Submission updated successfully.')
+            return redirect('submission:dashboard')
+    else:
+        form = SubmissionForm(instance=submission)
+    
+    # Add print statement for debugging
+    print("Rendering edit_submission.html with form:", form)
+    
+    return render(request, 'submission/edit_submission.html', {
+        'form': form,
         'submission': submission,
-        'entries': entries,
-    }
-    html_string = render_to_string('submission/submission_pdf.html', context)
-    html = HTML(string=html_string)
-    pdf = html.write_pdf()
-    response = HttpResponse(pdf, content_type='application/pdf')
-    filename = f"Submission_{submission.temporary_id}.pdf"
-    content = f"inline; filename='{filename}'"
-    response['Content-Disposition'] = content
-    return response
+        'page_title': 'Edit Submission'
+    })
 
 class UserAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
@@ -329,25 +279,25 @@ class UserAutocomplete(autocomplete.Select2QuerySetView):
             qs = qs.filter(username__icontains=self.q)
         return qs
 
-def generate_pdf(response, submission):
-    c = canvas.Canvas(response, pagesize=letter)
-    # Add your PDF content here
-    c.drawString(100, 750, f"Submission: {submission.title}")
-    c.drawString(100, 730, f"Type: {submission.study_type}")
-    # Add more content as needed
-    c.save()
-
-def pdf_view(request, submission_id):
-    submission = get_object_or_404(Submission, pk=submission_id)
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="submission_{submission_id}.pdf"'
-    generate_pdf(response, submission)
-    return response
-
 @login_required
-def edit_submission(request, submission_id):
+def download_submission_pdf(request, submission_id):
     submission = get_object_or_404(Submission, pk=submission_id)
-    if not has_edit_permission(request.user, submission):
-        messages.error(request, "You do not have permission to edit this submission.")
-        return redirect('submission:dashboard')
-    # ... rest of your edit view logic ...
+    
+    # Create the HttpResponse object with PDF headers
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="submission_{submission.temporary_id}.pdf"'
+    
+    # Create the PDF object using ReportLab
+    p = canvas.Canvas(response, pagesize=letter)
+    
+    # Add content to the PDF
+    p.drawString(100, 750, f"Submission ID: {submission.temporary_id}")
+    p.drawString(100, 730, f"Title: {submission.title}")
+    p.drawString(100, 710, f"Primary Investigator: {submission.primary_investigator.get_full_name()}")
+    p.drawString(100, 690, f"Status: {submission.get_status_display()}")
+    
+    # Add more content as needed
+    
+    p.showPage()
+    p.save()
+    return response

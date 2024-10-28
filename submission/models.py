@@ -26,10 +26,12 @@ class Submission(models.Model):
     study_type = models.ForeignKey(StudyType, on_delete=models.SET_NULL, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     date_created = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)
     date_submitted = models.DateTimeField(blank=True, null=True)
+    version = models.PositiveIntegerField(default=1)
 
     def __str__(self):
-        return f"{self.title} (ID: {self.temporary_id})"
+        return f"{self.title} (ID: {self.temporary_id}, Version: {self.version})"
 
 class CoInvestigator(models.Model):
     submission = models.ForeignKey(
@@ -77,3 +79,4 @@ class FormDataEntry(models.Model):
 
     def __str__(self):
         return f"{self.submission} - {self.form.name} - {self.field_name}"
+
