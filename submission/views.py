@@ -67,35 +67,34 @@ def start_submission(request):
 def add_research_assistant(request, submission_id):
     submission = get_object_or_404(Submission, pk=submission_id)
     
-    if not has_edit_permission(request.user, submission):
-        messages.error(request, "You do not have permission to edit this submission.")
-        return redirect('submission:dashboard')
-        
     if request.method == 'POST':
         form = ResearchAssistantForm(request.POST)
         action = request.POST.get('action')
         
+        if action == 'back':
+            # Add logic for back button - return to previous page
+            return redirect('submission:previous_step', submission_id=submission.temporary_id)
+            
         if action == 'exit_no_save':
             return redirect('submission:dashboard')
             
         if form.is_valid():
             assistant_user = form.cleaned_data['assistant']
-            ResearchAssistant.objects.create(
-                submission=submission,
-                user=assistant_user,
-                can_submit=form.cleaned_data['can_submit'],
-                can_edit=form.cleaned_data['can_edit'],
-                can_view_communications=form.cleaned_data['can_view_communications']
-            )
-            messages.success(request, 'Research assistant added.')
+            if assistant_user:  # Only create if an assistant was selected
+                ResearchAssistant.objects.create(
+                    submission=submission,
+                    user=assistant_user,
+                    can_submit=form.cleaned_data['can_submit'],
+                    can_edit=form.cleaned_data['can_edit'],
+                    can_view_communications=form.cleaned_data['can_view_communications']
+                )
+                messages.success(request, 'Research assistant added successfully.')
             
             if action == 'save_exit':
                 return redirect('submission:dashboard')
             elif action == 'save_continue':
-                # Proceed to co-investigator page
-                return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
-            else:
-                # Stay on the same page to add more research assistants
+                return redirect('submission:next_step', submission_id=submission.temporary_id)
+            elif action == 'save_add_another':
                 return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
     else:
         form = ResearchAssistantForm()
@@ -361,3 +360,4 @@ def update_coinvestigator_order(request, submission_id):
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
     return JsonResponse({'error': 'Invalid request'}, status=400)
+

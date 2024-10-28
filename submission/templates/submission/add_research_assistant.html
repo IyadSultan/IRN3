@@ -33,10 +33,30 @@
                         {% csrf_token %}
                         {{ form|crispy }}
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                            <button type="submit" name="action" value="save" class="btn btn-success me-md-2">Add Another</button>
-                            <button type="submit" name="action" value="save_exit" class="btn btn-primary me-md-2">Save and Exit</button>
-                            <button type="submit" name="action" value="save_continue" class="btn btn-primary me-md-2">Save and Continue</button>
-                            <button type="submit" name="action" value="exit_no_save" class="btn btn-secondary">Exit without Saving</button>
+                            <!-- Left-most button (gray) -->
+                            <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
+                                <i class="fas fa-arrow-left"></i> Back
+                            </button>
+
+                            <!-- Exit without saving (red) -->
+                            <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
+                                <i class="fas fa-times"></i> Exit without Saving
+                            </button>
+
+                            <!-- Save and exit (blue) -->
+                            <button type="submit" name="action" value="save_exit" class="btn btn-primary me-md-2">
+                                <i class="fas fa-save"></i> Save and Exit
+                            </button>
+
+                            <!-- Add Another button -->
+                            <button type="submit" name="action" value="save_add_another" class="btn btn-info me-md-2">
+                                <i class="fas fa-plus"></i> Add Another
+                            </button>
+
+                            <!-- Right-most button (green) -->
+                            <button type="submit" name="action" value="save_continue" class="btn btn-success">
+                                <i class="fas fa-arrow-right"></i> Save and Continue
+                            </button>
                         </div>
                     </form>
                 </div>
