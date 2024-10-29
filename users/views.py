@@ -11,22 +11,41 @@ from django.urls import reverse
 import os
 import mimetypes
 from django.conf import settings
+from django.db import transaction
 
 
 def register(request):
     if request.method == 'POST':
         user_form = UserRegistrationForm(request.POST)
         profile_form = UserProfileForm(request.POST, request.FILES)
+        
         if user_form.is_valid() and profile_form.is_valid():
-            user = user_form.save()
-            profile = profile_form.save(commit=False)
-            profile.user = user
-            profile.save()
-            messages.success(request, 'Registration successful. Awaiting approval from administrator.')
-            return redirect('users:login')
+            try:
+                with transaction.atomic():
+                    # Create user first
+                    user = user_form.save(commit=False)
+                    # Split the full name into parts for the User model
+                    full_name_parts = user_form.cleaned_data['full_name'].split()
+                    user.first_name = full_name_parts[0]
+                    user.last_name = ' '.join(full_name_parts[1:])
+                    user.save()
+                    
+                    # Update the existing profile instead of creating a new one
+                    profile = user.userprofile  # Get the profile created by the signal
+                    profile_form = UserProfileForm(request.POST, request.FILES, instance=profile)
+                    if profile_form.is_valid():
+                        profile = profile_form.save(commit=False)
+                        profile.full_name = user_form.cleaned_data['full_name']
+                        profile.save()
+                    
+                    messages.success(request, 'Registration successful. Awaiting approval from administrator.')
+                    return redirect('users:login')
+            except Exception as e:
+                messages.error(request, f'An error occurred during registration: {str(e)}')
     else:
         user_form = UserRegistrationForm()
         profile_form = UserProfileForm()
+    
     context = {
         'user_form': user_form,
         'profile_form': profile_form,

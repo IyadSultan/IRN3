@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Submission Review{% endblock %}
+{% block content %}
+<h1>Submission Review</h1>
+<h2>Investigators and Qualifications</h2>
+<ul>
+    <li>Primary Investigator: {{ submission.primary_investigator.get_full_name }}</li>
+    {% for co in coinvestigators %}
+    <li>Co-Investigator: {{ co.user.get_full_name }} - Role: {{ co.role_in_study }}</li>
+    {% endfor %}
+</ul>
+<h2>Research Assistants</h2>
+<ul>
+    {% for ra in research_assistants %}
+    <li>{{ ra.user.get_full_name }}</li>
+    {% endfor %}
+</ul>
+<h2>Forms Filled</h2>
+<ul>
+    {% for form in forms_filled %}
+    <li>{{ form.name }}</li>
+    {% endfor %}
+</ul>
+<h2>Qualifications</h2>
+<ul>
+    {% for doc in missing_docs %}
+    <li style="color:red;">Missing or invalid: {{ doc }}</li>
+    {% endfor %}
+</ul>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" name="action" value="submit" {% if not can_submit %}disabled{% endif %} style="background-color: {% if can_submit %}green{% else %}gray{% endif %};">
+        Submit
+    </button>
+</form>
+{% endblock %}

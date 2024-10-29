@@ -5,7 +5,6 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.contrib.auth.models import User
-from django.template.loader import render_to_string
 from django.http import HttpResponse, JsonResponse
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -19,18 +18,23 @@ from forms_builder.models import DynamicForm
 from messaging.models import Message
 
 @login_required
-def start_submission(request):
+def start_submission(request, submission_id=None):
+    if submission_id:
+        submission = get_object_or_404(Submission, pk=submission_id)
+        if not has_edit_permission(request.user, submission):
+            messages.error(request, "You do not have permission to edit this submission.")
+            return redirect('submission:dashboard')
+    else:
+        submission = None
+
     if request.method == 'POST':
-        form = SubmissionForm(request.POST)
+        form = SubmissionForm(request.POST, instance=submission)
         action = request.POST.get('action')
-        
         if action == 'exit_no_save':
             return redirect('submission:dashboard')
-            
         if form.is_valid():
             submission = form.save(commit=False)
             is_pi = form.cleaned_data['is_primary_investigator']
-            
             if is_pi:
                 submission.primary_investigator = request.user
             else:
@@ -39,11 +43,9 @@ def start_submission(request):
                     submission.primary_investigator = pi_user
                 else:
                     messages.error(request, 'Please select a primary investigator.')
-                    return render(request, 'submission/start_submission.html', {'form': form})
-            
+                    return render(request, 'submission/start_submission.html', {'form': form, 'submission': submission})
             submission.save()
             messages.success(request, f'Temporary submission ID {submission.temporary_id} generated.')
-            
             # Send notification message
             message = Message.objects.create(
                 sender=request.user,
@@ -51,108 +53,106 @@ def start_submission(request):
                 body=f'Your submission has been created with temporary ID {submission.temporary_id}.'
             )
             message.recipients.add(request.user)
-            
             # Handle different actions
             if action == 'save_exit':
                 return redirect('submission:dashboard')
             elif action == 'save_continue':
                 # Redirect to the research assistant page
                 return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
+        else:
+            messages.error(request, 'Please correct the errors below.')
     else:
-        form = SubmissionForm()
-    
-    return render(request, 'submission/start_submission.html', {'form': form})
+        form = SubmissionForm(instance=submission)
+    return render(request, 'submission/start_submission.html', {'form': form, 'submission': submission})
 
 @login_required
 def add_research_assistant(request, submission_id):
     submission = get_object_or_404(Submission, pk=submission_id)
     
     if request.method == 'POST':
-        form = ResearchAssistantForm(request.POST)
         action = request.POST.get('action')
         
+        # Handle navigation without validation
         if action == 'back':
-            # Add logic for back button - return to previous page
-            return redirect('submission:previous_step', submission_id=submission.temporary_id)
+            return redirect('submission:edit_submission', submission_id=submission.temporary_id)
             
         if action == 'exit_no_save':
             return redirect('submission:dashboard')
             
-        if form.is_valid():
-            assistant_user = form.cleaned_data['assistant']
-            if assistant_user:  # Only create if an assistant was selected
+        if action == 'save_continue':
+            return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
+        
+        # Only validate if we're trying to save data
+        if action in ['save_exit', 'save_add_another']:
+            form = ResearchAssistantForm(request.POST)
+            if form.is_valid() and form.cleaned_data.get('assistant'):
                 ResearchAssistant.objects.create(
                     submission=submission,
-                    user=assistant_user,
+                    user=form.cleaned_data['assistant'],
                     can_submit=form.cleaned_data['can_submit'],
                     can_edit=form.cleaned_data['can_edit'],
                     can_view_communications=form.cleaned_data['can_view_communications']
                 )
                 messages.success(request, 'Research assistant added successfully.')
-            
-            if action == 'save_exit':
-                return redirect('submission:dashboard')
-            elif action == 'save_continue':
-                return redirect('submission:next_step', submission_id=submission.temporary_id)
-            elif action == 'save_add_another':
-                return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
-    else:
-        form = ResearchAssistantForm()
-        
-    assistants = submission.research_assistants.all()
+                
+                if action == 'save_exit':
+                    return redirect('submission:dashboard')
+                else:  # save_add_another
+                    return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
+    
+    form = ResearchAssistantForm()
+    assistants = ResearchAssistant.objects.filter(submission=submission)
     return render(request, 'submission/add_research_assistant.html', {
         'form': form,
-        'assistants': assistants,
-        'submission': submission
+        'submission': submission,
+        'assistants': assistants
     })
 
 @login_required
 def add_coinvestigator(request, submission_id):
     submission = get_object_or_404(Submission, pk=submission_id)
     
-    if not has_edit_permission(request.user, submission):
-        messages.error(request, "You do not have permission to edit this submission.")
-        return redirect('submission:dashboard')
-        
     if request.method == 'POST':
-        form = CoInvestigatorForm(request.POST)
         action = request.POST.get('action')
         
+        # Handle navigation without validation
+        if action == 'back':
+            return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
+            
         if action == 'exit_no_save':
             return redirect('submission:dashboard')
             
-        if form.is_valid():
-            investigator_user = form.cleaned_data['investigator']
-            role_in_study = form.cleaned_data['role_in_study']
-            order = submission.coinvestigators.count() + 1
-            
-            CoInvestigator.objects.create(
-                submission=submission,
-                user=investigator_user,
-                role_in_study=role_in_study,
-                can_submit=form.cleaned_data['can_submit'],
-                can_edit=form.cleaned_data['can_edit'],
-                can_view_communications=form.cleaned_data['can_view_communications'],
-                order=order
-            )
-            messages.success(request, 'Co-investigator added successfully.')
-            
-            if action == 'save_exit':
-                return redirect('submission:dashboard')
-            elif action == 'save_continue':
-                # Proceed to forms page
-                return redirect('submission:submission_forms', submission_id=submission.temporary_id)
-            else:
-                # Stay on the same page to add more co-investigators
-                return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
-    else:
-        form = CoInvestigatorForm()
+        if action == 'save_continue':
+            return redirect('submission:submission_forms', submission_id=submission.temporary_id)
+        
+        # Only validate and save if we're trying to save data
+        if action in ['save_exit', 'save_add_another']:
+            form = CoInvestigatorForm(request.POST)
+            if form.is_valid():
+                investigator = form.cleaned_data.get('investigator')
+                # Only create record if an investigator was selected
+                if investigator:
+                    CoInvestigator.objects.create(
+                        submission=submission,
+                        user=investigator,
+                        role_in_study=form.cleaned_data.get('role_in_study', ''),
+                        can_submit=form.cleaned_data.get('can_submit', False),
+                        can_edit=form.cleaned_data.get('can_edit', False),
+                        can_view_communications=form.cleaned_data.get('can_view_communications', False)
+                    )
+                    messages.success(request, 'Co-investigator added successfully.')
+                
+                if action == 'save_exit':
+                    return redirect('submission:dashboard')
+                else:  # save_add_another
+                    return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
     
-    coinvestigators = submission.coinvestigators.all().order_by('order')
+    form = CoInvestigatorForm()
+    coinvestigators = CoInvestigator.objects.filter(submission=submission)
     return render(request, 'submission/add_coinvestigator.html', {
         'form': form,
-        'coinvestigators': coinvestigators,
-        'submission': submission
+        'submission': submission,
+        'coinvestigators': coinvestigators
     })
 
 @login_required
@@ -184,14 +184,47 @@ def submission_forms(request, submission_id):
         if action == 'save_exit':
             return redirect('submission:dashboard')
         elif action == 'save_continue':
-            # Proceed to next step or reload forms
-            pass
+            # Proceed to submission review page
+            return redirect('submission:submission_review', submission_id=submission.temporary_id)
         elif action == 'exit_no_save':
             return redirect('submission:dashboard')
-        elif action == 'submit':
-            # Check researcher documents before submission
-            all_good, missing_docs = check_researcher_documents(submission)
-            if all_good:
+    else:
+        # Render forms
+        forms_list = []
+        for dynamic_form in dynamic_forms:
+            django_form_class = generate_django_form(dynamic_form)
+            # Pre-fill form data if it exists
+            initial_data = {
+                entry.field_name: entry.value
+                for entry in FormDataEntry.objects.filter(
+                    submission=submission, form=dynamic_form, version=submission.version
+                )
+            }
+            form_instance = django_form_class(initial=initial_data, prefix=f'form_{dynamic_form.id}')
+            forms_list.append((dynamic_form, form_instance))
+    return render(request, 'submission/submission_forms.html', {
+        'forms_list': forms_list,
+        'submission': submission
+    })
+
+@login_required
+def submission_review(request, submission_id):
+    submission = get_object_or_404(Submission, pk=submission_id)
+    if not has_edit_permission(request.user, submission):
+        messages.error(request, "You do not have permission to review this submission.")
+        return redirect('submission:dashboard')
+    # Gather necessary data
+    coinvestigators = submission.coinvestigators.all()
+    research_assistants = submission.research_assistants.all()
+    forms_filled = submission.study_type.forms.all()
+    # Check qualifications
+    all_good, missing_docs = check_researcher_documents(submission)
+    # Determine the submission button state
+    can_submit = all_good
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'submit':
+            if can_submit:
                 submission.status = 'submitted'
                 submission.date_submitted = timezone.now()
                 submission.version += 1
@@ -215,23 +248,13 @@ def submission_forms(request, submission_id):
                 return redirect('submission:dashboard')
             else:
                 messages.error(request, 'Cannot submit due to missing or expired documents: ' + ', '.join(missing_docs))
-    else:
-        # Render forms
-        forms_list = []
-        for dynamic_form in dynamic_forms:
-            django_form_class = generate_django_form(dynamic_form)
-            # Pre-fill form data if it exists
-            initial_data = {
-                entry.field_name: entry.value
-                for entry in FormDataEntry.objects.filter(
-                    submission=submission, form=dynamic_form, version=submission.version
-                )
-            }
-            form_instance = django_form_class(initial=initial_data, prefix=f'form_{dynamic_form.id}')
-            forms_list.append((dynamic_form, form_instance))
-    return render(request, 'submission/submission_forms.html', {
-        'forms_list': forms_list,
-        'submission': submission
+    return render(request, 'submission/submission_review.html', {
+        'submission': submission,
+        'coinvestigators': coinvestigators,
+        'research_assistants': research_assistants,
+        'forms_filled': forms_filled,
+        'can_submit': can_submit,
+        'missing_docs': missing_docs
     })
 
 def generate_django_form(dynamic_form):
@@ -276,43 +299,12 @@ def dashboard(request):
 
 @login_required
 def edit_submission(request, submission_id):
-    print(f"Edit submission view called with ID: {submission_id}")  # Debug print
-    submission = get_object_or_404(Submission, pk=submission_id)
-    print(f"Submission found: {submission}")  # Debug print
-    
-    # Check permissions
-    if not has_edit_permission(request.user, submission):
-        messages.error(request, "You do not have permission to edit this submission.")
-        return redirect('submission:dashboard')
-    
-    # Check if submission is editable
-    if submission.status not in ['draft', 'under_revision']:
-        messages.error(request, "This submission cannot be edited.")
-        return redirect('submission:dashboard')
-    
-    if request.method == 'POST':
-        form = SubmissionForm(request.POST, instance=submission)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Submission updated successfully.')
-            return redirect('submission:dashboard')
-    else:
-        form = SubmissionForm(instance=submission)
-    
-    # Add print statement for debugging
-    print("Rendering edit_submission.html with form:", form)
-    
-    return render(request, 'submission/edit_submission.html', {
-        'form': form,
-        'submission': submission,
-        'page_title': 'Edit Submission'
-    })
+    return redirect('submission:start_submission', submission_id=submission_id)
 
 class UserAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
         if not self.request.user.is_authenticated:
             return User.objects.none()
-
         qs = User.objects.all()
         if self.q:
             qs = qs.filter(username__icontains=self.q)
@@ -321,22 +313,20 @@ class UserAutocomplete(autocomplete.Select2QuerySetView):
 @login_required
 def download_submission_pdf(request, submission_id):
     submission = get_object_or_404(Submission, pk=submission_id)
-    
+    if not has_edit_permission(request.user, submission):
+        messages.error(request, "You do not have permission to view this submission.")
+        return redirect('submission:dashboard')
     # Create the HttpResponse object with PDF headers
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="submission_{submission.temporary_id}.pdf"'
-    
     # Create the PDF object using ReportLab
     p = canvas.Canvas(response, pagesize=letter)
-    
     # Add content to the PDF
     p.drawString(100, 750, f"Submission ID: {submission.temporary_id}")
     p.drawString(100, 730, f"Title: {submission.title}")
     p.drawString(100, 710, f"Primary Investigator: {submission.primary_investigator.get_full_name()}")
     p.drawString(100, 690, f"Status: {submission.get_status_display()}")
-    
     # Add more content as needed
-    
     p.showPage()
     p.save()
     return response
@@ -345,10 +335,8 @@ def download_submission_pdf(request, submission_id):
 def update_coinvestigator_order(request, submission_id):
     if request.method == 'POST':
         submission = get_object_or_404(Submission, pk=submission_id)
-        
         if not has_edit_permission(request.user, submission):
             return JsonResponse({'error': 'Permission denied'}, status=403)
-            
         try:
             order = json.loads(request.POST.get('order', '[]'))
             for index, coinvestigator_id in enumerate(order):

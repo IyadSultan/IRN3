@@ -3,14 +3,28 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import UserProfile, Document
+from .models import UserProfile, Document, validate_full_name
+from django.core.exceptions import ValidationError
 
 class UserRegistrationForm(UserCreationForm):
-    email = forms.EmailField()
-
+    full_name = forms.CharField(
+        max_length=255,
+        required=True,
+        help_text='Enter your full name (at least three names)'
+    )
+    
     class Meta:
         model = User
-        fields = ['username', 'email', 'password1', 'password2']
+        fields = ('username', 'full_name', 'email', 'password1', 'password2')
+
+    def clean_full_name(self):
+        full_name = self.cleaned_data.get('full_name')
+        if full_name:
+            try:
+                validate_full_name(full_name)
+            except ValidationError as e:
+                raise forms.ValidationError(str(e))
+        return full_name
 
 class UserProfileForm(forms.ModelForm):
     class Meta:

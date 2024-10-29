@@ -43,31 +43,24 @@
                     {% if coinvestigators %}
                     <div class="mb-4">
                         <h5>Current Co-Investigators:</h5>
-                        <ul class="list-group" id="coinvestigator-list">
-                            {% for coinvestigator in coinvestigators %}
-                            <li class="list-group-item coinvestigator-item" data-id="{{ coinvestigator.id }}">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <i class="fas fa-grip-vertical drag-handle"></i>
-                                        <strong>{{ coinvestigator.user.get_full_name }}</strong>
-                                        <br>
-                                        <small class="text-muted">Role: {{ coinvestigator.role_in_study }}</small>
-                                    </div>
-                                    <div>
-                                        <span class="badge bg-secondary me-1">
-                                            {% if coinvestigator.can_submit %}Can Submit{% endif %}
-                                        </span>
-                                        <span class="badge bg-secondary me-1">
-                                            {% if coinvestigator.can_edit %}Can Edit{% endif %}
-                                        </span>
-                                        <span class="badge bg-secondary">
-                                            {% if coinvestigator.can_view_communications %}Can View Communications{% endif %}
-                                        </span>
-                                    </div>
-                                </div>
-                            </li>
-                            {% endfor %}
-                        </ul>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Role in Study</th>
+                                    <th>Order</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for co in coinvestigators %}
+                                <tr>
+                                    <td>{{ co.user.get_full_name }}</td>
+                                    <td>{{ co.role_in_study }}</td>
+                                    <td>{{ co.order }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                     {% endif %}
 
@@ -75,8 +68,7 @@
                         {% csrf_token %}
                         {{ form|crispy }}
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                            <!-- Left-most button (gray) -->
-                            <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
+                            <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2" formnovalidate>
                                 <i class="fas fa-arrow-left"></i> Back
                             </button>
 
@@ -96,7 +88,7 @@
                             </button>
 
                             <!-- Right-most button (green) -->
-                            <button type="submit" name="action" value="save_continue" class="btn btn-success">
+                            <button type="submit" name="action" value="save_continue" class="btn btn-success" formnovalidate>
                                 <i class="fas fa-arrow-right"></i> Save and Continue
                             </button>
                         </div>

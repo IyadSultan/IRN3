@@ -14,18 +14,26 @@
                     {% if assistants %}
                     <div class="mb-4">
                         <h5>Current Research Assistants:</h5>
-                        <ul class="list-group">
-                            {% for assistant in assistants %}
-                            <li class="list-group-item">
-                                {{ assistant.user.get_full_name }}
-                                <span class="badge bg-secondary">
-                                    {% if assistant.can_submit %}Can Submit{% endif %}
-                                    {% if assistant.can_edit %}Can Edit{% endif %}
-                                    {% if assistant.can_view_communications %}Can View Communications{% endif %}
-                                </span>
-                            </li>
-                            {% endfor %}
-                        </ul>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Can Submit</th>
+                                    <th>Can Edit</th>
+                                    <th>Can View Communications</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for assistant in assistants %}
+                                <tr>
+                                    <td>{{ assistant.user.get_full_name }}</td>
+                                    <td>{% if assistant.can_submit %}Yes{% else %}No{% endif %}</td>
+                                    <td>{% if assistant.can_edit %}Yes{% else %}No{% endif %}</td>
+                                    <td>{% if assistant.can_view_communications %}Yes{% else %}No{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                     {% endif %}
 
@@ -33,8 +41,7 @@
                         {% csrf_token %}
                         {{ form|crispy }}
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                            <!-- Left-most button (gray) -->
-                            <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
+                            <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2" formnovalidate>
                                 <i class="fas fa-arrow-left"></i> Back
                             </button>
 
@@ -54,7 +61,7 @@
                             </button>
 
                             <!-- Right-most button (green) -->
-                            <button type="submit" name="action" value="save_continue" class="btn btn-success">
+                            <button type="submit" name="action" value="save_continue" class="btn btn-success" formnovalidate>
                                 <i class="fas fa-arrow-right"></i> Save and Continue
                             </button>
                         </div>
