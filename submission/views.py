@@ -234,52 +234,16 @@ def submission_forms(request, submission_id):
 @login_required
 def submission_review(request, submission_id):
     submission = get_object_or_404(Submission, pk=submission_id)
-    if not has_edit_permission(request.user, submission):
-        messages.error(request, "You do not have permission to review this submission.")
-        return redirect('submission:dashboard')
-    # Gather necessary data
-    coinvestigators = submission.coinvestigators.all()
-    research_assistants = submission.research_assistants.all()
-    forms_filled = submission.study_type.forms.all()
-    # Check qualifications
-    all_good, missing_docs = check_researcher_documents(submission)
-    # Determine the submission button state
-    can_submit = all_good
-    if request.method == 'POST':
-        action = request.POST.get('action')
-        if action == 'submit':
-            if can_submit:
-                submission.status = 'submitted'
-                submission.date_submitted = timezone.now()
-                submission.version += 1
-                submission.save()
-                messages.success(request, 'Submission completed successfully.')
-                # Send messages, lock editing, etc.
-                # Notify PI and Research Assistants
-                message = Message.objects.create(
-                    sender=request.user,
-                    subject='Study Submitted',
-                    body=f'The study "{submission.title}" has been submitted.'
-                )
-                message.recipients.add(submission.primary_investigator)
-                for assistant in submission.research_assistants.all():
-                    assistant_message = Message.objects.create(
-                        sender=request.user,
-                        subject='Study Submitted',
-                        body=f'The study "{submission.title}" has been submitted.'
-                    )
-                    assistant_message.recipients.add(assistant.user)
-                return redirect('submission:dashboard')
-            else:
-                messages.error(request, 'Cannot submit due to missing or expired documents: ' + ', '.join(missing_docs))
-    return render(request, 'submission/submission_review.html', {
+    
+    # Check documents for all researchers
+    missing_documents = check_researcher_documents(submission)
+    
+    context = {
         'submission': submission,
-        'coinvestigators': coinvestigators,
-        'research_assistants': research_assistants,
-        'forms_filled': forms_filled,
-        'can_submit': can_submit,
-        'missing_docs': missing_docs
-    })
+        'missing_documents': missing_documents,
+    }
+    
+    return render(request, 'submission/review.html', context)
 
 def generate_django_form(dynamic_form):
     from django import forms
@@ -308,37 +272,55 @@ def generate_django_form(dynamic_form):
                 widget=forms.TextInput(attrs=widget_attrs),
                 **field_attrs
             )
-        elif field.field_type == 'number':
-            fields[field.name] = forms.DecimalField(
+        elif field.field_type == 'email':
+            fields[field.name] = forms.EmailField(
+                max_length=field.max_length or 255,
                 initial=field.default_value,
-                widget=forms.NumberInput(attrs=widget_attrs),
+                widget=forms.EmailInput(attrs=widget_attrs),
                 **field_attrs
             )
-        elif field.field_type == 'date':
-            date_attrs = widget_attrs.copy()
-            date_attrs['type'] = 'date'
-            fields[field.name] = forms.DateField(
+        elif field.field_type == 'tel':
+            fields[field.name] = forms.CharField(
+                max_length=field.max_length or 15,
                 initial=field.default_value,
-                widget=forms.DateInput(attrs=date_attrs),
+                widget=forms.TextInput(attrs={'class': 'form-control', 'type': 'tel'}),
                 **field_attrs
             )
-        elif field.field_type in ['choice', 'dropdown']:
+        elif field.field_type == 'textarea':
+            fields[field.name] = forms.CharField(
+                max_length=field.max_length or 500,
+                initial=field.default_value,
+                widget=forms.Textarea(attrs=widget_attrs),
+                **field_attrs
+            )
+        elif field.field_type == 'checkbox':
             choices = [(choice.strip(), choice.strip()) 
                       for choice in field.choices.split(',') if choice.strip()]
-            if field.field_type == 'choice':
-                fields[field.name] = forms.MultipleChoiceField(
-                    choices=choices,
-                    initial=field.default_value,
-                    widget=forms.CheckboxSelectMultiple(attrs=widget_attrs),
-                    **field_attrs
-                )
-            else:  # dropdown
-                fields[field.name] = forms.ChoiceField(
-                    choices=[('', '-- Select --')] + choices,
-                    initial=field.default_value,
-                    widget=forms.Select(attrs=widget_attrs),
-                    **field_attrs
-                )
+            fields[field.name] = forms.MultipleChoiceField(
+                choices=choices,
+                initial=field.default_value,
+                widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+                **field_attrs
+            )
+        elif field.field_type == 'radio':
+            choices = [(choice.strip(), choice.strip()) 
+                      for choice in field.choices.split(',') if choice.strip()]
+            fields[field.name] = forms.ChoiceField(
+                choices=choices,
+                initial=field.default_value,
+                widget=forms.RadioSelect(attrs={'class': 'form-check-input'}),
+                **field_attrs
+            )
+        elif field.field_type == 'select':
+            choices = [(choice.strip(), choice.strip()) 
+                      for choice in field.choices.split(',') if choice.strip()]
+            fields[field.name] = forms.ChoiceField(
+                choices=[('', '-- Select --')] + choices,
+                initial=field.default_value,
+                widget=forms.Select(attrs=widget_attrs),
+                **field_attrs
+            )
+        # ... rest of the existing field types ...
 
     return type('DynamicForm', (forms.Form,), fields)
 

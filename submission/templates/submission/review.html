@@ -1,0 +1,132 @@
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Final Review - {{ submission.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% if missing_documents %}
+    <div class="alert alert-warning">
+        <h4 class="alert-heading">⚠️ Missing or Expired Documents</h4>
+        {% for role, info in missing_documents.items %}
+        <div class="mb-3">
+            <strong>{{ role }}: {{ info.name }}</strong>
+            <ul class="mb-0">
+                {% for doc in info.documents %}
+                <li>{{ doc }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endfor %}
+        <hr>
+        <p class="mb-0">All researchers must have valid documents before the submission can be reviewed.</p>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Final Review</h2>
+            <h6 class="text-muted">Submission ID: {{ submission.temporary_id }}</h6>
+        </div>
+        <div class="card-body">
+            <h4>Study Details</h4>
+            <dl class="row">
+                <dt class="col-sm-3">Title</dt>
+                <dd class="col-sm-9">{{ submission.title }}</dd>
+                
+                <dt class="col-sm-3">Primary Investigator</dt>
+                <dd class="col-sm-9">{{ submission.primary_investigator.get_full_name }}</dd>
+                
+                <dt class="col-sm-3">Study Type</dt>
+                <dd class="col-sm-9">{{ submission.study_type }}</dd>
+            </dl>
+
+            <h4>Co-Investigators</h4>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Role</th>
+                            <th>Permissions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ci in submission.coinvestigators.all %}
+                        <tr>
+                            <td>{{ ci.user.get_full_name }}</td>
+                            <td>{{ ci.role_in_study }}</td>
+                            <td>
+                                <span class="badge {% if ci.can_submit %}bg-success{% endif %} me-1">Submit</span>
+                                <span class="badge {% if ci.can_edit %}bg-primary{% endif %} me-1">Edit</span>
+                                <span class="badge {% if ci.can_view_communications %}bg-info{% endif %}">View Comms</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center">No co-investigators added</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <h4>Research Assistants</h4>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Permissions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ra in submission.research_assistants.all %}
+                        <tr>
+                            <td>{{ ra.user.get_full_name }}</td>
+                            <td>
+                                <span class="badge {% if ra.can_submit %}bg-success{% endif %} me-1">Submit</span>
+                                <span class="badge {% if ra.can_edit %}bg-primary{% endif %} me-1">Edit</span>
+                                <span class="badge {% if ra.can_view_communications %}bg-info{% endif %}">View Comms</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="2" class="text-center">No research assistants added</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <form method="post" class="mt-4">
+                {% csrf_token %}
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
+                        <i class="fas fa-arrow-left"></i> Back to Forms
+                    </button>
+                    <button type="submit" name="action" value="submit" class="btn btn-primary" 
+                            {% if missing_documents %}disabled{% endif %}>
+                        <i class="fas fa-paper-plane"></i> Submit for Review
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block extra_css %}
+<style>
+    .badge {
+        font-size: 0.8em;
+    }
+    .badge:not(.bg-success):not(.bg-primary):not(.bg-info) {
+        background-color: #6c757d;
+    }
+    .alert ul {
+        padding-left: 20px;
+    }
+</style>
+{% endblock %}
+
+{% endblock %}

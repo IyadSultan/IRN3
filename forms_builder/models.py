@@ -6,10 +6,16 @@ import json
 # Constants
 FIELD_TYPES = [
     ('text', 'Text'),
+    ('email', 'Email'),
+    ('tel', 'Telephone'),
     ('number', 'Number'),
     ('date', 'Date'),
+    ('textarea', 'Text Area'),
+    ('checkbox', 'Checkboxes'),
+    ('radio', 'Radio Buttons'),
+    ('select', 'Dropdown List'),
     ('choice', 'Multiple Choice'),
-    ('dropdown', 'Dropdown List'),
+    ('table', 'Table'),
     # Add more as needed
 ]
 

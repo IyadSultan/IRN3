@@ -5,32 +5,68 @@
 <h1>{{ title }}</h1>
 <div class="help">
     <h2>JSON Format Guide</h2>
-    <p>Each field in your form should include the following properties:</p>
+    <p>Instructions for converting forms to JSON format:</p>
     <ul>
-        <li><strong>name</strong>: The label/name of the field</li>
-        <li><strong>field_type</strong>: One of: text, number, date, choice, dropdown</li>
-        <li><strong>default_value</strong>: Initial value (can be empty)</li>
-        <li><strong>max_length</strong>: Maximum length for text fields (null for other types)</li>
-        <li><strong>choices</strong>: Array of options for choice/dropdown fields</li>
-        <li><strong>required</strong>: true/false - whether the field is mandatory</li>
-        <li><strong>help_text</strong>: Explanatory text shown below the field</li>
+        <li><strong>Field Names:</strong>
+            <ul>
+                <li>Use lowercase with underscores (snake_case)</li>
+                <li>Be descriptive but concise</li>
+                <li>Avoid spaces and special characters</li>
+                <li>Example: "principal_investigator_name" not "PI Name"</li>
+            </ul>
+        </li>
+        <li><strong>Field Types Available:</strong>
+            <ul>
+                <li><code>text</code>: Single line text input</li>
+                <li><code>textarea</code>: Multi-line text input (specify rows)</li>
+                <li><code>email</code>: Email validation</li>
+                <li><code>tel</code>: Telephone number</li>
+                <li><code>number</code>: Numeric input</li>
+                <li><code>date</code>: Date picker</li>
+                <li><code>checkbox</code>: Multiple selections</li>
+                <li><code>radio</code>: Single selection</li>
+                <li><code>select</code>: Dropdown list</li>
+                <li><code>table</code>: Tabular data input</li>
+            </ul>
+        </li>
+        <li><strong>Required Properties:</strong>
+            <ul>
+                <li><code>name</code>: Field identifier (snake_case)</li>
+                <li><code>field_type</code>: One of the types above</li>
+                <li><code>default_value</code>: Initial value (can be empty)</li>
+                <li><code>max_length</code>: For text/textarea (null for others)</li>
+                <li><code>rows</code>: For textarea fields (default: 3)</li>
+                <li><code>choices</code>: Array for checkbox/radio/select</li>
+                <li><code>required</code>: true/false</li>
+                <li><code>help_text</code>: Field description/instructions</li>
+            </ul>
+        </li>
     </ul>
 </div>
 
 <h3>Example JSON Format:</h3>
 <pre>{{ example_json }}</pre>
 
-<p><a href="javascript:window.close();" class="button">Close this window</a></p>
+<p><a href="javascript:history.back();" class="button">Back to Form</a></p>
 
 <style>
     .help {
         background: #f8f9fa;
-        padding: 15px;
+        padding: 20px;
         border-radius: 4px;
         margin-bottom: 20px;
     }
     .help ul {
         margin-left: 20px;
+    }
+    .help ul ul {
+        margin-top: 5px;
+        margin-bottom: 15px;
+    }
+    code {
+        background: #e9ecef;
+        padding: 2px 6px;
+        border-radius: 3px;
     }
 </style>
 {% endblock %}

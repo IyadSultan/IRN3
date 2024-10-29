@@ -1,0 +1,15 @@
+{% if missing_documents %}
+<div class="alert alert-warning">
+    <h4 class="alert-heading">Missing or Expired Documents</h4>
+    {% for role, info in missing_documents.items %}
+    <div class="mb-3">
+        <strong>{{ role }}: {{ info.name }}</strong>
+        <ul>
+            {% for doc in info.documents %}
+            <li>{{ doc }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+</div>
+{% endif %} 

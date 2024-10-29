@@ -3,28 +3,75 @@
 from users.models import UserProfile  # Adjust the import based on your users app
 
 def has_edit_permission(user, submission):
-    if submission.primary_investigator == user:
+    # Check if user is primary investigator
+    if user == submission.primary_investigator:
         return True
-    if submission.research_assistants.filter(user=user, can_edit=True).exists():
-        return True
+    
+    # Check if user is a co-investigator with edit permission
     if submission.coinvestigators.filter(user=user, can_edit=True).exists():
         return True
+    
+    # Check if user is a research assistant with edit permission
+    if submission.research_assistants.filter(user=user, can_edit=True).exists():
+        return True
+    
     return False
 
 def check_researcher_documents(submission):
-    from django.utils import timezone
-    all_good = True
-    missing_docs = []
-    investigator_ids = [submission.primary_investigator.id] + list(submission.coinvestigators.values_list('user__id', flat=True))
-    for user_id in investigator_ids:
-        try:
-            user_profile = UserProfile.objects.get(user__id=user_id)
-            # Check for required documents
-            if not user_profile.gcp_certificate or user_profile.gcp_certificate_is_expired():
-                all_good = False
-                missing_docs.append(f"{user_profile.user.get_full_name()}'s GCP Certificate")
-            # Add other checks as needed (e.g., consent training, CV)
-        except UserProfile.DoesNotExist:
-            all_good = False
-            missing_docs.append(f"UserProfile for user ID {user_id} does not exist.")
-    return all_good, missing_docs
+    """Check documents for all researchers involved in the submission"""
+    missing_documents = {}
+    
+    # Check primary investigator's documents
+    pi_profile = submission.primary_investigator.userprofile
+    pi_missing = []
+    if pi_profile.is_gcp_expired:
+        pi_missing.append('GCP Certificate')
+    if pi_profile.is_qrc_expired:
+        pi_missing.append('QRC Certificate')
+    if pi_profile.is_ctc_expired:
+        pi_missing.append('CTC Certificate')
+    if pi_profile.is_cv_missing:
+        pi_missing.append('CV')
+    if pi_missing:
+        missing_documents['Primary Investigator'] = {
+            'name': pi_profile.full_name,
+            'documents': pi_missing
+        }
+
+    # Check co-investigators' documents
+    for coinv in submission.coinvestigators.all():
+        coinv_profile = coinv.user.userprofile
+        coinv_missing = []
+        if coinv_profile.is_gcp_expired:
+            coinv_missing.append('GCP Certificate')
+        if coinv_profile.is_qrc_expired:
+            coinv_missing.append('QRC Certificate')
+        if coinv_profile.is_ctc_expired:
+            coinv_missing.append('CTC Certificate')
+        if coinv_profile.is_cv_missing:
+            coinv_missing.append('CV')
+        if coinv_missing:
+            missing_documents[f'Co-Investigator: {coinv.role_in_study}'] = {
+                'name': coinv_profile.full_name,
+                'documents': coinv_missing
+            }
+
+    # Check research assistants' documents
+    for ra in submission.research_assistants.all():
+        ra_profile = ra.user.userprofile
+        ra_missing = []
+        if ra_profile.is_gcp_expired:
+            ra_missing.append('GCP Certificate')
+        if ra_profile.is_qrc_expired:
+            ra_missing.append('QRC Certificate')
+        if ra_profile.is_ctc_expired:
+            ra_missing.append('CTC Certificate')
+        if ra_profile.is_cv_missing:
+            ra_missing.append('CV')
+        if ra_missing:
+            missing_documents['Research Assistant'] = {
+                'name': ra_profile.full_name,
+                'documents': ra_missing
+            }
+
+    return missing_documents
