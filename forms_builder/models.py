@@ -35,6 +35,7 @@ class DynamicForm(models.Model):
     date_created = models.DateTimeField(auto_now_add=True)
     requested_per_investigator = models.BooleanField(default=False)
     study_types = models.ManyToManyField(StudyType, related_name='forms')
+    json_input = models.TextField(blank=True, null=True)
 
     def to_json(self):
         form_dict = {
@@ -43,9 +44,11 @@ class DynamicForm(models.Model):
         for field in self.fields.all():
             field_dict = {
                 'name': field.name,
+                'displayed_name': field.displayed_name,
                 'field_type': field.field_type,
                 'default_value': field.default_value,
                 'max_length': field.max_length,
+                'rows': field.rows,
                 'choices': field.choices.split(',') if field.choices else [],
                 'required': field.required,
                 'help_text': field.help_text,
@@ -62,10 +65,22 @@ class DynamicForm(models.Model):
 
 class FormField(models.Model):
     form = models.ForeignKey(DynamicForm, related_name='fields', on_delete=models.CASCADE)
-    name = models.CharField(max_length=255)
+    name = models.CharField(
+        max_length=255,
+        help_text='Database field name (lowercase with underscores)'
+    )
+    displayed_name = models.CharField(
+        max_length=255,
+        help_text='Human-readable field name',
+        default='',
+    )
     field_type = models.CharField(max_length=20, choices=FIELD_TYPES)
     default_value = models.CharField(max_length=255, blank=True, null=True)
     max_length = models.PositiveIntegerField(blank=True, null=True)
+    rows = models.PositiveIntegerField(
+        default=3,
+        help_text='Number of rows for textarea fields'
+    )
     choices = models.TextField(
         blank=True,
         null=True,
@@ -83,7 +98,7 @@ class FormField(models.Model):
 
     def __str__(self):
         required_mark = '*' if self.required else ''
-        return f"{self.name}{required_mark} ({self.get_field_type_display()})"
+        return f"{self.displayed_name}{required_mark} ({self.get_field_type_display()})"
 
     class Meta:
         verbose_name = 'Form Field'

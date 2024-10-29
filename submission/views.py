@@ -250,7 +250,7 @@ def generate_django_form(dynamic_form):
     fields = {}
     for field in dynamic_form.fields.all():
         # Prepare the label with asterisk for required fields
-        label = f"{field.name}{'*' if field.required else ''}"
+        label = f"{field.displayed_name}{'*' if field.required else ''}"
         
         # Common field attributes
         field_attrs = {

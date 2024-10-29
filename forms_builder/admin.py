@@ -17,11 +17,15 @@ class StudyTypeAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
 class DynamicFormAdminForm(forms.ModelForm):
-    json_input = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 20, 'cols': 80}),
-        help_text='Enter form data in JSON format. <a href="../example_json/" target="_blank">View Example JSON Format</a>.',
-        required=False
-    )
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Generate the correct admin URL
+        example_json_url = reverse('admin:forms_builder_dynamicform_example_json')
+        self.fields['json_input'] = forms.CharField(
+            widget=forms.Textarea(attrs={'rows': 20, 'cols': 80}),
+            help_text=f'Enter form data in JSON format. <a href="{example_json_url}" target="_blank">View Example JSON Format</a>.',
+            required=False
+        )
 
     class Meta:
         model = DynamicForm
@@ -37,6 +41,8 @@ class DynamicFormAdminForm(forms.ModelForm):
                 for field in data['fields']:
                     if 'name' not in field or 'field_type' not in field:
                         raise forms.ValidationError("Each field must contain 'name' and 'field_type'.")
+                    if 'displayed_name' not in field:
+                        field['displayed_name'] = field['name']  # Use name as fallback
             except json.JSONDecodeError as e:
                 raise forms.ValidationError(f"Invalid JSON format: {str(e)}")
         else:
@@ -64,10 +70,12 @@ class DynamicFormAdmin(VersionAdmin):
             data = json.loads(json_input)
             obj.fields.all().delete()
             for field_data in data.get('fields', []):
-                field_name = field_data.get('name')
+                field_name = field_data.get('name', '').lower().replace(' ', '_')
+                displayed_name = field_data.get('displayed_name', field_data.get('name'))
                 field_type = field_data.get('field_type')
                 default_value = field_data.get('default_value', '')
                 max_length = field_data.get('max_length')
+                rows = field_data.get('rows', 3)
                 choices = field_data.get('choices', [])
                 choices_str = ','.join(choices) if choices else ''
                 required = field_data.get('required', False)
@@ -76,9 +84,11 @@ class DynamicFormAdmin(VersionAdmin):
                 FormField.objects.create(
                     form=obj,
                     name=field_name,
+                    displayed_name=displayed_name,
                     field_type=field_type,
                     default_value=default_value,
                     max_length=max_length,
+                    rows=rows,
                     choices=choices_str,
                     required=required,
                     help_text=help_text
@@ -92,7 +102,8 @@ class DynamicFormAdmin(VersionAdmin):
             form.base_fields['json_input'].initial = '''{
   "fields": [
     {
-      "name": "Field Name",
+      "name": "field_name",
+      "displayed_name": "Field Display Name",
       "field_type": "text",
       "default_value": "",
       "max_length": 255,
@@ -116,58 +127,25 @@ class DynamicFormAdmin(VersionAdmin):
         example_json = '''{
   "fields": [
     {
-      "name": "Patient ID",
+      "name": "research_title",
+      "displayed_name": "Research Title",
       "field_type": "text",
       "default_value": "",
-      "max_length": 50,
+      "max_length": 255,
       "choices": [],
       "required": true,
-      "help_text": "Enter the unique patient identifier (required)"
+      "help_text": "Enter the full title of the research project"
     },
     {
-      "name": "Age",
-      "field_type": "number",
+      "name": "project_description",
+      "displayed_name": "Project Description",
+      "field_type": "textarea",
       "default_value": "",
-      "max_length": null,
+      "max_length": 2000,
+      "rows": 5,
       "choices": [],
       "required": true,
-      "help_text": "Enter patient's age in years"
-    },
-    {
-      "name": "Admission Date",
-      "field_type": "date",
-      "default_value": "",
-      "max_length": null,
-      "choices": [],
-      "required": true,
-      "help_text": "Select the date of admission"
-    },
-    {
-      "name": "Treatment Type",
-      "field_type": "dropdown",
-      "default_value": "",
-      "max_length": null,
-      "choices": ["Chemotherapy", "Radiation", "Surgery", "Combined"],
-      "required": true,
-      "help_text": "Select the primary treatment method"
-    },
-    {
-      "name": "Symptoms",
-      "field_type": "choice",
-      "default_value": "",
-      "max_length": null,
-      "choices": ["Pain", "Fatigue", "Nausea", "Loss of Appetite", "Other"],
-      "required": false,
-      "help_text": "Select all applicable symptoms (optional)"
-    },
-    {
-      "name": "Additional Notes",
-      "field_type": "text",
-      "default_value": "",
-      "max_length": 500,
-      "choices": [],
-      "required": false,
-      "help_text": "Any additional observations or notes (optional)"
+      "help_text": "Provide a detailed description of the research project"
     }
   ]
 }'''
