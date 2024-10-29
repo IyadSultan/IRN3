@@ -21,6 +21,7 @@
                                     <th>Can Submit</th>
                                     <th>Can Edit</th>
                                     <th>Can View Communications</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -30,6 +31,17 @@
                                     <td>{% if assistant.can_submit %}Yes{% else %}No{% endif %}</td>
                                     <td>{% if assistant.can_edit %}Yes{% else %}No{% endif %}</td>
                                     <td>{% if assistant.can_view_communications %}Yes{% else %}No{% endif %}</td>
+                                    <td>
+                                        <form method="post" style="display: inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="assistant_id" value="{{ assistant.id }}">
+                                            <button type="submit" name="action" value="delete_assistant" 
+                                                    class="btn btn-danger btn-sm" 
+                                                    onclick="return confirm('Are you sure you want to remove this research assistant?')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

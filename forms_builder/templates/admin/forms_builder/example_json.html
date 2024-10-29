@@ -3,7 +3,34 @@
 
 {% block content %}
 <h1>{{ title }}</h1>
-<p>You can use the following example as a template when entering new forms in JSON format:</p>
+<div class="help">
+    <h2>JSON Format Guide</h2>
+    <p>Each field in your form should include the following properties:</p>
+    <ul>
+        <li><strong>name</strong>: The label/name of the field</li>
+        <li><strong>field_type</strong>: One of: text, number, date, choice, dropdown</li>
+        <li><strong>default_value</strong>: Initial value (can be empty)</li>
+        <li><strong>max_length</strong>: Maximum length for text fields (null for other types)</li>
+        <li><strong>choices</strong>: Array of options for choice/dropdown fields</li>
+        <li><strong>required</strong>: true/false - whether the field is mandatory</li>
+        <li><strong>help_text</strong>: Explanatory text shown below the field</li>
+    </ul>
+</div>
+
+<h3>Example JSON Format:</h3>
 <pre>{{ example_json }}</pre>
-<p><a href="javascript:window.close();">Close this window</a></p>
+
+<p><a href="javascript:window.close();" class="button">Close this window</a></p>
+
+<style>
+    .help {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    .help ul {
+        margin-left: 20px;
+    }
+</style>
 {% endblock %}

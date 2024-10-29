@@ -70,13 +70,18 @@ class DynamicFormAdmin(VersionAdmin):
                 max_length = field_data.get('max_length')
                 choices = field_data.get('choices', [])
                 choices_str = ','.join(choices) if choices else ''
+                required = field_data.get('required', False)
+                help_text = field_data.get('help_text', '')
+                
                 FormField.objects.create(
                     form=obj,
                     name=field_name,
                     field_type=field_type,
                     default_value=default_value,
                     max_length=max_length,
-                    choices=choices_str
+                    choices=choices_str,
+                    required=required,
+                    help_text=help_text
                 )
 
     def get_form(self, request, obj=None, **kwargs):
@@ -91,7 +96,9 @@ class DynamicFormAdmin(VersionAdmin):
       "field_type": "text",
       "default_value": "",
       "max_length": 255,
-      "choices": []
+      "choices": [],
+      "required": false,
+      "help_text": "Enter explanation for this field here"
     }
   ]
 }'''
@@ -109,25 +116,58 @@ class DynamicFormAdmin(VersionAdmin):
         example_json = '''{
   "fields": [
     {
-      "name": "Participant Name",
+      "name": "Patient ID",
       "field_type": "text",
       "default_value": "",
-      "max_length": 100,
-      "choices": []
+      "max_length": 50,
+      "choices": [],
+      "required": true,
+      "help_text": "Enter the unique patient identifier (required)"
     },
     {
-      "name": "Date of Birth",
+      "name": "Age",
+      "field_type": "number",
+      "default_value": "",
+      "max_length": null,
+      "choices": [],
+      "required": true,
+      "help_text": "Enter patient's age in years"
+    },
+    {
+      "name": "Admission Date",
       "field_type": "date",
       "default_value": "",
       "max_length": null,
-      "choices": []
+      "choices": [],
+      "required": true,
+      "help_text": "Select the date of admission"
     },
     {
-      "name": "Gender",
+      "name": "Treatment Type",
       "field_type": "dropdown",
       "default_value": "",
       "max_length": null,
-      "choices": ["Male", "Female", "Other"]
+      "choices": ["Chemotherapy", "Radiation", "Surgery", "Combined"],
+      "required": true,
+      "help_text": "Select the primary treatment method"
+    },
+    {
+      "name": "Symptoms",
+      "field_type": "choice",
+      "default_value": "",
+      "max_length": null,
+      "choices": ["Pain", "Fatigue", "Nausea", "Loss of Appetite", "Other"],
+      "required": false,
+      "help_text": "Select all applicable symptoms (optional)"
+    },
+    {
+      "name": "Additional Notes",
+      "field_type": "text",
+      "default_value": "",
+      "max_length": 500,
+      "choices": [],
+      "required": false,
+      "help_text": "Any additional observations or notes (optional)"
     }
   ]
 }'''

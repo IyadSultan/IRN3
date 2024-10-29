@@ -41,6 +41,8 @@ class DynamicForm(models.Model):
                 'default_value': field.default_value,
                 'max_length': field.max_length,
                 'choices': field.choices.split(',') if field.choices else [],
+                'required': field.required,
+                'help_text': field.help_text,
             }
             form_dict['fields'].append(field_dict)
         return json.dumps(form_dict, indent=2)
@@ -63,9 +65,19 @@ class FormField(models.Model):
         null=True,
         help_text='Comma-separated values for choices.'
     )
+    required = models.BooleanField(
+        default=False,
+        help_text='Is this field mandatory?'
+    )
+    help_text = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Explanatory text to be shown with the field.'
+    )
 
     def __str__(self):
-        return f"{self.name} ({self.get_field_type_display()})"
+        required_mark = '*' if self.required else ''
+        return f"{self.name}{required_mark} ({self.get_field_type_display()})"
 
     class Meta:
         verbose_name = 'Form Field'

@@ -72,6 +72,18 @@ def add_research_assistant(request, submission_id):
     if request.method == 'POST':
         action = request.POST.get('action')
         
+        # Handle delete action
+        if action == 'delete_assistant':
+            assistant_id = request.POST.get('assistant_id')
+            if assistant_id:
+                try:
+                    assistant = ResearchAssistant.objects.get(id=assistant_id, submission=submission)
+                    assistant.delete()
+                    messages.success(request, 'Research assistant removed successfully.')
+                except ResearchAssistant.DoesNotExist:
+                    messages.error(request, 'Research assistant not found.')
+            return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
+        
         # Handle navigation without validation
         if action == 'back':
             return redirect('submission:edit_submission', submission_id=submission.temporary_id)
@@ -114,6 +126,18 @@ def add_coinvestigator(request, submission_id):
     
     if request.method == 'POST':
         action = request.POST.get('action')
+        
+        # Handle delete action
+        if action == 'delete_coinvestigator':
+            coinvestigator_id = request.POST.get('coinvestigator_id')
+            if coinvestigator_id:
+                try:
+                    coinvestigator = CoInvestigator.objects.get(id=coinvestigator_id, submission=submission)
+                    coinvestigator.delete()
+                    messages.success(request, 'Co-investigator removed successfully.')
+                except CoInvestigator.DoesNotExist:
+                    messages.error(request, 'Co-investigator not found.')
+            return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
         
         # Handle navigation without validation
         if action == 'back':
@@ -261,34 +285,62 @@ def generate_django_form(dynamic_form):
     from django import forms
     fields = {}
     for field in dynamic_form.fields.all():
+        # Prepare the label with asterisk for required fields
+        label = f"{field.name}{'*' if field.required else ''}"
+        
+        # Common field attributes
+        field_attrs = {
+            'required': field.required,
+            'label': label,
+            'help_text': field.help_text,
+        }
+        
+        # Common widget attributes
+        widget_attrs = {
+            'class': 'form-control',
+        }
+        
         # Map DynamicForm field types to Django form fields
         if field.field_type == 'text':
             fields[field.name] = forms.CharField(
                 max_length=field.max_length or 255,
-                required=False,
-                initial=field.default_value
+                initial=field.default_value,
+                widget=forms.TextInput(attrs=widget_attrs),
+                **field_attrs
             )
         elif field.field_type == 'number':
             fields[field.name] = forms.DecimalField(
-                required=False,
-                initial=field.default_value
+                initial=field.default_value,
+                widget=forms.NumberInput(attrs=widget_attrs),
+                **field_attrs
             )
         elif field.field_type == 'date':
+            date_attrs = widget_attrs.copy()
+            date_attrs['type'] = 'date'
             fields[field.name] = forms.DateField(
-                required=False,
                 initial=field.default_value,
-                widget=forms.DateInput(attrs={'type': 'date'})
+                widget=forms.DateInput(attrs=date_attrs),
+                **field_attrs
             )
         elif field.field_type in ['choice', 'dropdown']:
-            choices = [(choice.strip(), choice.strip()) for choice in field.choices.split(',')]
-            fields[field.name] = forms.ChoiceField(
-                choices=choices,
-                required=False,
-                initial=field.default_value
-            )
-        # Add other field types as needed
-    DjangoForm = type(f'DynamicForm_{dynamic_form.id}', (forms.Form,), fields)
-    return DjangoForm
+            choices = [(choice.strip(), choice.strip()) 
+                      for choice in field.choices.split(',') if choice.strip()]
+            if field.field_type == 'choice':
+                fields[field.name] = forms.MultipleChoiceField(
+                    choices=choices,
+                    initial=field.default_value,
+                    widget=forms.CheckboxSelectMultiple(attrs=widget_attrs),
+                    **field_attrs
+                )
+            else:  # dropdown
+                fields[field.name] = forms.ChoiceField(
+                    choices=[('', '-- Select --')] + choices,
+                    initial=field.default_value,
+                    widget=forms.Select(attrs=widget_attrs),
+                    **field_attrs
+                )
+
+    return type('DynamicForm', (forms.Form,), fields)
 
 @login_required
 def dashboard(request):
