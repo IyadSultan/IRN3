@@ -1,26 +1,30 @@
 # submission/utils.py
 
 from users.models import UserProfile  # Adjust the import based on your users app
+from .models import CoInvestigator, ResearchAssistant
+from forms_builder.models import DynamicForm
+
 
 def has_edit_permission(user, submission):
     # Check if user is primary investigator
     if user == submission.primary_investigator:
         return True
-    
+
     # Check if user is a co-investigator with edit permission
     if submission.coinvestigators.filter(user=user, can_edit=True).exists():
         return True
-    
+
     # Check if user is a research assistant with edit permission
     if submission.research_assistants.filter(user=user, can_edit=True).exists():
         return True
-    
+
     return False
+
 
 def check_researcher_documents(submission):
     """Check documents for all researchers involved in the submission"""
     missing_documents = {}
-    
+
     # Check primary investigator's documents
     pi_profile = submission.primary_investigator.userprofile
     pi_missing = []
@@ -69,9 +73,27 @@ def check_researcher_documents(submission):
         if ra_profile.is_cv_missing:
             ra_missing.append('CV')
         if ra_missing:
-            missing_documents['Research Assistant'] = {
+            missing_documents[f'Research Assistant: {ra.user.get_full_name()}'] = {
                 'name': ra_profile.full_name,
                 'documents': ra_missing
             }
 
     return missing_documents
+
+
+def get_next_form(submission, current_form):
+    dynamic_forms = list(submission.study_type.forms.order_by('order'))
+    try:
+        index = dynamic_forms.index(current_form)
+        return dynamic_forms[index + 1] if index + 1 < len(dynamic_forms) else None
+    except ValueError:
+        return None
+
+
+def get_previous_form(submission, current_form):
+    dynamic_forms = list(submission.study_type.forms.order_by('order'))
+    try:
+        index = dynamic_forms.index(current_form)
+        return dynamic_forms[index - 1] if index - 1 >= 0 else None
+    except ValueError:
+        return None

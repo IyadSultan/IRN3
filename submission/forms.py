@@ -7,8 +7,8 @@ from dal import autocomplete
 
 class SubmissionForm(forms.ModelForm):
     is_primary_investigator = forms.BooleanField(
-        required=False, 
-        initial=True, 
+        required=False,
+        initial=True,
         label='Are you the primary investigator?'
     )
     primary_investigator = forms.ModelChoiceField(
@@ -30,7 +30,7 @@ class ResearchAssistantForm(forms.Form):
         queryset=User.objects.all(),
         widget=autocomplete.ModelSelect2(url='submission:user-autocomplete'),
         label='Research Assistant',
-        required=False  # Make field optional
+        required=True  # Make field required
     )
     can_submit = forms.BooleanField(required=False)
     can_edit = forms.BooleanField(required=False)
@@ -42,72 +42,87 @@ class CoInvestigatorForm(forms.Form):
         widget=autocomplete.ModelSelect2(url='submission:user-autocomplete'),
         label='Co-Investigator',
         help_text='Select a co-investigator from the list',
-        required=False  # Make field optional
+        required=True  # Make field required
     )
     role_in_study = forms.CharField(
         max_length=255,
         widget=forms.TextInput(attrs={'class': 'form-control'}),
         help_text='Specify the role of this co-investigator in the study',
-        required=False  # Make field optional
+        required=True  # Make field required
     )
     can_submit = forms.BooleanField(required=False)
     can_edit = forms.BooleanField(required=False)
     can_view_communications = forms.BooleanField(required=False)
 
 def generate_django_form(dynamic_form):
+    from django import forms
     fields = {}
     for field in dynamic_form.fields.all():
-        field_kwargs = {
-            'label': field.displayed_name,  # Changed from displayed_name to name
+        label = f"{field.displayed_name}{'*' if field.required else ''}"
+        field_attrs = {
             'required': field.required,
+            'label': label,
             'help_text': field.help_text,
             'initial': field.default_value,
         }
-
+        widget_attrs = {'class': 'form-control'}
         if field.field_type == 'text':
             fields[field.name] = forms.CharField(
-                max_length=field.max_length,
-                **field_kwargs
+                max_length=field.max_length or 255,
+                widget=forms.TextInput(attrs=widget_attrs),
+                **field_attrs
+            )
+        elif field.field_type == 'email':
+            fields[field.name] = forms.EmailField(
+                max_length=field.max_length or 255,
+                widget=forms.EmailInput(attrs=widget_attrs),
+                **field_attrs
+            )
+        elif field.field_type == 'tel':
+            fields[field.name] = forms.CharField(
+                max_length=field.max_length or 15,
+                widget=forms.TextInput(attrs={'class': 'form-control', 'type': 'tel'}),
+                **field_attrs
             )
         elif field.field_type == 'textarea':
             fields[field.name] = forms.CharField(
-                widget=forms.Textarea(attrs={'rows': field.rows}),
-                max_length=field.max_length,
-                **field_kwargs
-            )
-        elif field.field_type == 'email':
-            fields[field.name] = forms.EmailField(**field_kwargs)
-        elif field.field_type == 'tel':
-            fields[field.name] = forms.CharField(
-                widget=forms.TextInput(attrs={'type': 'tel'}),
-                **field_kwargs
-            )
-        elif field.field_type == 'number':
-            fields[field.name] = forms.IntegerField(**field_kwargs)
-        elif field.field_type == 'date':
-            fields[field.name] = forms.DateField(
-                widget=forms.DateInput(attrs={'type': 'date'}),
-                **field_kwargs
+                max_length=field.max_length or 500,
+                widget=forms.Textarea(attrs=widget_attrs),
+                **field_attrs
             )
         elif field.field_type == 'checkbox':
-            choices = [(c.strip(), c.strip()) for c in field.choices.split(',') if c.strip()]
+            choices = [(choice.strip(), choice.strip())
+                       for choice in field.choices.split(',') if choice.strip()]
             fields[field.name] = forms.MultipleChoiceField(
                 choices=choices,
-                widget=forms.CheckboxSelectMultiple,
-                **field_kwargs
+                widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+                **field_attrs
             )
         elif field.field_type == 'radio':
-            choices = [(c.strip(), c.strip()) for c in field.choices.split(',') if c.strip()]
+            choices = [(choice.strip(), choice.strip())
+                       for choice in field.choices.split(',') if choice.strip()]
             fields[field.name] = forms.ChoiceField(
                 choices=choices,
-                widget=forms.RadioSelect,
-                **field_kwargs
+                widget=forms.RadioSelect(attrs={'class': 'form-check-input'}),
+                **field_attrs
             )
         elif field.field_type == 'select':
-            choices = [(c.strip(), c.strip()) for c in field.choices.split(',') if c.strip()]
+            choices = [(choice.strip(), choice.strip())
+                       for choice in field.choices.split(',') if choice.strip()]
             fields[field.name] = forms.ChoiceField(
-                choices=choices,
-                **field_kwargs
+                choices=[('', '-- Select --')] + choices,
+                widget=forms.Select(attrs=widget_attrs),
+                **field_attrs
             )
-
+        elif field.field_type == 'number':
+            fields[field.name] = forms.IntegerField(
+                widget=forms.NumberInput(attrs=widget_attrs),
+                **field_attrs
+            )
+        elif field.field_type == 'date':
+            fields[field.name] = forms.DateField(
+                widget=forms.DateInput(attrs={'type': 'date', **widget_attrs}),
+                **field_attrs
+            )
+        # Add other field types as necessary
     return type('DynamicForm', (forms.Form,), fields)

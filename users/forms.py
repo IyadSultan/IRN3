@@ -29,7 +29,7 @@ class UserRegistrationForm(UserCreationForm):
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ['institution', 'mobile', 'khcc_employee_number', 'title', 'role', 'photo', 'cv']
+        fields = ['institution', 'mobile', 'khcc_employee_number', 'title', 'role', 'photo']
 
 class LoginForm(forms.Form):
     username_or_email = forms.CharField()

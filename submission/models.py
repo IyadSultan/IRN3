@@ -2,7 +2,6 @@
 
 from django.db import models
 from django.contrib.auth.models import User
-from django.utils import timezone
 from forms_builder.models import StudyType, DynamicForm
 
 STATUS_CHOICES = [
@@ -15,6 +14,7 @@ STATUS_CHOICES = [
     ('finished', 'Finished'),
     ('terminated', 'Terminated'),
 ]
+
 
 class Submission(models.Model):
     temporary_id = models.AutoField(primary_key=True)
@@ -29,9 +29,11 @@ class Submission(models.Model):
     last_modified = models.DateTimeField(auto_now=True)
     date_submitted = models.DateTimeField(blank=True, null=True)
     version = models.PositiveIntegerField(default=1)
+    is_locked = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.title} (ID: {self.temporary_id}, Version: {self.version})"
+
 
 class CoInvestigator(models.Model):
     submission = models.ForeignKey(
@@ -50,6 +52,7 @@ class CoInvestigator(models.Model):
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.role_in_study}"
 
+
 class ResearchAssistant(models.Model):
     submission = models.ForeignKey(
         Submission, related_name='research_assistants', on_delete=models.CASCADE
@@ -61,6 +64,7 @@ class ResearchAssistant(models.Model):
 
     def __str__(self):
         return self.user.get_full_name()
+
 
 class FormDataEntry(models.Model):
     submission = models.ForeignKey(

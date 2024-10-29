@@ -41,7 +41,7 @@ class UserProfile(models.Model):
     role = models.CharField(max_length=50, choices=ROLE_CHOICES)
     photo = models.ImageField(upload_to='photos/', blank=True, null=True)
     is_approved = models.BooleanField(default=False)
-    cv = models.FileField(upload_to='cvs/', blank=True, null=True)
+    # cv = models.FileField(upload_to='cvs/', blank=True, null=True)
     full_name = models.CharField(
         max_length=255,
         default='',

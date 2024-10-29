@@ -1,5 +1,3 @@
-# forms_builder/models.py
-
 from django.db import models
 import json
 
@@ -36,6 +34,10 @@ class DynamicForm(models.Model):
     requested_per_investigator = models.BooleanField(default=False)
     study_types = models.ManyToManyField(StudyType, related_name='forms')
     json_input = models.TextField(blank=True, null=True)
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text='Defines the sequence in which forms appear'
+    )
 
     def to_json(self):
         form_dict = {
@@ -62,6 +64,7 @@ class DynamicForm(models.Model):
     class Meta:
         verbose_name = 'Dynamic Form'
         verbose_name_plural = 'Dynamic Forms'
+        ordering = ['order']  # Added this line to set default ordering
 
 class FormField(models.Model):
     form = models.ForeignKey(DynamicForm, related_name='fields', on_delete=models.CASCADE)

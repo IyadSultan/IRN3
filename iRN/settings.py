@@ -41,13 +41,14 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     'crispy_forms',
     "crispy_bootstrap5",
-    "users",
+    # "users",
     "messaging",
     'dal', # Django Autocomplete Light
     'dal_select2', # Django Autocomplete Light - Django Select2 UI
     'forms_builder',
     'reversion',
     'submission',
+    'users.apps.UsersConfig',
     
     
 ]
