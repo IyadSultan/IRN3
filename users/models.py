@@ -41,87 +41,11 @@ class UserProfile(models.Model):
     role = models.CharField(max_length=50, choices=ROLE_CHOICES)
     photo = models.ImageField(upload_to='photos/', blank=True, null=True)
     is_approved = models.BooleanField(default=False)
-    # cv = models.FileField(upload_to='cvs/', blank=True, null=True)
     full_name = models.CharField(
         max_length=255,
         default='',
         help_text='Full name (at least three names required)'
     )
-
-    # Add property methods to access certificates
-    @property
-    def gcp_certificate(self):
-        return self.user.documents.filter(document_type='GCP').first()
-
-    @property
-    def qrc_certificate(self):
-        return self.user.documents.filter(document_type='QRC').first()
-
-    @property
-    def ctc_certificate(self):
-        return self.user.documents.filter(document_type='CTC').first()
-
-    @property
-    def cv_document(self):
-        return self.user.documents.filter(document_type='CV').first()
-
-    @property
-    def is_gcp_expired(self):
-        cert = self.gcp_certificate
-        if cert and cert.expiry_date:
-            return cert.expiry_date <= timezone.now().date()
-        return True  # If no certificate exists, consider it expired
-
-    @property
-    def is_qrc_expired(self):
-        cert = self.qrc_certificate
-        if cert and cert.expiry_date:
-            return cert.expiry_date <= timezone.now().date()
-        return True
-
-    @property
-    def is_ctc_expired(self):
-        cert = self.ctc_certificate
-        if cert and cert.expiry_date:
-            return cert.expiry_date <= timezone.now().date()
-        return True
-
-    @property
-    def is_cv_missing(self):
-        return not self.cv_document
-
-    @property
-    def has_valid_gcp(self):
-        return not self.is_gcp_expired
-
-    @property
-    def has_valid_qrc(self):
-        return not self.is_qrc_expired
-
-    @property
-    def has_valid_ctc(self):
-        return not self.is_ctc_expired
-
-    @property
-    def has_valid_cv(self):
-        return not self.is_cv_missing
-
-    @property
-    def missing_documents(self):
-        missing = []
-        if self.is_gcp_expired:
-            missing.append('GCP Certificate')
-        if self.is_qrc_expired:
-            missing.append('QRC Certificate')
-        if self.is_ctc_expired:
-            missing.append('CTC Certificate')
-        if self.is_cv_missing:
-            missing.append('CV')
-        return missing
-
-    @property
-    def has_all_valid_documents(self):
-        return len(self.missing_documents) == 0
 
     def __str__(self):
         return self.user.username
@@ -142,7 +66,6 @@ class Document(models.Model):
         ('GCP', 'Good Clinical Practice Certificate'),
         ('QRC', 'Qualitative Record Certificate'),
         ('CTC', 'Consent Training Certificate'),
-        ('CV', 'Curriculum Vitae'),
         ('Other', 'Other'),
     ]
 
@@ -169,6 +92,10 @@ class Document(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.get_document_type_display()}"
+
+    @property
+    def is_missing(self):
+        return not self.file  # Check if the document file is missing
 
 # users/models.py
 

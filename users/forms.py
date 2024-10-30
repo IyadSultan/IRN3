@@ -38,7 +38,6 @@ class UserProfileForm(forms.ModelForm):
             'role',
             'photo',
         ]
-        # Exclude only the fields that shouldn't be edited by users
         exclude = ['user', 'is_approved']
 
 class LoginForm(forms.Form):

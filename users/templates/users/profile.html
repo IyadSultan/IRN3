@@ -1,6 +1,7 @@
-
 {% extends 'users/base.html' %}
 {% load crispy_forms_tags %}
+
+
 {% block title %}Profile - {{ user.get_full_name|default:user.username }}{% endblock %}
 
 {% block content %}

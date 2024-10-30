@@ -15,23 +15,23 @@
             </tr>
         </thead>
         <tbody>
-        {% for document in documents|dictsortreversed:"uploaded_at" %}
-            <tr {% if document.days_until_expiry < 30 and document.days_until_expiry >= 0 %}class="text-danger"{% endif %}>
+        {% for doc_info in documents %}
+            <tr {% if doc_info.days_until_expiry < 30 and doc_info.days_until_expiry >= 0 %}class="text-danger"{% endif %}>
                 <td>
-                    <a href="{% url 'users:display_document' document.id %}" class="document-link" data-document-type="{{ document.get_document_type_display }}" data-file-extension="{{ document.file_extension }}" {% if document.file_extension == '.pdf' %}target="_blank"{% endif %}>
-                        {% if document.document_type == 'Other' %}
-                            {{ document.other_document_name }}
+                    <a href="{% url 'users:display_document' doc_info.document.id %}" class="document-link" data-document-type="{{ doc_info.document.get_document_type_display }}" data-file-extension="{{ doc_info.file_extension }}" {% if doc_info.file_extension == '.pdf' %}target="_blank"{% endif %}>
+                        {% if doc_info.document.document_type == 'Other' %}
+                            {{ doc_info.document.other_document_name }}
                         {% else %}
-                            {{ document.get_document_type_display }}
+                            {{ doc_info.document.get_document_type_display }}
                         {% endif %}
                     </a>
                 </td>
-                <td>{{ document.uploaded_at|date:"F d, Y" }}</td>
-                <td>{{ document.issue_date|date:"F d, Y" }}</td>
-                <td>{{ document.expiry_date|date:"F d, Y" }}</td>
+                <td>{{ doc_info.document.uploaded_at|date:"F d, Y" }}</td>
+                <td>{{ doc_info.document.issue_date|date:"F d, Y" }}</td>
+                <td>{{ doc_info.document.expiry_date|date:"F d, Y" }}</td>
                 <td>
-                    {% if document.days_until_expiry < 30 and document.days_until_expiry >= 0 %}
-                        Near expiry
+                    {% if doc_info.days_until_expiry is not None %}
+                        Days until expiry: {{ doc_info.days_until_expiry }}
                     {% endif %}
                 </td>
             </tr>
