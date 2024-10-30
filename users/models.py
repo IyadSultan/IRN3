@@ -61,6 +61,61 @@ class UserProfile(models.Model):
             self.full_name = f"{self.user.first_name} {self.user.last_name}".strip()
         super().save(*args, **kwargs)
 
+    @property
+    def has_valid_gcp(self):
+        """Check if user has a valid (non-expired) GCP certificate"""
+        today = timezone.now().date()
+        return self.user.documents.filter(
+            document_type='GCP',
+            expiry_date__gt=today
+        ).exists()
+
+    @property
+    def has_qrc(self):
+        """Check if user has uploaded a QRC certificate"""
+        return self.user.documents.filter(
+            document_type='QRC'
+        ).exists()
+
+    @property
+    def has_ctc(self):
+        """Check if user has uploaded a CTC certificate"""
+        return self.user.documents.filter(
+            document_type='CTC'
+        ).exists()
+
+    @property
+    def has_cv(self):
+        """Check if user has uploaded a CV"""
+        return self.user.documents.filter(
+            document_type='Other',
+            other_document_name__icontains='CV'
+        ).exists()
+
+    @property
+    def is_gcp_expired(self):
+        """Check if GCP is expired or missing"""
+        today = timezone.now().date()
+        latest_gcp = self.user.documents.filter(
+            document_type='GCP'
+        ).order_by('-expiry_date').first()
+        if not latest_gcp or not latest_gcp.expiry_date:
+            return True
+        return latest_gcp.expiry_date <= today
+
+    # Helper properties for template usage
+    @property
+    def is_qrc_missing(self):
+        return not self.has_qrc
+
+    @property
+    def is_ctc_missing(self):
+        return not self.has_ctc
+
+    @property
+    def is_cv_missing(self):
+        return not self.has_cv
+
 class Document(models.Model):
     DOCUMENT_CHOICES = [
         ('GCP', 'Good Clinical Practice Certificate'),

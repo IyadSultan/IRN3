@@ -4,6 +4,7 @@ from users.models import UserProfile
 from .models import CoInvestigator, ResearchAssistant, FormDataEntry
 from forms_builder.models import DynamicForm
 from django.db.models import Q
+from django.utils import timezone
 
 
 def has_edit_permission(user, submission):
@@ -30,10 +31,10 @@ def check_researcher_documents(submission):
     pi_profile = submission.primary_investigator.userprofile
     pi_missing = []
     if pi_profile.is_gcp_expired:
-        pi_missing.append('GCP Certificate')
-    if pi_profile.is_qrc_expired:
+        pi_missing.append('GCP Certificate (Expired or Missing)')
+    if pi_profile.is_qrc_missing:
         pi_missing.append('QRC Certificate')
-    if pi_profile.is_ctc_expired:
+    if pi_profile.is_ctc_missing:
         pi_missing.append('CTC Certificate')
     if pi_profile.is_cv_missing:
         pi_missing.append('CV')
@@ -48,10 +49,10 @@ def check_researcher_documents(submission):
         coinv_profile = coinv.user.userprofile
         coinv_missing = []
         if coinv_profile.is_gcp_expired:
-            coinv_missing.append('GCP Certificate')
-        if coinv_profile.is_qrc_expired:
+            coinv_missing.append('GCP Certificate (Expired or Missing)')
+        if coinv_profile.is_qrc_missing:
             coinv_missing.append('QRC Certificate')
-        if coinv_profile.is_ctc_expired:
+        if coinv_profile.is_ctc_missing:
             coinv_missing.append('CTC Certificate')
         if coinv_profile.is_cv_missing:
             coinv_missing.append('CV')
@@ -66,15 +67,15 @@ def check_researcher_documents(submission):
         ra_profile = ra.user.userprofile
         ra_missing = []
         if ra_profile.is_gcp_expired:
-            ra_missing.append('GCP Certificate')
-        if ra_profile.is_qrc_expired:
+            ra_missing.append('GCP Certificate (Expired or Missing)')
+        if ra_profile.is_qrc_missing:
             ra_missing.append('QRC Certificate')
-        if ra_profile.is_ctc_expired:
+        if ra_profile.is_ctc_missing:
             ra_missing.append('CTC Certificate')
         if ra_profile.is_cv_missing:
             ra_missing.append('CV')
         if ra_missing:
-            missing_documents[f'Research Assistant: {ra.user.get_full_name()}'] = {
+            missing_documents[f'Research Assistant'] = {
                 'name': ra_profile.full_name,
                 'documents': ra_missing
             }
