@@ -11,6 +11,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from dal import autocomplete
 import json
+from django import forms
 
 from .models import Submission, VersionHistory, Document, FormDataEntry
 from .forms import DocumentForm
@@ -398,9 +399,26 @@ def submission_review(request, submission_id):
         }
         logger.debug(f"Validating form '{dynamic_form.name}' with data: {saved_data}")
         form_instance = django_form_class(data=saved_data, prefix=f'form_{dynamic_form.id}')
-        if not form_instance.is_valid():
-            logger.debug(f"Form '{dynamic_form.name}' is invalid: {form_instance.errors}")
-            validation_errors[dynamic_form.name] = form_instance.errors
+        
+        # Custom validation for MultipleChoiceFields
+        is_valid = True
+        errors = {}
+        for field_name, field in form_instance.fields.items():
+            if isinstance(field, forms.MultipleChoiceField):
+                field_key = f'form_{dynamic_form.id}-{field_name}'
+                field_value = saved_data.get(field_key)
+                if not field_value:  # No option selected
+                    is_valid = False
+                    errors[field_name] = ['Please select at least one option']
+            else:
+                field_value = form_instance.data.get(f'form_{dynamic_form.id}-{field_name}')
+                if field.required and not field_value:
+                    is_valid = False
+                    errors[field_name] = ['This field is required']
+
+        if not is_valid:
+            logger.debug(f"Form '{dynamic_form.name}' is invalid: {errors}")
+            validation_errors[dynamic_form.name] = errors
         else:
             logger.debug(f"Form '{dynamic_form.name}' is valid.")
 
