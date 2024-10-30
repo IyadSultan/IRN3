@@ -1,36 +1,99 @@
-{% extends 'base.html' %}
-{% block title %}Submission Review{% endblock %}
+<!-- submission/review.html -->
+
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+
 {% block content %}
-<h1>Submission Review</h1>
-<h2>Investigators and Qualifications</h2>
-<ul>
-    <li>Primary Investigator: {{ submission.primary_investigator.get_full_name }}</li>
-    {% for co in coinvestigators %}
-    <li>Co-Investigator: {{ co.user.get_full_name }} - Role: {{ co.role_in_study }}</li>
-    {% endfor %}
-</ul>
-<h2>Research Assistants</h2>
-<ul>
-    {% for ra in research_assistants %}
-    <li>{{ ra.user.get_full_name }}</li>
-    {% endfor %}
-</ul>
-<h2>Forms Filled</h2>
-<ul>
-    {% for form in forms_filled %}
-    <li>{{ form.name }}</li>
-    {% endfor %}
-</ul>
-<h2>Qualifications</h2>
-<ul>
-    {% for doc in missing_docs %}
-    <li style="color:red;">Missing or invalid: {{ doc }}</li>
-    {% endfor %}
-</ul>
-<form method="post">
-    {% csrf_token %}
-    <button type="submit" name="action" value="submit" {% if not can_submit %}disabled{% endif %} style="background-color: {% if can_submit %}green{% else %}gray{% endif %};">
-        Submit
-    </button>
-</form>
+<div class="container mt-4">
+    <h1>Submission Review</h1>
+
+    <!-- Display missing documents -->
+    {% if missing_documents %}
+        <div class="alert alert-danger">
+            <h4>Missing Documents:</h4>
+            <ul>
+                {% for key, value in missing_documents.items %}
+                    <li>{{ key }} - {{ value.name }}
+                        <ul>
+                            {% for doc in value.documents %}
+                                <li>{{ doc }}</li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <!-- Display validation errors -->
+    {% if validation_errors %}
+        <div class="alert alert-danger">
+            <h4>Form Validation Errors:</h4>
+            <ul>
+                {% for form_name, errors in validation_errors.items %}
+                    <li><strong>{{ form_name }}</strong>
+                        <ul>
+                            {% for field, error_list in errors.items %}
+                                <li>{{ field }}: {{ error_list|join:", " }}</li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <!-- Document Repository -->
+    <h2>Document Repository</h2>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ doc_form|crispy }}
+        <button type="submit" name="action" value="upload_document" class="btn btn-primary">Upload Document</button>
+    </form>
+    <table class="table mt-3">
+        <thead>
+            <tr>
+                <th>Filename</th>
+                <th>Description</th>
+                <th>Uploaded By</th>
+                <th>Uploaded At</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in documents %}
+            <tr>
+                <td>{{ doc.file.name|slice:"documents/" }}</td>
+                <td>{{ doc.description }}</td>
+                <td>{{ doc.uploaded_by.get_full_name }}</td>
+                <td>{{ doc.uploaded_at }}</td>
+                <td>
+                    <a href="{{ doc.file.url }}" class="btn btn-sm btn-secondary">Download</a>
+                    <a href="{% url 'submission:document_delete' submission.temporary_id doc.id %}" class="btn btn-sm btn-danger">Delete</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5">No documents uploaded.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Action Buttons -->
+    <form method="post">
+        {% csrf_token %}
+        <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
+            <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
+                <i class="fas fa-arrow-left"></i> Back
+            </button>
+            <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
+                <i class="fas fa-times"></i> Exit without Saving
+            </button>
+            <button type="submit" name="action" value="submit_final" class="btn btn-success">
+                <i class="fas fa-check"></i> Submit Final
+            </button>
+        </div>
+    </form>
+</div>
 {% endblock %}

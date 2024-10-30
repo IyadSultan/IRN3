@@ -1,7 +1,14 @@
 # submission/admin.py
 
 from django.contrib import admin
-from .models import Submission, CoInvestigator, ResearchAssistant, FormDataEntry
+from .models import (
+    Submission,
+    CoInvestigator,
+    ResearchAssistant,
+    FormDataEntry,
+    Document,
+    VersionHistory,
+)
 
 @admin.register(Submission)
 class SubmissionAdmin(admin.ModelAdmin):
@@ -30,3 +37,15 @@ class FormDataEntryAdmin(admin.ModelAdmin):
     list_filter = ('form', 'version')
     search_fields = ('submission__title', 'field_name', 'value')
     readonly_fields = ('date_saved',)
+
+@admin.register(Document)
+class DocumentAdmin(admin.ModelAdmin):
+    list_display = ('submission', 'filename', 'uploaded_by', 'uploaded_at')
+    search_fields = ('submission__title', 'file', 'uploaded_by__username')
+    list_filter = ('uploaded_at',)
+
+@admin.register(VersionHistory)
+class VersionHistoryAdmin(admin.ModelAdmin):
+    list_display = ('submission', 'version', 'status', 'date')
+    search_fields = ('submission__title',)
+    list_filter = ('status', 'date')

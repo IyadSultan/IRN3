@@ -2,7 +2,7 @@
 
 from django import forms
 from django.contrib.auth.models import User
-from .models import Submission
+from .models import Submission, Document
 from dal import autocomplete
 
 class SubmissionForm(forms.ModelForm):
@@ -30,7 +30,7 @@ class ResearchAssistantForm(forms.Form):
         queryset=User.objects.all(),
         widget=autocomplete.ModelSelect2(url='submission:user-autocomplete'),
         label='Research Assistant',
-        required=True  # Make field required
+        required=True
     )
     can_submit = forms.BooleanField(required=False)
     can_edit = forms.BooleanField(required=False)
@@ -42,13 +42,13 @@ class CoInvestigatorForm(forms.Form):
         widget=autocomplete.ModelSelect2(url='submission:user-autocomplete'),
         label='Co-Investigator',
         help_text='Select a co-investigator from the list',
-        required=True  # Make field required
+        required=True
     )
     role_in_study = forms.CharField(
         max_length=255,
         widget=forms.TextInput(attrs={'class': 'form-control'}),
         help_text='Specify the role of this co-investigator in the study',
-        required=True  # Make field required
+        required=True
     )
     can_submit = forms.BooleanField(required=False)
     can_edit = forms.BooleanField(required=False)
@@ -126,3 +126,12 @@ def generate_django_form(dynamic_form):
             )
         # Add other field types as necessary
     return type('DynamicForm', (forms.Form,), fields)
+
+
+class DocumentForm(forms.ModelForm):
+    class Meta:
+        model = Document
+        fields = ['file', 'description']
+        widgets = {
+            'description': forms.TextInput(attrs={'class': 'form-control'}),
+        }

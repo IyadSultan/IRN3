@@ -1,132 +1,94 @@
 {% extends 'users/base.html' %}
 {% load crispy_forms_tags %}
-
-{% block title %}Final Review - {{ submission.title }}{% endblock %}
-
 {% block content %}
 <div class="container mt-4">
+    <h1>Submission Review</h1>
+    <!-- Display missing documents -->
     {% if missing_documents %}
-    <div class="alert alert-warning">
-        <h4 class="alert-heading">⚠️ Missing or Expired Documents</h4>
-        {% for role, info in missing_documents.items %}
-        <div class="mb-3">
-            <strong>{{ role }}: {{ info.name }}</strong>
-            <ul class="mb-0">
-                {% for doc in info.documents %}
-                <li>{{ doc }}</li>
+        <div class="alert alert-danger">
+            <h4>Missing Documents:</h4>
+            <ul>
+                {% for key, value in missing_documents.items %}
+                    <li>{{ key }} - {{ value.name }}
+                        <ul>
+                            {% for doc in value.documents %}
+                                <li>{{ doc }}</li>
+                            {% endfor %}
+                        </ul>
+                    </li>
                 {% endfor %}
             </ul>
         </div>
-        {% endfor %}
-        <hr>
-        <p class="mb-0">All researchers must have valid documents before the submission can be reviewed.</p>
-    </div>
     {% endif %}
 
-    <div class="card">
-        <div class="card-header">
-            <h2>Final Review</h2>
-            <h6 class="text-muted">Submission ID: {{ submission.temporary_id }}</h6>
+    <!-- Display validation errors -->
+    {% if validation_errors %}
+        <div class="alert alert-danger">
+            <h4>Form Validation Errors:</h4>
+            <ul>
+                {% for form_name, errors in validation_errors.items %}
+                    <li>{{ form_name }}
+                        <ul>
+                            {% for field, error_list in errors.items %}
+                                <li>{{ field }}: {{ error_list|join:", " }}</li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                {% endfor %}
+            </ul>
         </div>
-        <div class="card-body">
-            <h4>Study Details</h4>
-            <dl class="row">
-                <dt class="col-sm-3">Title</dt>
-                <dd class="col-sm-9">{{ submission.title }}</dd>
-                
-                <dt class="col-sm-3">Primary Investigator</dt>
-                <dd class="col-sm-9">{{ submission.primary_investigator.get_full_name }}</dd>
-                
-                <dt class="col-sm-3">Study Type</dt>
-                <dd class="col-sm-9">{{ submission.study_type }}</dd>
-            </dl>
+    {% endif %}
 
-            <h4>Co-Investigators</h4>
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Role</th>
-                            <th>Permissions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for ci in submission.coinvestigators.all %}
-                        <tr>
-                            <td>{{ ci.user.get_full_name }}</td>
-                            <td>{{ ci.role_in_study }}</td>
-                            <td>
-                                <span class="badge {% if ci.can_submit %}bg-success{% endif %} me-1">Submit</span>
-                                <span class="badge {% if ci.can_edit %}bg-primary{% endif %} me-1">Edit</span>
-                                <span class="badge {% if ci.can_view_communications %}bg-info{% endif %}">View Comms</span>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="3" class="text-center">No co-investigators added</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+    <!-- Document Repository -->
+    <h2>Document Repository</h2>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ doc_form|crispy }}
+        <button type="submit" name="action" value="upload_document" class="btn btn-primary">Upload Document</button>
+    </form>
+    <table class="table mt-3">
+        <thead>
+            <tr>
+                <th>Filename</th>
+                <th>Description</th>
+                <th>Uploaded By</th>
+                <th>Uploaded At</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in documents %}
+            <tr>
+                <td>{{ doc.filename }}</td>
+                <td>{{ doc.description }}</td>
+                <td>{{ doc.uploaded_by.get_full_name }}</td>
+                <td>{{ doc.uploaded_at }}</td>
+                <td>
+                    <a href="{{ doc.file.url }}" class="btn btn-sm btn-secondary">Download</a>
+                    <a href="{% url 'submission:document_delete' submission.temporary_id doc.id %}" class="btn btn-sm btn-danger">Delete</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5">No documents uploaded.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 
-            <h4>Research Assistants</h4>
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Permissions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for ra in submission.research_assistants.all %}
-                        <tr>
-                            <td>{{ ra.user.get_full_name }}</td>
-                            <td>
-                                <span class="badge {% if ra.can_submit %}bg-success{% endif %} me-1">Submit</span>
-                                <span class="badge {% if ra.can_edit %}bg-primary{% endif %} me-1">Edit</span>
-                                <span class="badge {% if ra.can_view_communications %}bg-info{% endif %}">View Comms</span>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="2" class="text-center">No research assistants added</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            <form method="post" class="mt-4">
-                {% csrf_token %}
-                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                    <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
-                        <i class="fas fa-arrow-left"></i> Back to Forms
-                    </button>
-                    <button type="submit" name="action" value="submit" class="btn btn-primary" 
-                            {% if missing_documents %}disabled{% endif %}>
-                        <i class="fas fa-paper-plane"></i> Submit for Review
-                    </button>
-                </div>
-            </form>
+    <form method="post">
+        {% csrf_token %}
+        <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
+            <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
+                <i class="fas fa-arrow-left"></i> Back
+            </button>
+            <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
+                <i class="fas fa-times"></i> Exit without Saving
+            </button>
+            <button type="submit" name="action" value="submit_final" class="btn btn-success">
+                <i class="fas fa-check"></i> Submit Final
+            </button>
         </div>
-    </div>
+    </form>
 </div>
-
-{% block extra_css %}
-<style>
-    .badge {
-        font-size: 0.8em;
-    }
-    .badge:not(.bg-success):not(.bg-primary):not(.bg-info) {
-        background-color: #6c757d;
-    }
-    .alert ul {
-        padding-left: 20px;
-    }
-</style>
-{% endblock %}
-
 {% endblock %}

@@ -1,8 +1,9 @@
 # submission/utils.py
 
-from users.models import UserProfile  # Adjust the import based on your users app
-from .models import CoInvestigator, ResearchAssistant
+from users.models import UserProfile
+from .models import CoInvestigator, ResearchAssistant, FormDataEntry
 from forms_builder.models import DynamicForm
+from django.db.models import Q
 
 
 def has_edit_permission(user, submission):
@@ -97,3 +98,19 @@ def get_previous_form(submission, current_form):
         return dynamic_forms[index - 1] if index - 1 >= 0 else None
     except ValueError:
         return None
+
+def compare_versions(submission, version1, version2):
+    data_v1 = FormDataEntry.objects.filter(submission=submission, version=version1)
+    data_v2 = FormDataEntry.objects.filter(submission=submission, version=version2)
+    data = []
+    fields = set(data_v1.values_list('field_name', flat=True)) | set(data_v2.values_list('field_name', flat=True))
+    for field in fields:
+        value1 = data_v1.filter(field_name=field).first()
+        value2 = data_v2.filter(field_name=field).first()
+        data.append({
+            'field_name': field,
+            'value1': value1.value if value1 else '',
+            'value2': value2.value if value2 else '',
+            'changed': (value1.value if value1 else '') != (value2.value if value2 else '')
+        })
+    return data

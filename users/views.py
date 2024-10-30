@@ -12,7 +12,13 @@ import os
 import mimetypes
 from django.conf import settings
 from django.db import transaction
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
 
+@login_required
+def profile(request):
+    # Your profile view logic here
+    return render(request, 'users/profile.html')
 
 def register(request):
     if request.method == 'POST':

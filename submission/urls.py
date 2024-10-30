@@ -16,6 +16,10 @@ urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'),
     path('user-autocomplete/', views.UserAutocomplete.as_view(), name='user-autocomplete'),
     path('download-pdf/<int:submission_id>/', views.download_submission_pdf, name='download_submission_pdf'),
+    path('download-pdf/<int:submission_id>/<int:version>/', views.download_submission_pdf, name='download_submission_pdf_version'),
     path('update-coinvestigator-order/<int:submission_id>/', views.update_coinvestigator_order, name='update_coinvestigator_order'),
+    path('document-delete/<int:submission_id>/<int:document_id>/', views.document_delete, name='document_delete'),
+    path('version-history/<int:submission_id>/', views.version_history, name='version_history'),
+    path('compare-versions/<int:submission_id>/<int:version1>/<int:version2>/', views.compare_versions, name='compare_versions'),
     # ... other URL patterns ...
 ]

@@ -14,4 +14,5 @@ urlpatterns = [
     path('upload_document/', views.upload_document, name='upload_document'),
     path('view_documents/', views.view_documents, name='view_documents'),
     path('display_document/<int:document_id>/', views.display_document, name='display_document'),
+    path('profile/', views.profile, name='profile'),
 ]

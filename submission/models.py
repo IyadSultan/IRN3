@@ -3,6 +3,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from forms_builder.models import StudyType, DynamicForm
+from django.utils import timezone
 
 STATUS_CHOICES = [
     ('draft', 'Draft'),
@@ -14,7 +15,6 @@ STATUS_CHOICES = [
     ('finished', 'Finished'),
     ('terminated', 'Terminated'),
 ]
-
 
 class Submission(models.Model):
     temporary_id = models.AutoField(primary_key=True)
@@ -34,6 +34,10 @@ class Submission(models.Model):
     def __str__(self):
         return f"{self.title} (ID: {self.temporary_id}, Version: {self.version})"
 
+    def increment_version(self):
+        self.version += 1
+        self.save()
+        VersionHistory.objects.create(submission=self, version=self.version, status=self.status, date=timezone.now())
 
 class CoInvestigator(models.Model):
     submission = models.ForeignKey(
@@ -52,7 +56,6 @@ class CoInvestigator(models.Model):
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.role_in_study}"
 
-
 class ResearchAssistant(models.Model):
     submission = models.ForeignKey(
         Submission, related_name='research_assistants', on_delete=models.CASCADE
@@ -64,7 +67,6 @@ class ResearchAssistant(models.Model):
 
     def __str__(self):
         return self.user.get_full_name()
-
 
 class FormDataEntry(models.Model):
     submission = models.ForeignKey(
@@ -83,3 +85,31 @@ class FormDataEntry(models.Model):
 
     def __str__(self):
         return f"{self.submission} - {self.form.name} - {self.field_name}"
+
+class Document(models.Model):
+    submission = models.ForeignKey(
+        Submission, related_name='documents', on_delete=models.CASCADE
+    )
+    uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    file = models.FileField(upload_to='documents/')
+    description = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    ALLOWED_EXTENSIONS = ['pdf', 'png', 'jpeg', 'jpg', 'doc', 'docx', 'txt']
+
+    def __str__(self):
+        return f"{self.file.name}"
+
+    def filename(self):
+        return self.file.name.split('/')[-1]
+
+class VersionHistory(models.Model):
+    submission = models.ForeignKey(
+        Submission, related_name='version_histories', on_delete=models.CASCADE
+    )
+    version = models.PositiveIntegerField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    date = models.DateTimeField()
+
+    def __str__(self):
+        return f"Submission {self.submission.temporary_id} - Version {self.version}"
