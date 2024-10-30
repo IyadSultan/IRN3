@@ -55,6 +55,9 @@ def edit_submission(request, submission_id):
 def start_submission(request, submission_id=None):
     if submission_id:
         submission = get_object_or_404(Submission, pk=submission_id)
+        if submission.is_locked:
+            messages.error(request, "This submission is locked and cannot be edited.")
+            return redirect('submission:dashboard')
         if not has_edit_permission(request.user, submission):
             messages.error(request, "You do not have permission to edit this submission.")
             return redirect('submission:dashboard')
@@ -103,6 +106,9 @@ def start_submission(request, submission_id=None):
 @login_required
 def add_research_assistant(request, submission_id):
     submission = get_object_or_404(Submission, pk=submission_id)
+    if submission.is_locked:
+            messages.error(request, "This submission is locked and cannot be edited.")
+            return redirect('submission:dashboard')
 
     if request.method == 'POST':
         action = request.POST.get('action')

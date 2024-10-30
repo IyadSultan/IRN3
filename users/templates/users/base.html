@@ -269,5 +269,177 @@
             cursor: pointer;
         }
     </style>
+    <!-- Add this to your base.html template before the closing body tag -->
+<style>
+    .custom-popup {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        min-width: 300px;
+        max-width: 80%;
+    }
+    
+    .popup-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+    }
+    
+    .popup-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .popup-close {
+        cursor: pointer;
+        font-size: 20px;
+        color: #666;
+    }
+    
+    .popup-content {
+        margin-bottom: 15px;
+    }
+    
+    .popup-footer {
+        text-align: right;
+    }
+    
+    .popup-button {
+        padding: 8px 16px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .popup-button:hover {
+        background: #0056b3;
+    }
+    
+    /* Message types styling */
+    .message-error {
+        color: #721c24;
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        padding: 10px;
+        border-radius: 4px;
+    }
+    
+    .message-success {
+        color: #155724;
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        padding: 10px;
+        border-radius: 4px;
+    }
+    
+    .message-warning {
+        color: #856404;
+        background-color: #fff3cd;
+        border: 1px solid #ffeeba;
+        padding: 10px;
+        border-radius: 4px;
+    }
+    
+    .message-info {
+        color: #004085;
+        background-color: #cce5ff;
+        border: 1px solid #b8daff;
+        padding: 10px;
+        border-radius: 4px;
+    }
+    </style>
+    
+    <div id="popupOverlay" class="popup-overlay"></div>
+    <div id="customPopup" class="custom-popup">
+        <div class="popup-header">
+            <h4>Notification</h4>
+            <span class="popup-close" onclick="closePopup()">&times;</span>
+        </div>
+        <div class="popup-content" id="popupContent">
+        </div>
+        <div class="popup-footer">
+            <button class="popup-button" onclick="closePopup()">OK</button>
+        </div>
+    </div>
+    
+    <script>
+    // Global popup functions
+    function showPopup(message, type = 'info') {
+        const popup = document.getElementById('customPopup');
+        const overlay = document.getElementById('popupOverlay');
+        const content = document.getElementById('popupContent');
+        
+        // Create message element
+        const messageElement = document.createElement('div');
+        messageElement.className = `message-${type}`;
+        messageElement.textContent = message;
+        
+        // Clear previous content and add new message
+        content.innerHTML = '';
+        content.appendChild(messageElement);
+        
+        // Show popup and overlay
+        popup.style.display = 'block';
+        overlay.style.display = 'block';
+        
+        // Add event listener for ESC key
+        document.addEventListener('keydown', handleEscapeKey);
+    }
+    
+    function closePopup() {
+        const popup = document.getElementById('customPopup');
+        const overlay = document.getElementById('popupOverlay');
+        popup.style.display = 'none';
+        overlay.style.display = 'none';
+        
+        // Remove ESC key listener
+        document.removeEventListener('keydown', handleEscapeKey);
+    }
+    
+    function handleEscapeKey(e) {
+        if (e.key === 'Escape') {
+            closePopup();
+        }
+    }
+    
+    // Initialize popup for Django messages
+    document.addEventListener('DOMContentLoaded', function() {
+        const messages = [
+            {% for message in messages %}
+                {
+                    text: "{{ message }}",
+                    tags: "{{ message.tags }}"
+                },
+            {% endfor %}
+        ];
+        
+        if (messages.length > 0) {
+            messages.forEach(function(message) {
+                showPopup(message.text, message.tags || 'info');
+            });
+        }
+    });
+    
+    // Click outside to close
+    document.getElementById('popupOverlay').addEventListener('click', closePopup);
+    </script>
 </body>
 </html>
