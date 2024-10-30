@@ -29,7 +29,17 @@ class UserRegistrationForm(UserCreationForm):
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ['institution', 'mobile', 'khcc_employee_number', 'title', 'role', 'photo']
+        fields = [
+            'full_name',
+            'institution',
+            'mobile',
+            'khcc_employee_number',
+            'title',
+            'role',
+            'photo',
+        ]
+        # Exclude only the fields that shouldn't be edited by users
+        exclude = ['user', 'is_approved']
 
 class LoginForm(forms.Form):
     username_or_email = forms.CharField()

@@ -1,5 +1,6 @@
-{% extends 'users/base.html' %}
 
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
 {% block title %}Profile - {{ user.get_full_name|default:user.username }}{% endblock %}
 
 {% block content %}
@@ -11,19 +12,76 @@
                     <h2>User Profile</h2>
                 </div>
                 <div class="card-body">
-                    <dl class="row">
-                        <dt class="col-sm-3">Username</dt>
-                        <dd class="col-sm-9">{{ user.username }}</dd>
+                    <form method="POST" enctype="multipart/form-data" novalidate>
+                        {% csrf_token %}
+                        {{ profile_form|crispy }}
+                        <div class="mb-3 row">
+                            <div class="col-sm-9 offset-sm-3">
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </div>
+                        </div>
+                    </form>
 
-                        <dt class="col-sm-3">Full Name</dt>
-                        <dd class="col-sm-9">{{ user.get_full_name }}</dd>
+                    <hr>
 
-                        <dt class="col-sm-3">Email</dt>
-                        <dd class="col-sm-9">{{ user.email }}</dd>
-
-                        <dt class="col-sm-3">Date Joined</dt>
-                        <dd class="col-sm-9">{{ user.date_joined|date:"F j, Y" }}</dd>
-                    </dl>
+                    <h3 class="mt-4">Required Documents Status</h3>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Document Type</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>GCP Certificate</td>
+                                    <td>
+                                        {% if user.userprofile.has_valid_gcp %}
+                                            <span class="badge bg-success">Valid</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Expired/Missing</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><a href="{% url 'users:upload_document' %}" class="btn btn-sm btn-primary">Upload</a></td>
+                                </tr>
+                                <tr>
+                                    <td>QRC Certificate</td>
+                                    <td>
+                                        {% if user.userprofile.has_valid_qrc %}
+                                            <span class="badge bg-success">Valid</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Expired/Missing</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><a href="{% url 'users:upload_document' %}" class="btn btn-sm btn-primary">Upload</a></td>
+                                </tr>
+                                <tr>
+                                    <td>CTC Certificate</td>
+                                    <td>
+                                        {% if user.userprofile.has_valid_ctc %}
+                                            <span class="badge bg-success">Valid</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Expired/Missing</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><a href="{% url 'users:upload_document' %}" class="btn btn-sm btn-primary">Upload</a></td>
+                                </tr>
+                                <tr>
+                                    <td>CV</td>
+                                    <td>
+                                        {% if user.userprofile.has_valid_cv %}
+                                            <span class="badge bg-success">Valid</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Missing</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><a href="{% url 'users:upload_document' %}" class="btn btn-sm btn-primary">Upload</a></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

@@ -17,8 +17,33 @@ from django.contrib.auth.decorators import login_required
 
 @login_required
 def profile(request):
-    # Your profile view logic here
-    return render(request, 'users/profile.html')
+    if request.method == 'POST':
+        profile_form = UserProfileForm(request.POST, request.FILES, instance=request.user.userprofile)
+        if profile_form.is_valid():
+            profile = profile_form.save(commit=False)
+            # Ensure all fields are captured
+            profile.institution = profile_form.cleaned_data['institution']
+            profile.mobile = profile_form.cleaned_data['mobile']
+            profile.khcc_employee_number = profile_form.cleaned_data['khcc_employee_number']
+            profile.title = profile_form.cleaned_data['title']
+            profile.role = profile_form.cleaned_data['role']
+            profile.full_name = profile_form.cleaned_data['full_name']
+            
+            if 'photo' in request.FILES:
+                profile.photo = request.FILES['photo']
+            
+            profile.save()
+            messages.success(request, 'Profile updated successfully.')
+            return redirect('users:profile')
+        else:
+            print(profile_form.errors)  # Debug form errors
+    else:
+        profile_form = UserProfileForm(instance=request.user.userprofile)
+
+    context = {
+        'profile_form': profile_form,
+    }
+    return render(request, 'users/profile.html', context)
 
 def register(request):
     if request.method == 'POST':
