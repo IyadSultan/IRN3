@@ -600,30 +600,219 @@ def download_submission_pdf(request, submission_id, version=None):
     if not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to view this submission.")
         return redirect('submission:dashboard')
+
+    # If version is not specified, use the latest version
     if version is None:
         version = submission.version
-    else:
-        version = int(version)
+
     # Create the HttpResponse object with PDF headers
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="submission_{submission.temporary_id}_v{version}.pdf"'
+
     # Create the PDF object using ReportLab
     p = canvas.Canvas(response, pagesize=letter)
-    # Add content to the PDF
-    p.drawString(100, 750, f"Submission ID: {submission.temporary_id}")
-    p.drawString(100, 730, f"Title: {submission.title}")
-    p.drawString(100, 710, f"Primary Investigator: {submission.primary_investigator.get_full_name()}")
-    p.drawString(100, 690, f"Status: {submission.get_status_display()}")
-    p.drawString(100, 670, f"Version: {version}")
-    # Fetch form data entries for the specified version
-    form_entries = FormDataEntry.objects.filter(submission=submission, version=version)
-    y = 650
-    for entry in form_entries:
-        p.drawString(100, y, f"{entry.field_name}: {entry.value}")
-        y -= 20
-        if y < 50:
+    y = 750  # Starting y position
+    line_height = 20  # Space between lines
+
+    def add_header(canvas_page, y_position):
+        """Add header to each page"""
+        canvas_page.setFont("Helvetica-Bold", 16)
+        canvas_page.drawString(100, y_position, "intelligent Research Navigator (iRN) report")
+        y_position -= line_height * 1.5
+        
+        canvas_page.setFont("Helvetica-Bold", 14)
+        canvas_page.drawString(100, y_position, f"{submission.title} - Version {version}")
+        y_position -= line_height * 1.5
+        
+        canvas_page.setFont("Helvetica", 10)
+        canvas_page.drawString(100, y_position, f"Date of printing: {timezone.now().strftime('%Y-%m-%d %H:%M')}")
+        y_position -= line_height
+        canvas_page.drawString(100, y_position, f"Printed by: {request.user.get_full_name()}")
+        
+        return y_position - (line_height * 2)  # Return new y position after header
+
+    def add_footer(canvas_page):
+        """Add footer to each page"""
+        footer_text = (
+            "iRN is a property of the Artificial Intelligence and Data Innovation (AIDI) office "
+            "in collaboration with the Office of Scientific Affairs (OSAR) office @ King Hussein "
+            "Cancer Center, Amman - Jordan. Keep this document confidential."
+        )
+        canvas_page.setFont("Helvetica", 8)
+        text_object = canvas_page.beginText()
+        text_object.setTextOrigin(100, 50)
+        
+        # Word wrap the footer text
+        words = footer_text.split()
+        lines = []
+        current_line = []
+        current_length = 0
+        
+        for word in words:
+            if current_length + len(word) + 1 <= 90:
+                current_line.append(word)
+                current_length += len(word) + 1
+            else:
+                lines.append(" ".join(current_line))
+                current_line = [word]
+                current_length = len(word)
+        
+        if current_line:
+            lines.append(" ".join(current_line))
+        
+        for line in lines:
+            text_object.textLine(line)
+        
+        canvas_page.drawText(text_object)
+
+    # Add header to first page
+    y = add_header(p, y)
+
+    # Add basic submission details
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(100, y, "Basic Information")
+    y -= line_height
+
+    p.setFont("Helvetica", 10)
+    basic_info = [
+        f"Submission ID: {submission.temporary_id}",
+        f"Study Type: {submission.study_type}",
+        f"IRB Number: {submission.irb_number or 'Not provided'}",
+        f"Status: {submission.get_status_display()}",
+        f"Date Created: {submission.date_created.strftime('%Y-%m-%d')}",
+        f"Date Submitted: {submission.date_submitted.strftime('%Y-%m-%d') if submission.date_submitted else 'Not submitted'}",
+    ]
+
+    for info in basic_info:
+        p.drawString(100, y, info)
+        y -= line_height
+
+    # Add Research Team section
+    y -= line_height
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(100, y, "Research Team")
+    y -= line_height
+
+    p.setFont("Helvetica", 10)
+    p.drawString(100, y, f"Primary Investigator: {submission.primary_investigator.get_full_name()}")
+    y -= line_height
+
+    # Add Co-Investigators
+    coinvestigators = submission.coinvestigators.all()
+    if coinvestigators:
+        y -= line_height/2
+        p.drawString(100, y, "Co-Investigators:")
+        y -= line_height
+        for ci in coinvestigators:
+            p.drawString(120, y, f"- {ci.user.get_full_name()} (Role: {ci.role_in_study})")
+            y -= line_height
+
+    # Add Research Assistants
+    research_assistants = submission.research_assistants.all()
+    if research_assistants:
+        y -= line_height/2
+        p.drawString(100, y, "Research Assistants:")
+        y -= line_height
+        for ra in research_assistants:
+            p.drawString(120, y, f"- {ra.user.get_full_name()}")
+            y -= line_height
+
+    # Add form data for each dynamic form
+    for dynamic_form in submission.study_type.forms.all():
+        # Check if we need a new page
+        if y < 100:
+            add_footer(p)
             p.showPage()
-            y = 750
+            y = add_header(p, 750)
+
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(100, y, dynamic_form.name)
+        y -= line_height * 1.5
+
+        # Get field definitions for displayed names
+        field_definitions = {
+            field.name: field.displayed_name 
+            for field in dynamic_form.fields.all()
+        }
+
+        form_entries = FormDataEntry.objects.filter(
+            submission=submission,
+            form=dynamic_form,
+            version=version
+        )
+
+        p.setFont("Helvetica", 10)
+        for entry in form_entries:
+            # Check if we need a new page
+            if y < 100:
+                add_footer(p)
+                p.showPage()
+                y = add_header(p, 750)
+                p.setFont("Helvetica", 10)
+
+            displayed_name = field_definitions.get(entry.field_name, entry.field_name)
+            
+            # Handle checkbox/list values
+            if entry.value.startswith('['):
+                try:
+                    value_list = json.loads(entry.value)
+                    value_str = ", ".join(value_list)
+                except json.JSONDecodeError:
+                    value_str = entry.value
+            else:
+                value_str = entry.value
+
+            # Word wrap for long values
+            if len(str(value_str)) > 60:
+                words = str(value_str).split()
+                lines = []
+                current_line = []
+                current_length = 0
+
+                for word in words:
+                    if current_length + len(word) + 1 <= 60:
+                        current_line.append(word)
+                        current_length += len(word) + 1
+                    else:
+                        lines.append(" ".join(current_line))
+                        current_line = [word]
+                        current_length = len(word)
+
+                if current_line:
+                    lines.append(" ".join(current_line))
+
+                p.drawString(100, y, f"{displayed_name}:")
+                y -= line_height
+                for line in lines:
+                    p.drawString(120, y, line)
+                    y -= line_height
+            else:
+                p.drawString(100, y, f"{displayed_name}: {value_str}")
+                y -= line_height
+
+        y -= line_height  # Extra space between forms
+
+    # Add attached documents list
+    if y < 100:
+        add_footer(p)
+        p.showPage()
+        y = add_header(p, 750)
+
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(100, y, "Attached Documents")
+    y -= line_height
+
+    p.setFont("Helvetica", 10)
+    documents = submission.documents.all()
+    if documents:
+        for doc in documents:
+            p.drawString(100, y, f"- {doc.file.name.split('/')[-1]} (Uploaded by: {doc.uploaded_by.get_full_name()})")
+            y -= line_height
+    else:
+        p.drawString(100, y, "No documents attached")
+
+    # Add footer to the last page
+    add_footer(p)
     p.showPage()
     p.save()
     return response
@@ -635,12 +824,75 @@ def compare_versions(request, submission_id, version1, version2):
     if not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to view this submission.")
         return redirect('submission:dashboard')
-    data = compare_versions(submission, version1, version2)
+
+    # Get all forms for this submission's study type
+    forms = submission.study_type.forms.all()
+    
+    comparison_data = []
+    
+    for form in forms:
+        # Get entries for both versions
+        entries_v1 = FormDataEntry.objects.filter(
+            submission=submission,
+            form=form,
+            version=version1
+        ).select_related('form')
+        
+        entries_v2 = FormDataEntry.objects.filter(
+            submission=submission,
+            form=form,
+            version=version2
+        ).select_related('form')
+
+        # Create dictionaries for easy comparison
+        data_v1 = {entry.field_name: entry.value for entry in entries_v1}
+        data_v2 = {entry.field_name: entry.value for entry in entries_v2}
+
+        # Get field definitions for displayed names
+        field_definitions = {
+            field.name: field.displayed_name 
+            for field in form.fields.all()
+        }
+
+        # Compare fields
+        form_changes = []
+        all_fields = set(data_v1.keys()) | set(data_v2.keys())
+        
+        for field in all_fields:
+            displayed_name = field_definitions.get(field, field)
+            value1 = data_v1.get(field, 'Not provided')
+            value2 = data_v2.get(field, 'Not provided')
+
+            # Handle checkbox/list values
+            if isinstance(value1, str) and value1.startswith('['):
+                try:
+                    value1 = ', '.join(json.loads(value1))
+                except json.JSONDecodeError:
+                    pass
+            if isinstance(value2, str) and value2.startswith('['):
+                try:
+                    value2 = ', '.join(json.loads(value2))
+                except json.JSONDecodeError:
+                    pass
+
+            if value1 != value2:
+                form_changes.append({
+                    'field': displayed_name,
+                    'old_value': value1,
+                    'new_value': value2
+                })
+
+        if form_changes:
+            comparison_data.append({
+                'form_name': form.name,
+                'changes': form_changes
+            })
+
     return render(request, 'submission/compare_versions.html', {
         'submission': submission,
         'version1': version1,
         'version2': version2,
-        'data': data,
+        'comparison_data': comparison_data,
     })
 
 

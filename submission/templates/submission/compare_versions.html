@@ -1,24 +1,58 @@
 {% extends 'users/base.html' %}
+
 {% block content %}
 <div class="container mt-4">
-    <h1>Comparison between Version {{ version1 }} and Version {{ version2 }}</h1>
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>Field Name</th>
-                <th>Version {{ version1 }}</th>
-                <th>Version {{ version2 }}</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in data %}
-            <tr {% if item.changed %}style="background-color: #ffff99;"{% endif %}>
-                <td>{{ item.field_name }}</td>
-                <td>{{ item.value1 }}</td>
-                <td>{{ item.value2 }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="card">
+        <div class="card-header">
+            <h2>Version Comparison</h2>
+            <h4>{{ submission.title }}</h4>
+            <p>Comparing Version {{ version1 }} with Version {{ version2 }}</p>
+        </div>
+        <div class="card-body">
+            {% if comparison_data %}
+                {% for form_data in comparison_data %}
+                    <h5 class="mt-4">{{ form_data.form_name }}</h5>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Field</th>
+                                <th>Version {{ version1 }}</th>
+                                <th>Version {{ version2 }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for change in form_data.changes %}
+                                <tr>
+                                    <td>{{ change.field }}</td>
+                                    <td {% if change.old_value != change.new_value %}class="bg-light-yellow"{% endif %}>
+                                        {{ change.old_value }}
+                                    </td>
+                                    <td {% if change.old_value != change.new_value %}class="bg-light-yellow"{% endif %}>
+                                        {{ change.new_value }}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">
+                    No differences found between these versions.
+                </div>
+            {% endif %}
+
+            <div class="mt-4">
+                <a href="{% url 'submission:submission_review' submission.temporary_id %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Review
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
+
+<style>
+    .bg-light-yellow {
+        background-color: #fff3cd;
+    }
+</style>
 {% endblock %}
