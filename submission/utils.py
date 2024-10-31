@@ -115,3 +115,24 @@ def compare_versions(submission, version1, version2):
             'changed': (value1.value if value1 else '') != (value2.value if value2 else '')
         })
     return data
+
+from django.contrib.auth.models import User
+from .models import SystemSettings
+
+def get_system_user():
+    """Get or create the system user for automated messages"""
+    system_email = SystemSettings.get_system_email()
+    system_user, created = User.objects.get_or_create(
+        username='system',
+        defaults={
+            'email': system_email,
+            'is_active': False,  # System user can't login
+            'first_name': 'AIDI',
+            'last_name': 'System'
+        }
+    )
+    # Update email if it changed in settings
+    if system_user.email != system_email:
+        system_user.email = system_email
+        system_user.save()
+    return system_user

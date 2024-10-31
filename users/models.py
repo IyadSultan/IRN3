@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.utils import timezone
+from django.core.cache import cache
 
 ROLE_CHOICES = [
     ('KHCC investigator', 'KHCC investigator'),
@@ -170,3 +171,33 @@ def create_or_update_user_profile(sender, instance, created, **kwargs):
             if not profile.full_name:
                 profile.full_name = f"{instance.first_name} {instance.last_name}".strip()
             profile.save()
+
+class SystemSettings(models.Model):
+    system_email = models.EmailField(
+        default='aidi@khcc.jo',
+        help_text='System email address used for automated messages'
+    )
+    system_user = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='system_settings',
+        help_text='User account to be used for system messages'
+    )
+    
+    class Meta:
+        verbose_name = 'System Settings'
+        verbose_name_plural = 'System Settings'
+
+    def save(self, *args, **kwargs):
+        cache.delete('system_settings')
+        super().save(*args, **kwargs)
+        
+    @classmethod
+    def get_system_user(cls):
+        settings = cls.objects.first()
+        if settings and settings.system_user:
+            return settings.system_user
+        # Fallback to first superuser if no system user is set
+        return User.objects.filter(is_superuser=True).first()

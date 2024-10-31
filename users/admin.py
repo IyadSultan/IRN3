@@ -1,7 +1,7 @@
 # users/admin.py
 
 from django.contrib import admin
-from .models import UserProfile, Document
+from .models import UserProfile, Document, SystemSettings
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
@@ -17,3 +17,12 @@ class UserProfileAdmin(admin.ModelAdmin):
 class DocumentAdmin(admin.ModelAdmin):
     list_display = ('user', 'document_type', 'issue_date', 'expiry_date')
     list_filter = ('document_type',)
+
+@admin.register(SystemSettings)
+class SystemSettingsAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        # Only allow one instance of settings
+        return not SystemSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

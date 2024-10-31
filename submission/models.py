@@ -113,3 +113,33 @@ class VersionHistory(models.Model):
 
     def __str__(self):
         return f"Submission {self.submission.temporary_id} - Version {self.version}"
+    
+
+    from django.db import models
+from django.core.cache import cache
+
+class SystemSettings(models.Model):
+    system_email = models.EmailField(
+        default='aidi@khcc.jo',
+        help_text='System email address used for automated messages'
+    )
+    
+    class Meta:
+        verbose_name = 'System Settings'
+        verbose_name_plural = 'System Settings'
+
+    def save(self, *args, **kwargs):
+        # Clear cache when settings are updated
+        cache.delete('system_settings')
+        super().save(*args, **kwargs)
+        
+    @classmethod
+    def get_system_email(cls):
+        # Try to get from cache first
+        settings = cache.get('system_settings')
+        if not settings:
+            settings = cls.objects.first()
+            if not settings:
+                settings = cls.objects.create()
+            cache.set('system_settings', settings)
+        return settings.system_email

@@ -44,6 +44,8 @@ from .utils import (
 )
 from forms_builder.models import DynamicForm
 from messaging.models import Message
+from .utils import get_system_user  # adjust import path as needed
+from users.models import SystemSettings
 
 
 @login_required
@@ -506,16 +508,14 @@ def submission_review(request, submission_id):
         action = request.POST.get('action')
         if action == 'submit_final':
             if missing_documents or validation_errors:
-                messages.error(
-                    request,
-                    'Please resolve the missing documents and form errors before final submission.'
-                )
+                messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
             else:
                 submission.is_locked = True
                 submission.status = 'submitted'
                 submission.date_submitted = timezone.now()
-                submission.version += 1  # Increment version if applicable
+                submission.version += 1
                 submission.save()
+                
                 # Create version history entry
                 VersionHistory.objects.create(
                     submission=submission,
@@ -523,6 +523,26 @@ def submission_review(request, submission_id):
                     status=submission.status,
                     date=timezone.now(),
                 )
+
+                # Create notification message using the configured system user
+                message = Message.objects.create(
+                    sender=SystemSettings.get_system_user(),
+                    subject=f"Submission {submission.temporary_id} Successfully Submitted",
+                    body=f"""Your submission "{submission.title}" (ID: {submission.temporary_id}) has been successfully submitted.
+                    
+                    Date Submitted: {submission.date_submitted.strftime('%Y-%m-%d %H:%M')}
+                    Version: {submission.version}
+                    
+                    You will be notified when there are any updates regarding your submission.
+                    
+                    Best regards,
+                    AIDI Office""",
+                    study_name=submission.title,
+                )
+                
+                # Set the recipients after creating the message
+                message.recipients.set([submission.primary_investigator])
+
                 messages.success(request, 'Submission has been finalized and locked.')
                 return redirect('submission:dashboard')
         elif action == 'back':

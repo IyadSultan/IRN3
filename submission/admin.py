@@ -49,3 +49,16 @@ class VersionHistoryAdmin(admin.ModelAdmin):
     list_display = ('submission', 'version', 'status', 'date')
     search_fields = ('submission__title',)
     list_filter = ('status', 'date')
+
+from django.contrib import admin
+from .models import SystemSettings  # Add this import
+
+@admin.register(SystemSettings)
+class SystemSettingsAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        # Only allow one instance of settings
+        return not SystemSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        # Prevent deletion of settings
+        return False
