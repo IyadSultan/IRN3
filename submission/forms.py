@@ -104,8 +104,10 @@ def generate_django_form(dynamic_form):
                        for choice in field.choices.split(',') if choice.strip()]
             fields[field.name] = forms.MultipleChoiceField(
                 choices=choices,
-                widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
-                **field_attrs
+                widget=forms.CheckboxSelectMultiple(attrs={
+                    'class': 'form-check-input'
+                }),
+                required=field.required
             )
         elif field.field_type == 'radio':
             choices = [(choice.strip(), choice.strip())

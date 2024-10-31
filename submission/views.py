@@ -323,6 +323,15 @@ def submission_form(request, submission_id, form_id):
     dynamic_form = get_object_or_404(DynamicForm, pk=form_id)
     action = request.POST.get('action')
 
+    def safe_json_loads(value):
+        """Safely convert JSON string to Python object"""
+        try:
+            if isinstance(value, str) and value.startswith('['):
+                return json.loads(value)
+            return value
+        except json.JSONDecodeError:
+            return value
+
     # Get previous version's data
     previous_version_data = None
     if submission.version > 1:
@@ -331,7 +340,11 @@ def submission_form(request, submission_id, form_id):
             form=dynamic_form,
             version=submission.version - 1
         ).values('field_name', 'value')
-        previous_version_data = {entry['field_name']: entry['value'] for entry in previous_version_data}
+        # Safely convert values
+        previous_version_data = {
+            entry['field_name']: safe_json_loads(entry['value'])
+            for entry in previous_version_data
+        }
 
     if request.method == 'POST':
         # Get the form class
@@ -353,6 +366,10 @@ def submission_form(request, submission_id, form_id):
         if form_instance.is_valid():
             # Save form data
             for field_name, value in form_instance.cleaned_data.items():
+                # Convert lists to JSON strings for storage
+                if isinstance(value, (list, tuple)):
+                    value = json.dumps(value)
+                    print(f"Saving checkbox field {field_name} with value: {value}")  # Debug line
                 FormDataEntry.objects.update_or_create(
                     submission=submission,
                     form=dynamic_form,
@@ -378,18 +395,43 @@ def submission_form(request, submission_id, form_id):
         DynamicFormClass = generate_django_form(dynamic_form)
         
         # Get current version's data
-        current_data = {
-            entry.field_name: entry.value
+        current_data = FormDataEntry.objects.filter(
+            submission=submission,
+            form=dynamic_form,
+            version=submission.version
+        ).values('field_name', 'value')
+        
+        # Convert values and handle checkboxes specifically
+        current_data = {}
+        for entry in FormDataEntry.objects.filter(
+            submission=submission,
+            form=dynamic_form,
+            version=submission.version
+        ):
+            if isinstance(DynamicFormClass.base_fields.get(entry.field_name), forms.MultipleChoiceField):
+                try:
+                    current_data[entry.field_name] = json.loads(entry.value)
+                except (json.JSONDecodeError, TypeError):
+                    current_data[entry.field_name] = []
+            else:
+                current_data[entry.field_name] = entry.value
+
+        # Get previous version's data if needed
+        if not current_data and submission.version > 1 and not submission.is_locked:
+            previous_data = {}
             for entry in FormDataEntry.objects.filter(
                 submission=submission,
                 form=dynamic_form,
-                version=submission.version
-            )
-        }
-        
-        # If no current data and form is unlocked, use previous version's data
-        if not current_data and previous_version_data and not submission.is_locked:
-            initial_data = previous_version_data
+                version=submission.version - 1
+            ):
+                if isinstance(DynamicFormClass.base_fields.get(entry.field_name), forms.MultipleChoiceField):
+                    try:
+                        previous_data[entry.field_name] = json.loads(entry.value)
+                    except (json.JSONDecodeError, TypeError):
+                        previous_data[entry.field_name] = []
+                else:
+                    previous_data[entry.field_name] = entry.value
+            initial_data = previous_data
         else:
             initial_data = current_data
 
