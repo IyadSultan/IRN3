@@ -6,6 +6,11 @@
     <div class="card">
         <div class="card-header">
             <h2>{{ dynamic_form.name }}</h2>
+            {% if submission.version > 1 and not submission.is_locked %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> This form has been pre-populated with data from the previous version.
+            </div>
+            {% endif %}
         </div>
         <div class="card-body">
             <form method="post" novalidate>

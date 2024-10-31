@@ -323,61 +323,89 @@ def submission_form(request, submission_id, form_id):
     dynamic_form = get_object_or_404(DynamicForm, pk=form_id)
     action = request.POST.get('action')
 
+    # Get previous version's data
+    previous_version_data = None
+    if submission.version > 1:
+        previous_version_data = FormDataEntry.objects.filter(
+            submission=submission,
+            form=dynamic_form,
+            version=submission.version - 1
+        ).values('field_name', 'value')
+        previous_version_data = {entry['field_name']: entry['value'] for entry in previous_version_data}
+
     if request.method == 'POST':
-        django_form_class = generate_django_form(dynamic_form)
-        form_instance = django_form_class(request.POST, prefix=f'form_{dynamic_form.id}')
-
-        # Save data without validation
-        for field_name in form_instance.fields.keys():
-            key = f'form_{dynamic_form.id}-{field_name}'
-            value = request.POST.get(key, '').strip()
-            FormDataEntry.objects.update_or_create(
-                submission=submission,
-                form=dynamic_form,
-                field_name=field_name,
-                defaults={'value': value, 'version': submission.version}
-            )
-            logger.debug(f"Saved field '{field_name}' with value '{value}' for submission '{submission.temporary_id}'")
-
-        messages.success(request, f'Form "{dynamic_form.name}" saved.')
-
-        # Handle actions
-        if action == 'exit_no_save':
-            return redirect('submission:dashboard')
-        elif action == 'back':
+        # Get the form class
+        DynamicFormClass = generate_django_form(dynamic_form)
+        form_instance = DynamicFormClass(request.POST, prefix=f'form_{dynamic_form.id}')
+        
+        if action == 'back':
             previous_form = get_previous_form(submission, dynamic_form)
             if previous_form:
-                return redirect('submission:submission_form', submission_id=submission.temporary_id, form_id=previous_form.id)
-            else:
-                return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
-        elif action == 'save_exit':
+                return redirect('submission:submission_form', 
+                              submission_id=submission.temporary_id, 
+                              form_id=previous_form.id)
+            return redirect('submission:add_coinvestigator', 
+                          submission_id=submission.temporary_id)
+        
+        if action == 'exit_no_save':
             return redirect('submission:dashboard')
-        elif action == 'save_continue':
-            next_form = get_next_form(submission, dynamic_form)
-            if next_form:
-                return redirect('submission:submission_form', submission_id=submission.temporary_id, form_id=next_form.id)
-            else:
-                return redirect('submission:submission_review', submission_id=submission.temporary_id)
+        
+        if form_instance.is_valid():
+            # Save form data
+            for field_name, value in form_instance.cleaned_data.items():
+                FormDataEntry.objects.update_or_create(
+                    submission=submission,
+                    form=dynamic_form,
+                    field_name=field_name,
+                    version=submission.version,
+                    defaults={'value': value}
+                )
+            
+            if action == 'save_exit':
+                return redirect('submission:dashboard')
+            elif action == 'save_continue':
+                next_form = get_next_form(submission, dynamic_form)
+                if next_form:
+                    return redirect('submission:submission_form', 
+                                  submission_id=submission.temporary_id, 
+                                  form_id=next_form.id)
+                return redirect('submission:submission_review', 
+                              submission_id=submission.temporary_id)
+        else:
+            messages.error(request, 'Please correct the errors below.')
     else:
-        # GET request
-        django_form_class = generate_django_form(dynamic_form)
-        initial_data = {
+        # Get the form class
+        DynamicFormClass = generate_django_form(dynamic_form)
+        
+        # Get current version's data
+        current_data = {
             entry.field_name: entry.value
             for entry in FormDataEntry.objects.filter(
-                submission=submission, form=dynamic_form, version=submission.version
+                submission=submission,
+                form=dynamic_form,
+                version=submission.version
             )
         }
-        form_instance = django_form_class(initial=initial_data, prefix=f'form_{dynamic_form.id}')
+        
+        # If no current data and form is unlocked, use previous version's data
+        if not current_data and previous_version_data and not submission.is_locked:
+            initial_data = previous_version_data
+        else:
+            initial_data = current_data
 
-    previous_form = get_previous_form(submission, dynamic_form)
+        # Create form instance with initial data
+        form_instance = DynamicFormClass(
+            initial=initial_data, 
+            prefix=f'form_{dynamic_form.id}'
+        )
+
     context = {
         'form': form_instance,
         'submission': submission,
         'dynamic_form': dynamic_form,
-        'previous_form': previous_form,
+        'previous_form': get_previous_form(submission, dynamic_form),
     }
     return render(request, 'submission/dynamic_form.html', context)
-# submission/views.py
 
 @login_required
 def submission_review(request, submission_id):

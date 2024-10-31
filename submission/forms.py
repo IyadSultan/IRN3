@@ -56,6 +56,14 @@ class CoInvestigatorForm(forms.Form):
 
 def generate_django_form(dynamic_form):
     from django import forms
+
+    # Create a form class dynamically
+    class DynamicModelForm(forms.Form):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            # Add any custom initialization here if needed
+
+    # Create the form fields dictionary
     fields = {}
     for field in dynamic_form.fields.all():
         label = f"{field.displayed_name}{'*' if field.required else ''}"
@@ -66,6 +74,7 @@ def generate_django_form(dynamic_form):
             'initial': field.default_value,
         }
         widget_attrs = {'class': 'form-control'}
+
         if field.field_type == 'text':
             fields[field.name] = forms.CharField(
                 max_length=field.max_length or 255,
@@ -125,8 +134,11 @@ def generate_django_form(dynamic_form):
                 **field_attrs
             )
         # Add other field types as necessary
-    return type('DynamicForm', (forms.Form,), fields)
 
+    # Add the fields to the form class
+    DynamicModelForm.base_fields = fields
+
+    return DynamicModelForm
 
 class DocumentForm(forms.ModelForm):
     class Meta:
