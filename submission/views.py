@@ -43,9 +43,12 @@ from .utils import (
     compare_versions,
 )
 from forms_builder.models import DynamicForm
-from messaging.models import Message
+from messaging.models import Message, MessageAttachment
 from .utils import get_system_user  # adjust import path as needed
 from users.models import SystemSettings
+from django.core.files.base import ContentFile
+from io import BytesIO
+import os
 
 
 @login_required
@@ -524,7 +527,63 @@ def submission_review(request, submission_id):
                     date=timezone.now(),
                 )
 
-                # Create notification message using the configured system user
+                # Generate PDF
+                buffer = BytesIO()
+                p = canvas.Canvas(buffer, pagesize=letter)
+                y = 750  # Starting y position
+
+                # Add header
+                p.setFont("Helvetica-Bold", 16)
+                p.drawString(100, y, f"Submission Report - Version {submission.version}")
+                y -= 30
+
+                # Add submission details
+                p.setFont("Helvetica", 12)
+                details = [
+                    f"Title: {submission.title}",
+                    f"ID: {submission.temporary_id}",
+                    f"Date Submitted: {submission.date_submitted.strftime('%Y-%m-%d %H:%M')}",
+                    f"Primary Investigator: {submission.primary_investigator.get_full_name()}",
+                    f"Study Type: {submission.study_type}",
+                ]
+
+                for detail in details:
+                    p.drawString(100, y, detail)
+                    y -= 20
+
+                # Add form data
+                for dynamic_form in submission.study_type.forms.all():
+                    y -= 30
+                    p.setFont("Helvetica-Bold", 12)
+                    p.drawString(100, y, dynamic_form.name)
+                    y -= 20
+                    
+                    p.setFont("Helvetica", 10)
+                    form_entries = FormDataEntry.objects.filter(
+                        submission=submission,
+                        form=dynamic_form,
+                        version=submission.version
+                    )
+                    
+                    for entry in form_entries:
+                        if y < 100:  # Start new page if near bottom
+                            p.showPage()
+                            y = 750
+                            p.setFont("Helvetica", 10)
+                        
+                        text = f"{entry.field_name}: {entry.value}"
+                        p.drawString(120, y, text)
+                        y -= 15
+
+                p.showPage()
+                p.save()
+                buffer.seek(0)  # Reset buffer position
+
+                # Create PDF file
+                pdf_filename = f"submission_{submission.temporary_id}_v{submission.version}.pdf"
+                pdf_content = ContentFile(buffer.getvalue())
+
+                # Create notification message
                 message = Message.objects.create(
                     sender=SystemSettings.get_system_user(),
                     subject=f"Submission {submission.temporary_id} Successfully Submitted",
@@ -540,8 +599,25 @@ def submission_review(request, submission_id):
                     study_name=submission.title,
                 )
                 
-                # Set the recipients after creating the message
+                # Set the recipients
                 message.recipients.set([submission.primary_investigator])
+
+                try:
+                    # Create PDF file
+                    pdf_filename = f"submission_{submission.temporary_id}_v{submission.version}.pdf"
+                    pdf_content = ContentFile(buffer.getvalue())
+                    
+                    # Create attachment
+                    attachment = MessageAttachment(
+                        message=message,
+                        filename=pdf_filename
+                    )
+                    attachment.file.save(pdf_filename, pdf_content, save=True)
+                    
+                    print(f"Attachment saved: {attachment.file.name}")  # Debug line
+                except Exception as e:
+                    print(f"Error saving attachment: {str(e)}")  # Debug line
+                    messages.error(request, "Error attaching PDF to message.")
 
                 messages.success(request, 'Submission has been finalized and locked.')
                 return redirect('submission:dashboard')

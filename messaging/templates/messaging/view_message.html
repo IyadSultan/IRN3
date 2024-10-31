@@ -42,7 +42,22 @@
                         <p><strong>Study Name:</strong> {{ message.study_name }}</p>
                     {% endif %}
                     <p><strong>Sent At:</strong> {{ message.sent_at|date:"F d, Y H:i" }}</p>
-                    <p><strong>Attachments:</strong> {% if message.attachments.all %}{{ message.attachments.all|join:", " }}{% else %}None{% endif %}</p>
+                    <p><strong>Attachments:</strong> 
+                        {% if message.attachments.all %}
+                            <ul class="list-unstyled">
+                            {% for attachment in message.attachments.all %}
+                                <li>
+                                    <i class="fas fa-paperclip"></i>
+                                    <a href="{{ attachment.file.url }}" target="_blank">
+                                        {{ attachment.filename }}
+                                    </a>
+                                </li>
+                            {% endfor %}
+                            </ul>
+                        {% else %}
+                            None
+                        {% endif %}
+                    </p>
                     <p><strong>Hashtags:</strong> {% if message.hashtags.all %}{{ message.hashtags.all|join:", " }}{% else %}None{% endif %}</p>
                 </div>
                 <div class="col-md-6 text-md-right">
