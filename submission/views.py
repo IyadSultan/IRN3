@@ -9,6 +9,7 @@ from dal import autocomplete
 import json
 from io import BytesIO
 from .utils import PDFGenerator
+from .utils.pdf_generator import generate_submission_pdf
 
 from .models import (
     Submission,
@@ -407,29 +408,8 @@ def submission_review(request, submission_id):
                     date=timezone.now(),
                 )
 
-                # Generate and attach PDF
-                buffer = BytesIO()
-                pdf_generator = PDFGenerator(buffer, submission, submission.version, request.user)
-                pdf_generator.generate()
-                buffer.seek(0)
-
-                # Create system message
-                message = Message.objects.create(
-                    sender=SystemSettings.get_system_user(),
-                    subject=f"Submission {submission.temporary_id} Successfully Submitted",
-                    body=f"""Your submission "{submission.title}" (ID: {submission.temporary_id}) has been successfully submitted.
-                    
-                    Date Submitted: {submission.date_submitted.strftime('%Y-%m-%d %H:%M')}
-                    Version: {submission.version}
-                    
-                    You will be notified when there are any updates regarding your submission.
-                    
-                    Best regards,
-                    AIDI Office""",
-                    study_name=submission.title,
-                )
-                
-                message.recipients.set([submission.primary_investigator])
+                # Generate PDF and create message
+                buffer = generate_submission_pdf(submission, submission.version, request.user, as_buffer=True)
 
                 try:
                     # Create PDF attachment
@@ -589,24 +569,8 @@ def download_submission_pdf(request, submission_id, version=None):
         messages.error(request, "You do not have permission to view this submission.")
         return redirect('submission:dashboard')
 
-    # Use latest version if none specified
-    if version is None:
-        version = submission.version
-
-    # Generate PDF
-    buffer = BytesIO()
-    pdf_generator = PDFGenerator(buffer, submission, version, request.user)
-    pdf_generator.generate()
-    
-    # Create response
-    buffer.seek(0)
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = (
-        f'attachment; filename="submission_{submission.temporary_id}_v{version}.pdf"'
-    )
-    response.write(buffer.getvalue())
-    
-    return response
+    # Let generate_submission_pdf handle version selection
+    return generate_submission_pdf(submission, version, request.user, as_buffer=False)
 
 @login_required
 def update_coinvestigator_order(request, submission_id):
