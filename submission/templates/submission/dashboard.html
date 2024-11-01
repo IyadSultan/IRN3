@@ -53,7 +53,7 @@
                             {{ submission.get_status_display|default:"" }}
                         </span>
                     </td>
-                    <td>{{ submission.version }}</td>
+                    <td>{{ submission.actual_version }}</td>
                     <td data-order="{{ submission.date_created|date:'Y-m-d H:i:s' }}">
                         {{ submission.date_created|date:"M d, Y H:i"|default:"" }}
                     </td>

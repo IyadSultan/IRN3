@@ -43,9 +43,19 @@ logger = logging.getLogger(__name__)
 @login_required
 def dashboard(request):
     """Display user's submissions dashboard."""
+    from django.db.models import Max
+    
     submissions = Submission.objects.filter(
         primary_investigator=request.user
     ).select_related('study_type')
+    
+    # Get the actual latest version for each submission from FormDataEntry
+    for submission in submissions:
+        latest_version = FormDataEntry.objects.filter(
+            submission=submission
+        ).values('version').aggregate(Max('version'))['version__max']
+        submission.actual_version = latest_version or 1  # Use 1 if no entries found
+
     return render(request, 'submission/dashboard.html', {'submissions': submissions})
 
 @login_required
