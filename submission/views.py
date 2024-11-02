@@ -425,21 +425,51 @@ def submission_review(request, submission_id):
                     date=timezone.now(),
                 )
 
-                # Generate PDF and create message
-                buffer = generate_submission_pdf(submission, submission.version, request.user, as_buffer=True)
-
                 try:
-                    # Create PDF attachment
-                    pdf_filename = f"submission_{submission.temporary_id}_v{submission.version}.pdf"
+                    # Create confirmation message
+                    message = Message.objects.create(
+                        sender=request.user,
+                        subject=f'Submission {submission.temporary_id} - Version 1 Confirmation',
+                        body=f'Your submission (ID: {submission.temporary_id}) has been successfully submitted. Please find the attached PDF for your records.',
+                        study_name=submission.title if hasattr(submission, 'title') else None,
+                    )
+                    message.recipients.add(submission.primary_investigator)
+                    
+                    # Use version 1 for new submissions
+                    current_version = 1
+                    logger.info(f"Generating PDF for submission {submission.temporary_id} version {current_version}")
+                    
+                    # Generate PDF
+                    buffer = generate_submission_pdf(
+                        submission=submission,
+                        version=current_version,
+                        user=request.user,
+                        as_buffer=True
+                    )
+                    
+                    if not buffer:
+                        raise ValueError(f"Failed to generate PDF for version {current_version}")
+                    
+                    pdf_filename = f"submission_{submission.temporary_id}_v{current_version}.pdf"
                     pdf_content = ContentFile(buffer.getvalue())
                     
-                    attachment = MessageAttachment(message=message)
+                    attachment = MessageAttachment(
+                        message=message,
+                        filename=pdf_filename
+                    )
                     attachment.file.save(pdf_filename, pdf_content, save=True)
-                except Exception as e:
-                    logger.error(f"Error saving PDF attachment: {str(e)}")
-                    messages.error(request, "Error attaching PDF to confirmation message.")
+                    
+                    # Now increment the version for future revisions
+                    submission.version = 2  # Next version will be 2
+                    submission.save()
+                    
+                    messages.success(request, 'Submission has been finalized and locked. A confirmation message has been sent.')
 
-                messages.success(request, 'Submission has been finalized and locked.')
+                except Exception as e:
+                    logger.error(f"Error in submission finalization process: {str(e)}")
+                    logger.error("Error details:", exc_info=True)
+                    messages.warning(request, 'Submission completed but there was an error sending the confirmation message.')
+                
                 return redirect('submission:dashboard')
 
         elif action == 'back':
@@ -581,13 +611,54 @@ def compare_versions(request, submission_id, version1, version2):
 @login_required
 def download_submission_pdf(request, submission_id, version=None):
     """Generate and download PDF version of a submission."""
-    submission = get_object_or_404(Submission, pk=submission_id)
-    if not has_edit_permission(request.user, submission):
-        messages.error(request, "You do not have permission to view this submission.")
-        return redirect('submission:dashboard')
+    try:
+        submission = get_object_or_404(Submission, pk=submission_id)
+        if not has_edit_permission(request.user, submission):
+            messages.error(request, "You do not have permission to view this submission.")
+            return redirect('submission:dashboard')
 
-    # Let generate_submission_pdf handle version selection
-    return generate_submission_pdf(submission, version, request.user, as_buffer=False)
+        # If version is not specified, use version 1 for new submissions
+        if version is None:
+            # If submission.version is 2, it means we just submitted version 1
+            version = submission.version - 1 if submission.version > 1 else 1
+            
+        logger.info(f"Generating PDF for submission {submission_id} version {version}")
+
+        # Check if form entries exist for this version
+        form_entries = FormDataEntry.objects.filter(
+            submission=submission,
+            version=version
+        )
+        
+        if not form_entries.exists():
+            logger.warning(f"No form entries found for version {version}, checking version 1")
+            # Try version 1 as fallback
+            version = 1
+            form_entries = FormDataEntry.objects.filter(
+                submission=submission,
+                version=version
+            )
+
+        # Generate PDF
+        response = generate_submission_pdf(
+            submission=submission,
+            version=version,
+            user=request.user,
+            as_buffer=False
+        )
+        
+        if response is None:
+            messages.error(request, "Error generating PDF. Please try again later.")
+            logger.error(f"PDF generation failed for submission {submission_id} version {version}")
+            return redirect('submission:dashboard')
+            
+        return response
+
+    except Exception as e:
+        logger.error(f"Error in download_submission_pdf: {str(e)}")
+        logger.error("Error details:", exc_info=True)
+        messages.error(request, "An error occurred while generating the PDF.")
+        return redirect('submission:dashboard')
 
 @login_required
 def update_coinvestigator_order(request, submission_id):

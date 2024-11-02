@@ -21,11 +21,17 @@ import json
 from submission.models import FormDataEntry, Submission
 from io import BytesIO
 from django.http import HttpResponse
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PDFGenerator:
     def __init__(self, buffer, submission, version, user):
         """Initialize the PDF generator with basic settings"""
+        if version is None:
+            raise ValueError("Version must be specified")
+            
         self.buffer = buffer
         self.submission = submission
         self.version = version
@@ -163,42 +169,58 @@ class PDFGenerator:
 
     def add_dynamic_forms(self):
         """Add dynamic form data"""
-        print(f"\nProcessing forms for submission {self.submission.temporary_id}, version {self.version}")
+        logger.info(f"Adding dynamic forms for submission {self.submission.temporary_id} version {self.version}")
         
-        # Debug version information
-        all_versions = FormDataEntry.objects.filter(
-            submission=self.submission
-        ).values('version').distinct()
-        print(f"Available versions in database: {[v['version'] for v in all_versions]}")
+        form_entries = FormDataEntry.objects.filter(
+            submission=self.submission,
+            version=self.version
+        )
         
-        for dynamic_form in self.submission.study_type.forms.all():
-            print(f"\nForm: {dynamic_form.name}")
+        entry_count = form_entries.count()
+        logger.info(f"Found {entry_count} form entries")
+        
+        if entry_count == 0:
+            logger.warning(f"No form entries found for submission {self.submission.temporary_id} version {self.version}")
+            self.write_wrapped_text("No form data available")
+            return
+            
+        # Group entries by form for better organization
+        entries_by_form = {}
+        for entry in form_entries:
+            if entry.form not in entries_by_form:
+                entries_by_form[entry.form] = []
+            entries_by_form[entry.form].append(entry)
+        
+        # Process each form
+        for dynamic_form, entries in entries_by_form.items():
+            logger.info(f"Processing form: {dynamic_form.name}")
             
             # Add form name as section header
             self.add_section_header(dynamic_form.name)
             
-            # Get field definitions
+            # Get field definitions with proper display names
             field_definitions = {
                 field.name: field.displayed_name 
                 for field in dynamic_form.fields.all()
             }
             
-            form_entries = FormDataEntry.objects.filter(
-                submission=self.submission,
-                form=dynamic_form,
-                version=self.version
-            )
-            
-            print(f"Number of entries found: {form_entries.count()}")
-            
-            for entry in form_entries:
-                displayed_name = field_definitions.get(entry.field_name, entry.field_name)
-                formatted_value = self.format_field_value(entry.value)
-                self.write_wrapped_text(f"{displayed_name}:", bold=True)
-                if formatted_value:
-                    self.write_wrapped_text(formatted_value, x_offset=20)
-                else:
-                    self.write_wrapped_text("No value provided", x_offset=20)
+            # Process each entry
+            for entry in entries:
+                try:
+                    displayed_name = field_definitions.get(entry.field_name, entry.field_name)
+                    formatted_value = self.format_field_value(entry.value)
+                    
+                    logger.debug(f"Writing field: {displayed_name} = {formatted_value}")
+                    
+                    self.write_wrapped_text(f"{displayed_name}:", bold=True)
+                    if formatted_value:
+                        self.write_wrapped_text(formatted_value, x_offset=20)
+                    else:
+                        self.write_wrapped_text("No value provided", x_offset=20)
+                        
+                except Exception as e:
+                    logger.error(f"Error processing entry {entry.id}: {str(e)}")
+                    continue
 
     def add_documents(self):
         """Add attached documents list"""
@@ -224,28 +246,41 @@ class PDFGenerator:
         self.canvas.save()
 
 
-def generate_submission_pdf(submission, version=None, user=None, as_buffer=False):
-    """
-    Generate a PDF for a submission.
-    """
-    # If version is not specified, use the latest available version from the database
-    if version is None:
-        latest_version = FormDataEntry.objects.filter(
-            submission=submission
-        ).values('version').distinct().order_by('-version').first()
-        version = latest_version['version'] if latest_version else 1
-
-    buffer = BytesIO()
-    pdf_generator = PDFGenerator(buffer, submission, version, user)
-    pdf_generator.generate()
-    buffer.seek(0)
-    
-    if as_buffer:
-        return buffer
-    
-    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="submission_{submission.temporary_id}_v{version}.pdf"'
-    return response
+def generate_submission_pdf(submission, version, user, as_buffer=False):
+    """Generate PDF for a submission"""
+    try:
+        if version is None:
+            logger.error("Version cannot be None")
+            return None
+            
+        logger.info(f"Generating PDF for submission {submission.temporary_id} version {version}")
+        
+        # Check if there's any form data for this version
+        form_entries = FormDataEntry.objects.filter(
+            submission=submission,
+            version=version
+        )
+        
+        if not form_entries.exists():
+            logger.warning(f"No form entries found for submission {submission.temporary_id} version {version}")
+        
+        buffer = BytesIO()
+        pdf_generator = PDFGenerator(buffer, submission, version, user)
+        pdf_generator.generate()
+        
+        if as_buffer:
+            buffer.seek(0)
+            return buffer
+        else:
+            buffer.seek(0)
+            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="submission_{submission.temporary_id}_v{version}.pdf"'
+            return response
+            
+    except Exception as e:
+        logger.error(f"Error generating PDF: {str(e)}")
+        logger.error("PDF generation error details:", exc_info=True)
+        return None
 
 
 if __name__ == "__main__":
@@ -283,3 +318,5 @@ if __name__ == "__main__":
             print(f"Error generating PDF: {str(e)}")
 
     main()
+
+    
