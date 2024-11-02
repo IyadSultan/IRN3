@@ -252,6 +252,14 @@ def submission_form(request, submission_id, form_id):
     dynamic_form = get_object_or_404(DynamicForm, pk=form_id)
     action = request.POST.get('action')
 
+    def safe_json_loads(value):
+        try:
+            if isinstance(value, str) and value.startswith('['):
+                return json.loads(value)
+            return value
+        except json.JSONDecodeError:
+            return value
+
     if request.method == 'POST':
         DynamicFormClass = generate_django_form(dynamic_form)
         form_instance = DynamicFormClass(request.POST, prefix=f'form_{dynamic_form.id}')
@@ -268,18 +276,10 @@ def submission_form(request, submission_id, form_id):
         if action == 'exit_no_save':
             return redirect('submission:dashboard')
         
-        # Save form data directly from POST without validation
-        post_data = request.POST
-        prefix = f'form_{dynamic_form.id}-'
-        for key in post_data:
-            if key.startswith(prefix):
-                field_name = key[len(prefix):]  # Remove prefix to get field name
-                value = post_data[key]
-                
-                # Handle list values (e.g., from multiple select fields)
+        if form_instance.is_valid():
+            for field_name, value in form_instance.cleaned_data.items():
                 if isinstance(value, (list, tuple)):
                     value = json.dumps(value)
-                
                 FormDataEntry.objects.update_or_create(
                     submission=submission,
                     form=dynamic_form,
@@ -287,22 +287,19 @@ def submission_form(request, submission_id, form_id):
                     version=submission.version,
                     defaults={'value': value}
                 )
-        
-        if action == 'save_exit':
-            return redirect('submission:dashboard')
-        elif action == 'save_continue':
-            next_form = get_next_form(submission, dynamic_form)
-            print(f"Next form: {next_form}")
-            if next_form:
-                print(f"Redirecting to form {next_form.id}")
-                return redirect('submission:submission_form', 
-                              submission_id=submission.temporary_id, 
-                              form_id=next_form.id)
-                
-            else:
+            
+            if action == 'save_exit':
+                return redirect('submission:dashboard')
+            elif action == 'save_continue':
+                next_form = get_next_form(submission, dynamic_form)
+                if next_form:
+                    return redirect('submission:submission_form', 
+                                  submission_id=submission.temporary_id, 
+                                  form_id=next_form.id)
                 return redirect('submission:submission_review', 
                               submission_id=submission.temporary_id)
-
+        else:
+            messages.error(request, 'Please correct the errors below.')
     else:
         DynamicFormClass = generate_django_form(dynamic_form)
         current_data = {}
@@ -370,35 +367,41 @@ def submission_review(request, submission_id):
             form=dynamic_form, 
             version=submission.version
         )
+        saved_data = {
+            f'form_{dynamic_form.id}-{entry.field_name}': entry.value
+            for entry in entries
+        }
         
-        form_data = {entry.field_name: entry.value for entry in entries}
+        form_instance = django_form_class(data=saved_data, prefix=f'form_{dynamic_form.id}')
+        is_valid = True
         errors = {}
         
-        # Check required fields
-        for field_name, field in django_form_class.base_fields.items():
-            if field.required:
-                field_value = form_data.get(field_name)
-                
-                if isinstance(field, forms.MultipleChoiceField):
-                    try:
-                        value_list = json.loads(field_value) if field_value else []
-                        if not value_list:
-                            errors[field_name] = ['This field is required']
-                    except json.JSONDecodeError:
-                        errors[field_name] = ['Invalid data format']
-                else:
-                    if not field_value or field_value.strip() == '':
-                        errors[field_name] = ['This field is required']
+        for field_name, field in form_instance.fields.items():
+            if isinstance(field, forms.MultipleChoiceField):
+                field_key = f'form_{dynamic_form.id}-{field_name}'
+                field_value = saved_data.get(field_key)
+                if not field_value and field.required:
+                    is_valid = False
+                    errors[field_name] = ['Please select at least one option']
+            else:
+                field_value = form_instance.data.get(f'form_{dynamic_form.id}-{field_name}')
 
-        if errors:
+                if field.required and not field_value:
+                    is_valid = False
+                    errors[field_name] = ['This field is required']
+
+        if not is_valid:
             validation_errors[dynamic_form.name] = errors
+
+    documents = submission.documents.all()
+    doc_form = DocumentForm()
 
     if request.method == 'POST':
         action = request.POST.get('action')
         
         if action == 'submit_final':
             if missing_documents or validation_errors:
-                messages.error(request, 'Please complete all required fields and upload required documents before final submission.')
+                messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
             else:
                 # Lock submission and update status
                 submission.is_locked = True
@@ -467,8 +470,8 @@ def submission_review(request, submission_id):
         'submission': submission,
         'missing_documents': missing_documents,
         'validation_errors': validation_errors,
-        'documents': submission.documents.all(),
-        'doc_form': DocumentForm(),
+        'documents': documents,
+        'doc_form': doc_form,
     }
 
     return render(request, 'submission/submission_review.html', context)
