@@ -62,13 +62,27 @@
                     </td>
                     <!-- In dashboard.html Actions column -->
                     <td>
-                        <a href="{% url 'submission:edit_submission' submission.temporary_id %}" class="btn btn-sm btn-primary" title="Edit Submission">
-                            <i class="fas fa-edit"></i>
-                        </a>
-                        <a href="{% url 'submission:version_history' submission.temporary_id %}" class="btn btn-sm btn-info" title="Version History">
+                        {% if submission.is_locked %}
+                            <a href="{% url 'submission:edit_submission' submission.temporary_id %}" 
+                               class="btn btn-sm btn-danger" 
+                               title="Submission Locked">
+                                <i class="fas fa-lock"></i>
+                            </a>
+                        {% else %}
+                            <a href="{% url 'submission:edit_submission' submission.temporary_id %}" 
+                               class="btn btn-sm btn-success" 
+                               title="Edit Submission">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        {% endif %}
+                        <a href="{% url 'submission:version_history' submission.temporary_id %}" 
+                           class="btn btn-sm btn-info" 
+                           title="Version History">
                             <i class="fas fa-history"></i>
                         </a>
-                        <a href="{% url 'submission:download_submission_pdf' submission.temporary_id %}" class="btn btn-sm btn-secondary" title="Download PDF">
+                        <a href="{% url 'submission:download_submission_pdf' submission.temporary_id %}" 
+                           class="btn btn-sm btn-secondary" 
+                           title="Download PDF">
                             <i class="fas fa-file-pdf"></i>
                         </a>
                     </td>
