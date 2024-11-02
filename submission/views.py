@@ -47,7 +47,10 @@ def dashboard(request):
     
     submissions = Submission.objects.filter(
         primary_investigator=request.user
-    ).select_related('study_type')
+    ).select_related(
+        'primary_investigator',
+        'primary_investigator__userprofile'
+    )
     
     # Get the actual latest version for each submission from FormDataEntry
     for submission in submissions:
