@@ -20,11 +20,14 @@ def check_researcher_documents(submission):
     missing_documents = []
     return missing_documents
 
+
 def get_next_form(submission, current_form):
-    """Get the next form in the submission process."""
-    return submission.study_type.forms.filter(
-        order__gt=current_form.order
-    ).order_by('order').first()
+    dynamic_forms = list(submission.study_type.forms.order_by('order'))
+    try:
+        index = dynamic_forms.index(current_form)
+        return dynamic_forms[index + 1] if index + 1 < len(dynamic_forms) else None
+    except ValueError:
+        return None
 
 def get_previous_form(submission, current_form):
     """Get the previous form in the submission process."""

@@ -292,10 +292,13 @@ def submission_form(request, submission_id, form_id):
             return redirect('submission:dashboard')
         elif action == 'save_continue':
             next_form = get_next_form(submission, dynamic_form)
+            print(f"Next form: {next_form}")
             if next_form:
+                print(f"Redirecting to form {next_form.id}")
                 return redirect('submission:submission_form', 
                               submission_id=submission.temporary_id, 
                               form_id=next_form.id)
+                
             else:
                 return redirect('submission:submission_review', 
                               submission_id=submission.temporary_id)
