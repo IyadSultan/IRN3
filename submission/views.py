@@ -240,7 +240,7 @@ def add_coinvestigator(request, submission_id):
 
 @login_required
 def submission_form(request, submission_id, form_id):
-    """Handle dynamic form submission and display."""
+    """Handle dynamic form submission and display without validation."""
     submission = get_object_or_404(Submission, temporary_id=submission_id)
     if not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to edit this submission.")
@@ -261,9 +261,7 @@ def submission_form(request, submission_id, form_id):
             return value
 
     if request.method == 'POST':
-        DynamicFormClass = generate_django_form(dynamic_form)
-        form_instance = DynamicFormClass(request.POST, prefix=f'form_{dynamic_form.id}')
-        
+        # Handle navigation actions without form processing
         if action == 'back':
             previous_form = get_previous_form(submission, dynamic_form)
             if previous_form:
@@ -275,32 +273,40 @@ def submission_form(request, submission_id, form_id):
         
         if action == 'exit_no_save':
             return redirect('submission:dashboard')
+
+        # Create form instance without validation
+        DynamicFormClass = generate_django_form(dynamic_form)
+        form_data = request.POST.copy()
         
-        if form_instance.is_valid():
-            for field_name, value in form_instance.cleaned_data.items():
-                if isinstance(value, (list, tuple)):
-                    value = json.dumps(value)
-                FormDataEntry.objects.update_or_create(
-                    submission=submission,
-                    form=dynamic_form,
-                    field_name=field_name,
-                    version=submission.version,
-                    defaults={'value': value}
-                )
-            
-            if action == 'save_exit':
-                return redirect('submission:dashboard')
-            elif action == 'save_continue':
-                next_form = get_next_form(submission, dynamic_form)
-                if next_form:
-                    return redirect('submission:submission_form', 
-                                  submission_id=submission.temporary_id, 
-                                  form_id=next_form.id)
-                return redirect('submission:submission_review', 
-                              submission_id=submission.temporary_id)
-        else:
-            messages.error(request, 'Please correct the errors below.')
+        # Save all form fields without validation
+        for field_name in DynamicFormClass.base_fields.keys():
+            value = request.POST.getlist(f'form_{dynamic_form.id}-{field_name}')
+            if len(value) > 1:  # Handle multiple values (e.g., MultipleChoiceField)
+                value = json.dumps(value)
+            else:
+                value = request.POST.get(f'form_{dynamic_form.id}-{field_name}', '')
+                
+            FormDataEntry.objects.update_or_create(
+                submission=submission,
+                form=dynamic_form,
+                field_name=field_name,
+                version=submission.version,
+                defaults={'value': value}
+            )
+        
+        # Handle post-save navigation
+        if action == 'save_exit':
+            return redirect('submission:dashboard')
+        elif action == 'save_continue':
+            next_form = get_next_form(submission, dynamic_form)
+            if next_form:
+                return redirect('submission:submission_form', 
+                              submission_id=submission.temporary_id, 
+                              form_id=next_form.id)
+            return redirect('submission:submission_review', 
+                          submission_id=submission.temporary_id)
     else:
+        # GET request handling remains the same
         DynamicFormClass = generate_django_form(dynamic_form)
         current_data = {}
         for entry in FormDataEntry.objects.filter(
@@ -346,6 +352,7 @@ def submission_form(request, submission_id, form_id):
         'previous_form': get_previous_form(submission, dynamic_form),
     }
     return render(request, 'submission/dynamic_form.html', context)
+
 
 @login_required
 def submission_review(request, submission_id):

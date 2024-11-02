@@ -45,8 +45,8 @@ class DynamicFormAdminForm(forms.ModelForm):
                         field['displayed_name'] = field['name']  # Use name as fallback
             except json.JSONDecodeError as e:
                 raise forms.ValidationError(f"Invalid JSON format: {str(e)}")
-        else:
-            raise forms.ValidationError("This field is required.")
+        # else:
+        #     raise forms.ValidationError("This field is required.")
         return json_input
 
 @admin.register(DynamicForm)
