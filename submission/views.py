@@ -410,22 +410,22 @@ def submission_review(request, submission_id):
             if missing_documents or validation_errors:
                 messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
             else:
-                # Lock submission and update status
-                submission.is_locked = True
-                submission.status = 'submitted'
-                submission.date_submitted = timezone.now()
-                submission.version += 1
-                submission.save()
-                
-                # Create version history entry
-                VersionHistory.objects.create(
-                    submission=submission,
-                    version=submission.version,
-                    status=submission.status,
-                    date=timezone.now(),
-                )
-
                 try:
+                    # Lock submission and update status
+                    submission.is_locked = True
+                    submission.status = 'submitted'
+                    submission.date_submitted = timezone.now()
+                    # Don't increment version yet
+                    submission.save()
+                    
+                    # Create version history entry starting with version 1
+                    VersionHistory.objects.create(
+                        submission=submission,
+                        version=1,  # Start with version 1
+                        status=submission.status,
+                        date=timezone.now(),
+                    )
+
                     # Create confirmation message
                     message = Message.objects.create(
                         sender=request.user,
@@ -435,11 +435,10 @@ def submission_review(request, submission_id):
                     )
                     message.recipients.add(submission.primary_investigator)
                     
-                    # Use version 1 for new submissions
+                    # Generate PDF for version 1
                     current_version = 1
                     logger.info(f"Generating PDF for submission {submission.temporary_id} version {current_version}")
                     
-                    # Generate PDF
                     buffer = generate_submission_pdf(
                         submission=submission,
                         version=current_version,
@@ -464,7 +463,7 @@ def submission_review(request, submission_id):
                     submission.save()
                     
                     messages.success(request, 'Submission has been finalized and locked. A confirmation message has been sent.')
-
+                    
                 except Exception as e:
                     logger.error(f"Error in submission finalization process: {str(e)}")
                     logger.error("Error details:", exc_info=True)
