@@ -27,8 +27,15 @@ class MessageAttachment(models.Model):
     filename = models.CharField(max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
+    ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg']
+
     def __str__(self):
         return self.filename
+
+    def save(self, *args, **kwargs):
+        if not self.filename:
+            self.filename = self.file.name.split('/')[-1]
+        super().save(*args, **kwargs)
 
 class Message(models.Model):
     sender = models.ForeignKey(User, related_name='sent_messages', on_delete=models.CASCADE)
@@ -43,6 +50,13 @@ class Message(models.Model):
     is_archived = models.BooleanField(default=False)
     hashtags = models.CharField(max_length=255, blank=True, null=True)
     thread_id = models.UUIDField(default=uuid.uuid4, editable=False)
+    related_submission = models.ForeignKey(
+        'submission.Submission',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='related_messages'
+    )
     
     objects = MessageManager()
 

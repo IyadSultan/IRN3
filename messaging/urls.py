@@ -17,4 +17,5 @@ urlpatterns = [
     path('archived/', views.archived_messages, name='archived_messages'),
     path('threads/', views.threads_inbox, name='threads_inbox'),
     path('user-autocomplete/', views.user_autocomplete, name='user_autocomplete'),
+    path('submission-autocomplete/', views.submission_autocomplete, name='submission_autocomplete'),
 ]

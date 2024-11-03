@@ -1,14 +1,12 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from .models import Message, MessageReadStatus, Comment
-from django.contrib.auth.decorators import login_required
-from .forms import MessageForm, SearchForm
-from django.contrib.auth.models import User
-from django.db.models import Q, Count, Value
-from django.db.models.functions import Concat
-from django.contrib import messages
 from django.http import JsonResponse
-from django.utils import timezone
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
+from django.db.models import Q
+from django.contrib import messages
+from .models import Message, MessageReadStatus, Comment, MessageAttachment
+from .forms import MessageForm, SearchForm
+from submission.models import Submission
 
 User = get_user_model()
 
@@ -30,19 +28,34 @@ def view_message(request, message_id):
 @login_required
 def compose_message(request):
     if request.method == 'POST':
-        form = MessageForm(request.POST)
+        form = MessageForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             message = form.save(commit=False)
             message.sender = request.user
-            message.sent_at = timezone.now()
             message.save()
-            form.save_m2m()  # Save many-to-many relationships
+            form.save_m2m()
+            
+            # Handle attachment
+            if 'attachment' in request.FILES:
+                file = request.FILES['attachment']
+                MessageAttachment.objects.create(
+                    message=message,
+                    file=file,
+                    filename=file.name
+                )
+            
             messages.success(request, 'Message sent successfully.')
             return redirect('messaging:inbox')
     else:
-        form = MessageForm()
-
-    return render(request, 'messaging/compose_message.html', {'form': form})
+        form = MessageForm(user=request.user)
+    
+    context = {
+        'form': form,
+        'is_reply': False,
+        'is_reply_all': False,
+        'is_forward': False,
+    }
+    return render(request, 'messaging/compose_message.html', context)
 
 @login_required
 def reply(request, message_id):
@@ -194,3 +207,30 @@ def threads_inbox(request):
         'first_messages': first_messages,
     }
     return render(request, 'messaging/threads_inbox.html', context)
+
+@login_required
+def submission_autocomplete(request):
+    """View for handling submission autocomplete requests"""
+    term = request.GET.get('term', '')
+    user = request.user
+    
+    # Query submissions that the user has access to
+    submissions = Submission.objects.filter(
+        Q(primary_investigator=user) |
+        Q(coinvestigators__user=user) |
+        Q(research_assistants__user=user),
+        Q(title__icontains=term) |
+        Q(irb_number__icontains=term)
+    ).distinct()[:10]
+
+    results = []
+    for submission in submissions:
+        label = f"{submission.title}"
+        if submission.irb_number:
+            label += f" (IRB: {submission.irb_number})"
+        results.append({
+            'id': submission.temporary_id,
+            'text': label
+        })
+
+    return JsonResponse({'results': results}, safe=False)
