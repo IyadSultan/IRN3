@@ -683,13 +683,24 @@ def update_coinvestigator_order(request, submission_id):
     
     return JsonResponse({'error': 'Invalid request'}, status=400)
 
-class UserAutocomplete(autocomplete.Select2QuerySetView):
-    """Autocomplete view for user selection."""
-    def get_queryset(self):
-        if not self.request.user.is_authenticated:
-            return User.objects.none()
+@login_required
+def user_autocomplete(request):
+    """View for handling user autocomplete requests"""
+    term = request.GET.get('term', '')
+    users = User.objects.filter(
+        Q(userprofile__full_name__icontains=term) |
+        Q(email__icontains=term) |
+        Q(username__icontains=term)
+    ).distinct()[:10]
 
-        qs = User.objects.all()
-        if self.q:
-            qs = qs.filter(username__icontains=self.q)
-        return qs
+    results = []
+    for user in users:
+        full_name = user.userprofile.full_name if hasattr(user, 'userprofile') else f"{user.first_name} {user.last_name}"
+        results.append({
+            'id': user.id,
+            'value': full_name,
+            'label': f"{full_name} ({user.email})"
+        })
+
+    return JsonResponse(results, safe=False)
+

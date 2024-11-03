@@ -2,7 +2,8 @@
 {% load i18n %}
 {% load crispy_forms_tags %}
 {% block extra_head %}
-    {{ form.media.css }}
+    <!-- Include jQuery UI CSS for autocomplete -->
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
 {% endblock %}
 
 {% block title %}
@@ -15,15 +16,65 @@
     </h2>
     <form method="post">
         {% csrf_token %}
-        {{ form|crispy }}
+        <div class="mb-3">
+            <label for="id_subject" class="form-label">Subject</label>
+            {{ form.subject }}
+        </div>
+        <div class="mb-3">
+            <label for="id_recipients" class="form-label">To</label>
+            {{ form.recipients }}
+        </div>
+        <div class="mb-3">
+            <label for="id_cc" class="form-label">CC</label>
+            {{ form.cc }}
+        </div>
+        <div class="mb-3">
+            <label for="id_bcc" class="form-label">BCC</label>
+            {{ form.bcc }}
+        </div>
+        <div class="mb-3">
+            <label for="id_study_name" class="form-label">Study Name</label>
+            {{ form.study_name }}
+        </div>
+        <div class="mb-3">
+            <label for="id_body" class="form-label">Message</label>
+            {{ form.body }}
+        </div>
         <button type="submit" class="btn btn-primary">Send</button>
         <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
 {% endblock %}
-{% block extra_scripts %}
-    {{ form.media.js }}
+{% block extra_js %}
+    <!-- Include jQuery UI Autocomplete -->
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script>
+    $(function() {
+        function split(val) {
+            return val.split(/,\s*/);
+        }
+        function extractLast(term) {
+            return split(term).pop();
+        }
+
+        function setupAutocomplete(fieldId) {
+            $("#" + fieldId).autocomplete({
+                source: "{% url 'messaging:user_autocomplete' %}",
+                minLength: 2,
+                select: function(event, ui) {
+                    var terms = split(this.value);
+                    terms.pop();
+                    terms.push(ui.item.value);
+                    terms.push("");
+                    this.value = terms.join(", ");
+                    return false;
+                }
+            });
+        }
+
+        setupAutocomplete("id_recipients");
+        setupAutocomplete("id_cc");
+        setupAutocomplete("id_bcc");
+    });
+    </script>
 {% endblock %}
-
-
-
