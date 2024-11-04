@@ -11,6 +11,7 @@ import json
 from io import BytesIO
 from .utils import PDFGenerator
 from .utils.pdf_generator import generate_submission_pdf
+from django.urls import reverse
 
 from .models import (
     Submission,
@@ -74,16 +75,26 @@ def start_submission(request, submission_id=None):
     """Start or edit a submission."""
     if submission_id:
         submission = get_object_or_404(Submission, pk=submission_id)
+        print(f"Found submission with PI: {submission.primary_investigator}")
+        print(f"Current user: {request.user}")
+        
         if submission.is_locked:
             messages.error(request, "This submission is locked and cannot be edited.")
             return redirect('submission:dashboard')
         if not has_edit_permission(request.user, submission):
             messages.error(request, "You do not have permission to edit this submission.")
             return redirect('submission:dashboard')
+        
+        # Only set initial data for primary_investigator, not is_primary_investigator
+        initial_data = {
+            'primary_investigator': submission.primary_investigator
+        }
     else:
         submission = None
+        initial_data = {}
 
     if request.method == 'POST':
+        print(f"POST data: {request.POST}")
         form = SubmissionForm(request.POST, instance=submission)
         action = request.POST.get('action')
         
@@ -92,14 +103,13 @@ def start_submission(request, submission_id=None):
             
         if form.is_valid():
             submission = form.save(commit=False)
-            is_pi = form.cleaned_data['is_primary_investigator']
+            # Get is_pi directly from POST data instead of cleaned_data
+            is_pi = request.POST.get('is_primary_investigator') == 'on'
             
-            # If user is PI, set them as primary investigator without requiring selection
             if is_pi:
                 submission.primary_investigator = request.user
             else:
-                # Only validate primary investigator field if user is not PI
-                pi_user = form.cleaned_data['primary_investigator']
+                pi_user = form.cleaned_data.get('primary_investigator')
                 if not pi_user:
                     messages.error(request, 'Please select a primary investigator.')
                     return render(request, 'submission/start_submission.html', {
@@ -116,12 +126,21 @@ def start_submission(request, submission_id=None):
             elif action == 'save_continue':
                 return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
     else:
-        form = SubmissionForm(instance=submission)
+        form = SubmissionForm(instance=submission, initial=initial_data)
+        # Explicitly set is_primary_investigator based on current state
+        if submission and submission.primary_investigator == request.user:
+            form.fields['is_primary_investigator'].initial = True
+        else:
+            form.fields['is_primary_investigator'].initial = False
 
     return render(request, 'submission/start_submission.html', {
         'form': form,
         'submission': submission,
     })
+
+from django.urls import reverse  # Add this import
+from django.shortcuts import redirect, render, get_object_or_404
+from django.contrib.auth.decorators import login_required
 
 @login_required
 def add_research_assistant(request, submission_id):
@@ -147,7 +166,8 @@ def add_research_assistant(request, submission_id):
 
         if action in ['back', 'exit_no_save', 'save_continue']:
             if action == 'back':
-                return redirect('submission:start_submission', submission_id=submission.temporary_id)
+                # Changed this line to use the correct URL pattern name
+                return redirect('submission:start_submission_with_id', submission_id=submission.temporary_id)
             elif action == 'exit_no_save':
                 return redirect('submission:dashboard')
             elif action == 'save_continue':

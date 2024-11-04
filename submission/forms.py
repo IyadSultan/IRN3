@@ -12,11 +12,10 @@ from django.db.models import Q
 #         required=True,
 #         widget=forms.SelectMultiple(attrs={'class': 'select2'})
 #     )
-
 class SubmissionForm(forms.ModelForm):
     is_primary_investigator = forms.BooleanField(
         required=False,
-        initial=True,
+        initial=False,
         label='Are you the primary investigator?'
     )
     primary_investigator = forms.ModelChoiceField(
@@ -43,17 +42,34 @@ class SubmissionForm(forms.ModelForm):
             self.fields['primary_investigator'].initial = user.id
             # Keep empty queryset initially - will be populated via AJAX
             self.fields['primary_investigator'].queryset = User.objects.none()
+            
+        # Filter out study types that start with IRB/irb
+        study_type_field = self.fields['study_type']
+        study_type_field.queryset = study_type_field.queryset.exclude(
+            Q(name__istartswith='irb')
+        )
 
 class ResearchAssistantForm(forms.Form):
     assistant = forms.ModelChoiceField(
         queryset=User.objects.all(),
-        widget=autocomplete.ModelSelect2(url='submission:user-autocomplete'),
-        label='Research Assistant',
-        required=True
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'select2',
+            'data-placeholder': 'Search for investigators...'
+        })
     )
+
     can_submit = forms.BooleanField(required=False)
     can_edit = forms.BooleanField(required=False)
     can_view_communications = forms.BooleanField(required=False)
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if user:
+            # Set initial value for primary_investigator if user is set
+            self.fields['research_assistant'].initial = user.id
+            # Keep empty queryset initially - will be populated via AJAX
+            self.fields['research_assistant'].queryset = User.objects.none()
 
 class CoInvestigatorForm(forms.Form):
     investigator = forms.ModelChoiceField(
