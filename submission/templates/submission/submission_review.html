@@ -209,4 +209,30 @@
         </div>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form:last-of-type');
+    form.addEventListener('submit', function(e) {
+        if (e.target.action.value === 'submit_final') {
+            // Check for missing documents
+            const hasMissingDocs = {% if missing_documents %}true{% else %}false{% endif %};
+            
+            // Check for validation errors
+            const hasValidationErrors = {% if validation_errors %}true{% else %}false{% endif %};
+            
+            // Check for invalid certificates
+            const invalidCertificates = document.querySelectorAll('.list-group-item-danger');
+            const hasInvalidCertificates = invalidCertificates.length > 0;
+
+            if (hasMissingDocs || hasValidationErrors || hasInvalidCertificates) {
+                e.preventDefault();
+                alert('Cannot submit: Please ensure all mandatory fields are filled and all certificates are valid.');
+                return false;
+            }
+        }
+    });
+});
+</script>
+
 {% endblock %}
