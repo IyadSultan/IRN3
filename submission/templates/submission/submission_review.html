@@ -7,6 +7,119 @@
 <div class="container mt-4">
     <h1>Submission Review</h1>
 
+    <!-- Primary Investigator Documents Check -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>Primary Investigator Documents</h4>
+            <h6>{{ submission.primary_investigator.get_full_name }}</h6>
+        </div>
+        <div class="card-body">
+            {% with profile=submission.primary_investigator.userprofile %}
+            <ul class="list-group">
+                <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                    <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
+                    GCP Certificate
+                    {% if profile.is_gcp_expired %}
+                    <span class="badge bg-danger">Expired</span>
+                    {% endif %}
+                </li>
+                <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                    <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
+                    CV
+                </li>
+                {% if profile.role == 'KHCC investigator' %}
+                <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                    <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
+                    QRC Certificate
+                </li>
+                <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                    <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
+                    CTC Certificate
+                </li>
+                {% endif %}
+            </ul>
+            {% endwith %}
+        </div>
+    </div>
+
+    <!-- Co-Investigators Documents Check -->
+    {% if submission.coinvestigator_set.exists %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>Co-Investigators Documents</h4>
+        </div>
+        <div class="card-body">
+            {% for coinv in submission.coinvestigator_set.all %}
+            <div class="mb-4">
+                <h6>{{ coinv.user.get_full_name }} - {{ coinv.role_in_study }}</h6>
+                {% with profile=coinv.user.userprofile %}
+                <ul class="list-group">
+                    <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                        <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
+                        GCP Certificate
+                        {% if profile.is_gcp_expired %}
+                        <span class="badge bg-danger">Expired</span>
+                        {% endif %}
+                    </li>
+                    <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                        <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
+                        CV
+                    </li>
+                    {% if profile.role == 'KHCC investigator' %}
+                    <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                        <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
+                        QRC Certificate
+                    </li>
+                    <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                        <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
+                        CTC Certificate
+                    </li>
+                    {% endif %}
+                </ul>
+                {% endwith %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Research Assistants Documents Check -->
+    {% if submission.researchassistant_set.exists %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>Research Assistants Documents</h4>
+        </div>
+        <div class="card-body">
+            {% for ra in submission.researchassistant_set.all %}
+            <div class="mb-4">
+                <h6>{{ ra.user.get_full_name }}</h6>
+                {% with profile=ra.user.userprofile %}
+                <ul class="list-group">
+                    <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                        <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
+                        GCP Certificate
+                        {% if profile.is_gcp_expired %}
+                        <span class="badge bg-danger">Expired</span>
+                        {% endif %}
+                    </li>
+                    <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                        <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
+                        CV
+                    </li>
+                    {% if profile.role == 'Research Assistant/Coordinator' %}
+                    <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                        <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
+                        CTC Certificate
+                    </li>
+                    {% endif %}
+                </ul>
+                {% endwith %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Display missing documents -->
     {% if missing_documents %}
         <div class="alert alert-danger">
