@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.contrib.auth.models import User
+# from django.contrib.auth import get_user_model
 from django.http import HttpResponse, JsonResponse
 from django.core.files.base import ContentFile
 from dal import autocomplete
@@ -39,6 +40,8 @@ from django import forms
 
 import logging
 logger = logging.getLogger(__name__)
+
+from django.db.models import Q
 
 @login_required
 def dashboard(request):
@@ -90,18 +93,21 @@ def start_submission(request, submission_id=None):
         if form.is_valid():
             submission = form.save(commit=False)
             is_pi = form.cleaned_data['is_primary_investigator']
+            
+            # If user is PI, set them as primary investigator without requiring selection
             if is_pi:
                 submission.primary_investigator = request.user
             else:
+                # Only validate primary investigator field if user is not PI
                 pi_user = form.cleaned_data['primary_investigator']
-                if pi_user:
-                    submission.primary_investigator = pi_user
-                else:
+                if not pi_user:
                     messages.error(request, 'Please select a primary investigator.')
                     return render(request, 'submission/start_submission.html', {
                         'form': form,
                         'submission': submission
                     })
+                submission.primary_investigator = pi_user
+                
             submission.save()
             messages.success(request, f'Temporary submission ID {submission.temporary_id} generated.')
             
@@ -361,12 +367,13 @@ def submission_form(request, submission_id, form_id):
 def submission_review(request, submission_id):
     """Review submission before final submission."""
     submission = get_object_or_404(Submission, temporary_id=submission_id)
-
+    print(submission)
     if submission.is_locked and not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to edit this submission.")
         return redirect('submission:dashboard')
 
     missing_documents = check_researcher_documents(submission)
+    
     validation_errors = {}
     
     # Validate all forms
@@ -514,6 +521,7 @@ def submission_review(request, submission_id):
     }
 
     return render(request, 'submission/submission_review.html', context)
+
 
 @login_required
 def document_delete(request, submission_id, document_id):
@@ -685,22 +693,57 @@ def update_coinvestigator_order(request, submission_id):
 
 @login_required
 def user_autocomplete(request):
-    """View for handling user autocomplete requests"""
     term = request.GET.get('term', '')
+    roles = request.GET.getlist('role', [])
+    
     users = User.objects.filter(
         Q(userprofile__full_name__icontains=term) |
-        Q(email__icontains=term) |
-        Q(username__icontains=term)
-    ).distinct()[:10]
+        Q(first_name__icontains=term) |
+        Q(last_name__icontains=term) |
+        Q(email__icontains=term)
+    )
 
-    results = []
-    for user in users:
-        full_name = user.userprofile.full_name if hasattr(user, 'userprofile') else f"{user.first_name} {user.last_name}"
-        results.append({
+    if roles:
+        users = users.filter(userprofile__role__in=roles)
+
+    users = users.distinct()[:10]  # Limit to 10 results
+
+    results = [
+        {
             'id': user.id,
-            'value': full_name,
-            'label': f"{full_name} ({user.email})"
-        })
+            'label': f"{user.get_full_name()} ({user.email})"
+        }
+        for user in users
+    ]
 
     return JsonResponse(results, safe=False)
 
+
+
+
+@login_required
+def submission_autocomplete(request):
+    """View for handling submission autocomplete requests"""
+    term = request.GET.get('term', '')
+    user = request.user
+    
+    # Query submissions that the user has access to
+    submissions = Submission.objects.filter(
+        Q(primary_investigator=user) |
+        Q(coinvestigators__user=user) |
+        Q(research_assistants__user=user),
+        Q(title__icontains=term) |
+        Q(irb_number__icontains=term)
+    ).distinct()[:10]
+
+    results = []
+    for submission in submissions:
+        label = f"{submission.title}"
+        if submission.irb_number:
+            label += f" (IRB: {submission.irb_number})"
+        results.append({
+            'id': submission.temporary_id,
+            'text': label
+        })
+
+    return JsonResponse({'results': results}, safe=False)

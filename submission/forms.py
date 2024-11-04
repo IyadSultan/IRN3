@@ -4,6 +4,14 @@ from django import forms
 from django.contrib.auth.models import User
 from .models import Submission, Document
 from dal import autocomplete
+from django.db.models import Q
+
+# class MessageForm(forms.ModelForm):
+#     recipients = forms.ModelMultipleChoiceField(
+#         queryset=User.objects.all(),
+#         required=True,
+#         widget=forms.SelectMultiple(attrs={'class': 'select2'})
+#     )
 
 class SubmissionForm(forms.ModelForm):
     is_primary_investigator = forms.BooleanField(
@@ -14,16 +22,27 @@ class SubmissionForm(forms.ModelForm):
     primary_investigator = forms.ModelChoiceField(
         queryset=User.objects.all(),
         required=False,
-        widget=autocomplete.ModelSelect2(url='submission:user-autocomplete'),
-        label='Primary Investigator'
+        widget=forms.Select(attrs={
+            'class': 'select2',
+            'data-placeholder': 'Search for investigators...'
+        })
     )
 
     class Meta:
         model = Submission
-        fields = ['title', 'study_type', 'irb_number']
+        fields = ['title', 'study_type']
+        widgets = {
+            'title': forms.TextInput(attrs={'class': 'form-control'}),
+            'study_type': forms.Select(attrs={'class': 'form-control'}),
+        }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
+        if user:
+            # Set initial value for primary_investigator if user is set
+            self.fields['primary_investigator'].initial = user.id
+            # Keep empty queryset initially - will be populated via AJAX
+            self.fields['primary_investigator'].queryset = User.objects.none()
 
 class ResearchAssistantForm(forms.Form):
     assistant = forms.ModelChoiceField(
