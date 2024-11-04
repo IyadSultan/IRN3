@@ -39,34 +39,42 @@ class Submission(models.Model):
         self.save()
         VersionHistory.objects.create(submission=self, version=self.version, status=self.status, date=timezone.now())
 
+from django.db import models
+from django.contrib.auth.models import User
+from users.models import Role  # Add this import
+
 class CoInvestigator(models.Model):
-    submission = models.ForeignKey(
-        Submission, related_name='coinvestigators', on_delete=models.CASCADE
-    )
+    submission = models.ForeignKey('Submission', on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    role_in_study = models.CharField(max_length=255)
-    can_submit = models.BooleanField(default=False)
+    roles = models.ManyToManyField(Role, related_name='coinvestigators')
     can_edit = models.BooleanField(default=False)
+    can_submit = models.BooleanField(default=False)
     can_view_communications = models.BooleanField(default=False)
-    order = models.PositiveIntegerField(default=0)
+    order = models.IntegerField(default=0)
 
     class Meta:
+        unique_together = ['submission', 'user']
         ordering = ['order']
 
     def __str__(self):
-        return f"{self.user.get_full_name()} - {self.role_in_study}"
+        return f"{self.user.get_full_name()} - {self.submission.temporary_id}"
+
+from django.db import models
+from django.contrib.auth.models import User
 
 class ResearchAssistant(models.Model):
-    submission = models.ForeignKey(
-        Submission, related_name='research_assistants', on_delete=models.CASCADE
-    )
+    submission = models.ForeignKey('Submission', on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    can_submit = models.BooleanField(default=False)
     can_edit = models.BooleanField(default=False)
+    can_submit = models.BooleanField(default=False)
     can_view_communications = models.BooleanField(default=False)
+    date_added = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['submission', 'user']
 
     def __str__(self):
-        return self.user.get_full_name()
+        return f"{self.user.get_full_name()} - {self.submission.temporary_id}"
 
 class FormDataEntry(models.Model):
     submission = models.ForeignKey(

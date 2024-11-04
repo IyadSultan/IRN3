@@ -26,3 +26,15 @@ class SystemSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+from django.contrib import admin
+from .models import Role, UserProfile  # Add Role to your imports
+
+@admin.register(Role)
+class RoleAdmin(admin.ModelAdmin):
+    list_display = ('name', 'created_at', 'updated_at')
+    search_fields = ('name', 'description')
+    ordering = ('name',)
+
+# Keep your existing UserProfile admin registration

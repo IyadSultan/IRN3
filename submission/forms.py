@@ -49,45 +49,102 @@ class SubmissionForm(forms.ModelForm):
             Q(name__istartswith='irb')
         )
 
-class ResearchAssistantForm(forms.Form):
+from django import forms
+from django.contrib.auth.models import User
+from .models import ResearchAssistant, Submission  # Import all needed models
+
+class ResearchAssistantForm(forms.ModelForm):
     assistant = forms.ModelChoiceField(
         queryset=User.objects.all(),
-        required=False,
-        widget=forms.Select(attrs={
-            'class': 'select2',
-            'data-placeholder': 'Search for investigators...'
-        })
+        required=True,
+        label="Research Assistant",
+        widget=forms.Select(attrs={'class': 'select2'})
+    )
+    can_edit = forms.BooleanField(
+        required=False, 
+        label="Can Edit",
+        initial=False
+    )
+    can_submit = forms.BooleanField(
+        required=False, 
+        label="Can Submit",
+        initial=False
+    )
+    can_view_communications = forms.BooleanField(
+        required=False, 
+        label="Can View Communications",
+        initial=False
     )
 
-    can_submit = forms.BooleanField(required=False)
-    can_edit = forms.BooleanField(required=False)
-    can_view_communications = forms.BooleanField(required=False)
+    class Meta:
+        model = ResearchAssistant
+        fields = ['assistant', 'can_edit', 'can_submit', 'can_view_communications']
 
-    def __init__(self, *args, user=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        if user:
-            # Set initial value for primary_investigator if user is set
-            self.fields['research_assistant'].initial = user.id
-            # Keep empty queryset initially - will be populated via AJAX
-            self.fields['research_assistant'].queryset = User.objects.none()
+    def clean(self):
+        cleaned_data = super().clean()
+        assistant = cleaned_data.get('assistant')
+        
+        if not assistant:
+            raise forms.ValidationError("Please select a research assistant.")
 
-class CoInvestigatorForm(forms.Form):
+        # You could add additional validation here
+        # For example, checking if the user is already an assistant
+        
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.user = self.cleaned_data['assistant']
+        if commit:
+            instance.save()
+        return instance
+
+
+
+from django import forms
+from django.contrib.auth.models import User
+from .models import CoInvestigator
+from users.models import Role
+
+class CoInvestigatorForm(forms.ModelForm):
     investigator = forms.ModelChoiceField(
         queryset=User.objects.all(),
-        widget=autocomplete.ModelSelect2(url='submission:user-autocomplete'),
-        label='Co-Investigator',
-        help_text='Select a co-investigator from the list',
-        required=True
+        required=True,
+        label="Co-Investigator",
+        widget=forms.Select(attrs={
+            'class': 'select2',
+            'data-placeholder': 'Search for co-investigator...'
+        })
     )
-    role_in_study = forms.CharField(
-        max_length=255,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
-        help_text='Specify the role of this co-investigator in the study',
-        required=True
+    roles = forms.ModelMultipleChoiceField(
+        queryset=Role.objects.all(),
+        required=True,
+        label="Roles",
+        widget=forms.SelectMultiple(attrs={
+            'class': 'select2',
+            'data-placeholder': 'Search for roles...',
+            'multiple': 'multiple'
+        })
     )
-    can_submit = forms.BooleanField(required=False)
-    can_edit = forms.BooleanField(required=False)
-    can_view_communications = forms.BooleanField(required=False)
+    can_edit = forms.BooleanField(
+        required=False, 
+        label="Can Edit",
+        initial=False
+    )
+    can_submit = forms.BooleanField(
+        required=False, 
+        label="Can Submit",
+        initial=False
+    )
+    can_view_communications = forms.BooleanField(
+        required=False, 
+        label="Can View Communications",
+        initial=False
+    )
+
+    class Meta:
+        model = CoInvestigator
+        fields = ['investigator', 'roles', 'can_edit', 'can_submit', 'can_view_communications']
 
 def generate_django_form(dynamic_form):
     from django import forms

@@ -138,9 +138,9 @@ def start_submission(request, submission_id=None):
         'submission': submission,
     })
 
-from django.urls import reverse  # Add this import
-from django.shortcuts import redirect, render, get_object_or_404
-from django.contrib.auth.decorators import login_required
+from django import forms
+from django.contrib.auth.models import User
+from .models import ResearchAssistant  # Add this import
 
 @login_required
 def add_research_assistant(request, submission_id):
@@ -152,7 +152,7 @@ def add_research_assistant(request, submission_id):
 
     if request.method == 'POST':
         action = request.POST.get('action')
-
+        
         if action == 'delete_assistant':
             assistant_id = request.POST.get('assistant_id')
             if assistant_id:
@@ -166,7 +166,6 @@ def add_research_assistant(request, submission_id):
 
         if action in ['back', 'exit_no_save', 'save_continue']:
             if action == 'back':
-                # Changed this line to use the correct URL pattern name
                 return redirect('submission:start_submission_with_id', submission_id=submission.temporary_id)
             elif action == 'exit_no_save':
                 return redirect('submission:dashboard')
@@ -239,16 +238,22 @@ def add_coinvestigator(request, submission_id):
         form = CoInvestigatorForm(request.POST)
         if form.is_valid():
             investigator = form.cleaned_data.get('investigator')
-            role_in_study = form.cleaned_data.get('role_in_study')
-            if investigator and role_in_study:
-                CoInvestigator.objects.create(
+            selected_roles = form.cleaned_data.get('roles')
+            
+            if investigator:
+                # Create the coinvestigator instance
+                coinvestigator = CoInvestigator.objects.create(
                     submission=submission,
                     user=investigator,
-                    role_in_study=role_in_study,
                     can_submit=form.cleaned_data.get('can_submit', False),
                     can_edit=form.cleaned_data.get('can_edit', False),
                     can_view_communications=form.cleaned_data.get('can_view_communications', False)
                 )
+                
+                # Add the selected roles
+                if selected_roles:
+                    coinvestigator.roles.set(selected_roles)
+                
                 messages.success(request, 'Co-investigator added successfully.')
                 
                 if action == 'save_exit':
@@ -256,7 +261,7 @@ def add_coinvestigator(request, submission_id):
                 elif action == 'save_add_another':
                     return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
             else:
-                messages.error(request, 'Please select a co-investigator and specify their role.')
+                messages.error(request, 'Please select a co-investigator and specify their roles.')
     else:
         form = CoInvestigatorForm()
 
@@ -713,33 +718,39 @@ def update_coinvestigator_order(request, submission_id):
 
 @login_required
 def user_autocomplete(request):
-    term = request.GET.get('term', '')
+    term = request.GET.get('term', '').strip()  # Add strip() to handle whitespace
     roles = request.GET.getlist('role', [])
     
-    users = User.objects.filter(
-        Q(userprofile__full_name__icontains=term) |
-        Q(first_name__icontains=term) |
-        Q(last_name__icontains=term) |
-        Q(email__icontains=term)
-    )
+    # Add minimum length check
+    if len(term) < 2:
+        return JsonResponse([], safe=False)
 
-    if roles:
-        users = users.filter(userprofile__role__in=roles)
+    try:
+        users = User.objects.filter(
+            Q(userprofile__full_name__icontains=term) |
+            Q(first_name__icontains=term) |
+            Q(last_name__icontains=term) |
+            Q(email__icontains=term)
+        )
 
-    users = users.distinct()[:10]  # Limit to 10 results
+        if roles:
+            users = users.filter(userprofile__role__in=roles)
 
-    results = [
-        {
-            'id': user.id,
-            'label': f"{user.get_full_name()} ({user.email})"
-        }
-        for user in users
-    ]
+        users = users.select_related('userprofile').distinct()[:10]  # Added select_related
 
-    return JsonResponse(results, safe=False)
+        results = [
+            {
+                'id': user.id,
+                'label': f"{user.userprofile.full_name or user.get_full_name()} ({user.email})"
+            }
+            for user in users
+        ]
 
-
-
+        return JsonResponse(results, safe=False)
+    
+    except Exception as e:
+        # Log the error if you have logging configured
+        return JsonResponse({'error': 'An error occurred while searching users'}, status=500)
 
 @login_required
 def submission_autocomplete(request):
@@ -767,3 +778,6 @@ def submission_autocomplete(request):
         })
 
     return JsonResponse({'results': results}, safe=False)
+
+
+

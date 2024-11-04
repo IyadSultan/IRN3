@@ -3,52 +3,17 @@
 
 {% block title %}Add Research Assistant{% endblock %}
 
-{% block extra_head %}
-    <!-- Add Select2 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <style>
-        .select2-container {
-            width: 100% !important;
-            margin-bottom: 10px;
-        }
-        
-        .select2-selection--single {
-            height: 38px !important;
-            padding: 5px !important;
-            border: 1px solid #ced4da !important;
-            border-radius: 4px !important;
-        }
-        
-        .select2-selection__rendered {
-            line-height: 26px !important;
-            padding-left: 8px !important;
-        }
-        
-        .select2-selection__arrow {
-            height: 36px !important;
-        }
-        
-        .select2-selection--multiple {
-            border: 1px solid #ced4da !important;
-            min-height: 38px !important;
-        }
-        
-        .select2-search__field {
-            margin-top: 5px !important;
-        }
-        
-        .select2-container .select2-selection--single .select2-selection__clear {
-            margin-right: 25px;
-            color: #999;
-            font-size: 18px;
-        }
-        
-        .form-label {
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-            color: #495057;
-        }
-    </style>
+{% block page_specific_css %}
+<style>
+    /* Any additional page-specific styles */
+    .badge {
+        margin-right: 5px;
+    }
+    
+    .table td {
+        vertical-align: middle;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -105,22 +70,18 @@
                         <i class="fas fa-arrow-left"></i> Back
                     </button>
 
-                    <!-- Exit without saving (red) -->
                     <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
                         <i class="fas fa-times"></i> Exit without Saving
                     </button>
 
-                    <!-- Save and exit (blue) -->
                     <button type="submit" name="action" value="save_exit" class="btn btn-primary me-md-2">
                         <i class="fas fa-save"></i> Save and Exit
                     </button>
 
-                    <!-- Add Another button -->
                     <button type="submit" name="action" value="save_add_another" class="btn btn-info me-md-2">
                         <i class="fas fa-plus"></i> Add RA
                     </button>
 
-                    <!-- Right-most button (green) -->
                     <button type="submit" name="action" value="save_continue" class="btn btn-success">
                         <i class="fas fa-arrow-right"></i> Save and Continue
                     </button>
@@ -131,13 +92,11 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}
-{{ block.super }}
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+{% block page_specific_js %}
 <script>
     $(document).ready(function() {
-        // Initialize Select2 for primary investigator field
-        $('#id_research_assistants').select2({
+        // Initialize Select2 for assistant field
+        $('#id_assistant').select2({
             theme: 'bootstrap4',
             ajax: {
                 url: '{% url "submission:user-autocomplete" %}',
@@ -146,8 +105,7 @@
                 data: function (params) {
                     return {
                         term: params.term,
-                        page: params.page,
-                        // role: ['KHCC investigator', 'Non-KHCC investigator'] // Filter by investigator roles
+                        page: params.page
                     };
                 },
                 processResults: function (data) {
@@ -163,23 +121,20 @@
                 cache: true
             },
             minimumInputLength: 2,
-            placeholder: 'Search for investigators...',
+            placeholder: 'Search for research assistant...',
             allowClear: true,
-            multiple: false,
             width: '100%'
         });
 
-        // If there's an initial value for primary investigator, set it
+        // Handle initial value if it exists
         {% if form.assistant.initial %}
-        var initialUser = {
-            id: {{ form.assistant.initial }},
-            text: '{{ form.assistant.initial|escapejs }}'
-        };
-        var initialOption = new Option(initialUser.text, initialUser.id, true, true);
-        $('#id_assistant').append(initialOption).trigger('change');
+            var initialUser = {
+                id: '{{ form.assistant.initial.id }}',
+                text: '{{ form.assistant.initial.get_full_name|escapejs }}'
+            };
+            var initialOption = new Option(initialUser.text, initialUser.id, true, true);
+            $('#id_assistant').append(initialOption).trigger('change');
         {% endif %}
-
-
     });
 </script>
 {% endblock %}

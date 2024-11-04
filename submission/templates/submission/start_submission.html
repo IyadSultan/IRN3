@@ -3,52 +3,7 @@
 
 {% block title %}Start New Submission{% endblock %}
 
-{% block extra_head %}
-    <!-- Add Select2 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <style>
-        .select2-container {
-            width: 100% !important;
-            margin-bottom: 10px;
-        }
-        
-        .select2-selection--single {
-            height: 38px !important;
-            padding: 5px !important;
-            border: 1px solid #ced4da !important;
-            border-radius: 4px !important;
-        }
-        
-        .select2-selection__rendered {
-            line-height: 26px !important;
-            padding-left: 8px !important;
-        }
-        
-        .select2-selection__arrow {
-            height: 36px !important;
-        }
-        
-        .select2-selection--multiple {
-            border: 1px solid #ced4da !important;
-            min-height: 38px !important;
-        }
-        
-        .select2-search__field {
-            margin-top: 5px !important;
-        }
-        
-        .select2-container .select2-selection--single .select2-selection__clear {
-            margin-right: 25px;
-            color: #999;
-            font-size: 18px;
-        }
-        
-        .form-label {
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-            color: #495057;
-        }
-    </style>
+{% block page_specific_css %}
 {% endblock %}
 
 {% block content %}
@@ -64,17 +19,12 @@
                         {% csrf_token %}
                         {{ form|crispy }}
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                            <!-- Exit without saving (red) -->
                             <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
                                 <i class="fas fa-times"></i> Exit without Saving
                             </button>
-
-                            <!-- Save and exit (blue) -->
                             <button type="submit" name="action" value="save_exit" class="btn btn-primary me-md-2">
                                 <i class="fas fa-save"></i> Save and Exit
                             </button>
-
-                            <!-- Save and continue (green) -->
                             <button type="submit" name="action" value="save_continue" class="btn btn-success">
                                 <i class="fas fa-arrow-right"></i> Save and Continue
                             </button>
@@ -87,9 +37,7 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}
-{{ block.super }}
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+{% block page_specific_js %}
 <script>
     $(document).ready(function() {
         // Initialize Select2 for primary investigator field
@@ -102,8 +50,7 @@
                 data: function (params) {
                     return {
                         term: params.term,
-                        page: params.page,
-                        // role: ['KHCC investigator', 'Non-KHCC investigator'] // Filter by investigator roles
+                        page: params.page
                     };
                 },
                 processResults: function (data) {
@@ -120,22 +67,20 @@
             },
             minimumInputLength: 2,
             placeholder: 'Search for investigators...',
-            allowClear: true,
-            multiple: false,
-            width: '100%'
+            allowClear: true
         });
 
-        // If there's an initial value for primary investigator, set it
+        // Handle initial value
         {% if form.primary_investigator.initial %}
         var initialUser = {
-            id: {{ form.primary_investigator.initial }},
-            text: '{{ form.primary_investigator.initial|escapejs }}'
+            id: {{ form.primary_investigator.initial.id }},
+            text: '{{ form.primary_investigator.initial.get_full_name|escapejs }}'
         };
         var initialOption = new Option(initialUser.text, initialUser.id, true, true);
         $('#id_primary_investigator').append(initialOption).trigger('change');
         {% endif %}
 
-        // Toggle primary investigator field visibility
+        // Toggle PI field visibility
         function togglePIField() {
             if ($('#id_is_primary_investigator').is(':checked')) {
                 $('#div_id_primary_investigator').hide();
@@ -145,7 +90,7 @@
         }
 
         $('#id_is_primary_investigator').change(togglePIField);
-        togglePIField(); // Initial state
+        togglePIField();
     });
 </script>
 {% endblock %}

@@ -6,10 +6,11 @@ from django.contrib.auth.decorators import login_required
 from .forms import UserRegistrationForm, LoginForm, DocumentForm, UserProfileForm
 from django.contrib import messages
 from datetime import date
-from django.http import FileResponse, HttpResponseRedirect
+from django.http import FileResponse, HttpResponseRedirect, JsonResponse
 from django.urls import reverse
 import os
 from django.db import transaction
+from .models import UserProfile, Role  # Add Role to the imports
 
 @login_required
 def profile(request):
@@ -144,10 +145,30 @@ def display_document(request, document_id):
     else:
         return FileResponse(open(file_path, 'rb'))
 
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from .models import Role  # Add this import
 
+@login_required
+def role_autocomplete(request):
+    term = request.GET.get('term', '').strip()
+    
+    if len(term) < 2:
+        return JsonResponse([], safe=False)
 
+    roles = Role.objects.filter(
+        name__icontains=term
+    )[:10]
 
+    results = [
+        {
+            'id': role.id,
+            'label': role.name
+        }
+        for role in roles
+    ]
 
+    return JsonResponse(results, safe=False)
 
 
 

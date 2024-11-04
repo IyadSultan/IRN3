@@ -19,11 +19,18 @@ class SubmissionAdmin(admin.ModelAdmin):
     fields = ('title', 'study_type', 'primary_investigator', 'irb_number', 'status', 'date_created', 'last_modified', 'is_locked')
     readonly_fields = ('date_created', 'last_modified')
 
+from django.contrib import admin
+from .models import CoInvestigator
+
 @admin.register(CoInvestigator)
 class CoInvestigatorAdmin(admin.ModelAdmin):
-    list_display = ('user', 'submission', 'role_in_study', 'can_submit', 'can_edit')
-    list_filter = ('can_submit', 'can_edit', 'can_view_communications')
-    search_fields = ('user__username', 'submission__title', 'role_in_study')
+    list_display = ['user', 'submission', 'get_roles', 'can_edit', 'can_submit', 'can_view_communications']
+    list_filter = ['can_edit', 'can_submit', 'can_view_communications']
+    search_fields = ['user__first_name', 'user__last_name', 'user__email']
+    
+    def get_roles(self, obj):
+        return ", ".join([role.name for role in obj.roles.all()])
+    get_roles.short_description = 'Roles'
 
 @admin.register(ResearchAssistant)
 class ResearchAssistantAdmin(admin.ModelAdmin):
