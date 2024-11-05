@@ -18,7 +18,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import simpleSplit
 from django.utils import timezone
 import json
-from submission.models import FormDataEntry, Submission
+from submission.models import FormDataEntry, Submission, CoInvestigator
 from io import BytesIO
 from django.http import HttpResponse
 import logging
@@ -132,21 +132,54 @@ class PDFGenerator:
         # Primary Investigator
         self.write_wrapped_text(f"Primary Investigator: {self.submission.primary_investigator.get_full_name()}")
         
-        # Co-Investigators
-        coinvestigators = self.submission.coinvestigators.all()
+        # Co-Investigators with their roles
+        coinvestigators = CoInvestigator.objects.filter(submission=self.submission)
         if coinvestigators:
             self.y -= self.line_height/2
             self.write_wrapped_text("Co-Investigators:")
             for ci in coinvestigators:
-                self.write_wrapped_text(f"- {ci.user.get_full_name()} (Role: {ci.role_in_study})", x_offset=20)
+                # Get all roles for this co-investigator
+                roles = ", ".join([role.name for role in ci.roles.all()])
+                
+                # Add permissions to roles if they exist
+                permissions = []
+                if ci.can_edit:
+                    permissions.append("Can Edit")
+                if ci.can_submit:
+                    permissions.append("Can Submit")
+                if ci.can_view_communications:
+                    permissions.append("Can View Communications")
+                
+                # Combine name, roles and permissions
+                co_inv_info = f"- {ci.user.get_full_name()}"
+                if roles:
+                    co_inv_info += f" (Roles: {roles})"
+                if permissions:
+                    co_inv_info += f" [Permissions: {', '.join(permissions)}]"
+                
+                self.write_wrapped_text(co_inv_info, x_offset=20)
 
-        # Research Assistants
-        research_assistants = self.submission.research_assistants.all()
+        # Research Assistants with their permissions
+        research_assistants = self.submission.researchassistant_set.all()
         if research_assistants:
             self.y -= self.line_height/2
             self.write_wrapped_text("Research Assistants:")
             for ra in research_assistants:
-                self.write_wrapped_text(f"- {ra.user.get_full_name()}", x_offset=20)
+                # Collect permissions
+                permissions = []
+                if ra.can_edit:
+                    permissions.append("Can Edit")
+                if ra.can_submit:
+                    permissions.append("Can Submit")
+                if ra.can_view_communications:
+                    permissions.append("Can View Communications")
+                
+                # Combine name and permissions
+                ra_info = f"- {ra.user.get_full_name()}"
+                if permissions:
+                    ra_info += f" [Permissions: {', '.join(permissions)}]"
+                
+                self.write_wrapped_text(ra_info, x_offset=20)
 
     def format_field_value(self, value):
         """Format field value, handling special cases like JSON arrays"""
