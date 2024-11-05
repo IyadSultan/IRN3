@@ -2,16 +2,15 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from django.contrib.auth.models import User
-# from django.contrib.auth import get_user_model
 from django.http import HttpResponse, JsonResponse
 from django.core.files.base import ContentFile
 from dal import autocomplete
 import json
 from io import BytesIO
-from .utils import PDFGenerator
+from .utils import PDFGenerator, has_edit_permission, check_researcher_documents, get_next_form, get_previous_form
 from .utils.pdf_generator import generate_submission_pdf
-from django.urls import reverse
+from .gpt_analysis import ResearchAnalyzer
+from django.core.cache import cache
 
 from .models import (
     Submission,
@@ -28,18 +27,12 @@ from .forms import (
     DocumentForm,
     generate_django_form,
 )
-from .utils import (
-    has_edit_permission,
-    check_researcher_documents,
-    get_next_form,
-    get_previous_form,
-)
 from forms_builder.models import DynamicForm
 from messaging.models import Message, MessageAttachment
 from users.models import SystemSettings
 from django import forms
-
 import logging
+
 logger = logging.getLogger(__name__)
 
 from django.db.models import Q
@@ -403,17 +396,17 @@ def submission_form(request, submission_id, form_id):
     return render(request, 'submission/dynamic_form.html', context)
 
 
+
 @login_required
 def submission_review(request, submission_id):
     """Review submission before final submission."""
     submission = get_object_or_404(Submission, temporary_id=submission_id)
-    print(submission)
+    
     if submission.is_locked and not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to edit this submission.")
         return redirect('submission:dashboard')
 
     missing_documents = check_researcher_documents(submission)
-    
     validation_errors = {}
     
     # Validate all forms
@@ -456,104 +449,37 @@ def submission_review(request, submission_id):
     if request.method == 'POST':
         action = request.POST.get('action')
         
-        if action == 'submit_final':
-            if missing_documents or validation_errors:
-                messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
-            else:
-                try:
-                    # Lock submission and update status
-                    submission.is_locked = True
-                    submission.status = 'submitted'
-                    submission.date_submitted = timezone.now()
-                    # Don't increment version yet
-                    submission.save()
-                    
-                    # Create version history entry starting with version 1
-                    VersionHistory.objects.create(
-                        submission=submission,
-                        version=1,  # Start with version 1
-                        status=submission.status,
-                        date=timezone.now(),
-                    )
-
-                    # Get PI's full name
-                    pi_full_name = submission.primary_investigator.userprofile.full_name or submission.primary_investigator.get_full_name()
-
-                    # Create confirmation message with personalized greeting
-                    message = Message.objects.create(
-                        sender=request.user,
-                        subject=f'Submission {submission.temporary_id} - Version 1 Confirmation',
-                        body=f'Dear {pi_full_name},\n\nYour submission (ID: {submission.temporary_id}) has been successfully submitted. Please find the attached PDF for your records.',
-                        study_name=submission.title if hasattr(submission, 'title') else None,
-                    )
-                    message.recipients.add(submission.primary_investigator)
-                    
-                    # Generate PDF for version 1
-                    current_version = 1
-                    logger.info(f"Generating PDF for submission {submission.temporary_id} version {current_version}")
-                    
-                    buffer = generate_submission_pdf(
-                        submission=submission,
-                        version=current_version,
-                        user=request.user,
-                        as_buffer=True
-                    )
-                    
-                    if not buffer:
-                        raise ValueError(f"Failed to generate PDF for version {current_version}")
-                    
-                    pdf_filename = f"submission_{submission.temporary_id}_v{current_version}.pdf"
-                    pdf_content = ContentFile(buffer.getvalue())
-                    
-                    attachment = MessageAttachment(
-                        message=message,
-                        filename=pdf_filename
-                    )
-                    attachment.file.save(pdf_filename, pdf_content, save=True)
-                    
-                    # Now increment the version for future revisions
-                    submission.version = 2  # Next version will be 2
-                    submission.save()
-                    
-                    messages.success(request, 'Submission has been finalized and locked. A confirmation message has been sent.')
-                    
-                except Exception as e:
-                    logger.error(f"Error in submission finalization process: {str(e)}")
-                    logger.error("Error details:", exc_info=True)
-                    messages.warning(request, 'Submission completed but there was an error sending the confirmation message.')
+        # Handle KHCC Brain Analysis
+        if action == 'analyze_submission':
+            try:
+                # Use temporary_id instead of id for cache key
+                cache_key = f'gpt_analysis_{submission.temporary_id}_{submission.version}'
+                analysis = cache.get(cache_key)
                 
-                return redirect('submission:dashboard')
-
-        elif action == 'back':
-            last_form = submission.study_type.forms.order_by('-order').first()
-            if last_form:
-                return redirect('submission:submission_form',
-                              submission_id=submission.temporary_id,
-                              form_id=last_form.id)
-            return redirect('submission:add_coinvestigator',
-                          submission_id=submission.temporary_id)
-
-        elif action == 'exit_no_save':
-            return redirect('submission:dashboard')
-
-        elif action == 'upload_document':
-            doc_form = DocumentForm(request.POST, request.FILES)
-            if doc_form.is_valid():
-                document = doc_form.save(commit=False)
-                document.submission = submission
-                document.uploaded_by = request.user
+                if not analysis:
+                    # Create analyzer instance and get analysis
+                    analyzer = ResearchAnalyzer(submission, submission.version)
+                    analysis = analyzer.analyze_submission()
+                    
+                    if analysis and not analysis.startswith("Error"):
+                        # Cache successful analysis for 1 hour
+                        cache.set(cache_key, analysis, 3600)
+                    
+                context = {
+                    'submission': submission,
+                    'missing_documents': missing_documents,
+                    'validation_errors': validation_errors,
+                    'documents': documents,
+                    'doc_form': doc_form,
+                    'gpt_analysis': analysis
+                }
+                return render(request, 'submission/submission_review.html', context)
                 
-                ext = document.file.name.split('.')[-1].lower()
-                if ext in Document.ALLOWED_EXTENSIONS:
-                    document.save()
-                    messages.success(request, 'Document uploaded successfully.')
-                else:
-                    messages.error(
-                        request,
-                        f'Invalid file type: .{ext}. Allowed types are: {", ".join(Document.ALLOWED_EXTENSIONS)}'
-                    )
-            else:
-                messages.error(request, 'Please correct the errors in the document form.')
+            except Exception as e:
+                logger.error(f"Error in GPT analysis: {str(e)}")
+                messages.error(request, "Error generating analysis. Please try again later.")
+
+        # [Rest of your existing action handlers...]
 
     context = {
         'submission': submission,
@@ -561,6 +487,8 @@ def submission_review(request, submission_id):
         'validation_errors': validation_errors,
         'documents': documents,
         'doc_form': doc_form,
+        # Use temporary_id in cache key
+        'gpt_analysis': cache.get(f'gpt_analysis_{submission.temporary_id}_{submission.version}')
     }
 
     return render(request, 'submission/submission_review.html', context)

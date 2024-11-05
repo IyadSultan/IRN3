@@ -194,6 +194,29 @@
     </table>
 
     <!-- Action Buttons -->
+     <!-- Add this button to submission/review.html just before the Action Buttons section -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h4>KHCC Brain Analysis</h4>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" name="action" value="analyze_submission" class="btn btn-primary mb-3">
+                <i class="fas fa-brain"></i> Analyze Submission
+            </button>
+        </form>
+        
+        {% if gpt_analysis %}
+        <div class="analysis-result">
+            <h5>Analysis Results</h5>
+            <div class="border p-3 bg-light">
+                {{ gpt_analysis|linebreaks }}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
     <form method="post">
         {% csrf_token %}
         <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">

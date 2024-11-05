@@ -183,3 +183,23 @@ AUTH_USER_MODEL = 'auth.User'  # Use this if you're using the default Django Use
 LOGIN_URL = 'users:login'
 LOGIN_REDIRECT_URL = 'submission:dashboard'
 LOGOUT_REDIRECT_URL = 'users:login'
+
+
+# settings.py additions
+from dotenv import load_dotenv
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', default=None)
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', default='gpt-4o-mini')
+
+# Initialize OpenAI client
+import openai
+openai.api_key = OPENAI_API_KEY
+
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
