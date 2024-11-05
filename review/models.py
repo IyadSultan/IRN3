@@ -2,9 +2,28 @@
 
 from django.db import models
 from django.contrib.auth.models import User
-from submission.models import Submission
+from submission.models import Submission, get_status_choices
 from forms_builder.models import DynamicForm
 from datetime import datetime
+from django.core.cache import cache 
+
+class StatusChoice(models.Model):
+    code = models.CharField(max_length=50, unique=True)
+    label = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+        verbose_name = 'Status Choice'
+        verbose_name_plural = 'Status Choices'
+
+    def __str__(self):
+        return self.label
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        cache.delete('status_choices')
 
 class ReviewRequest(models.Model):
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
@@ -24,13 +43,8 @@ class ReviewRequest(models.Model):
     message = models.TextField(blank=True)
     deadline = models.DateField()
     status = models.CharField(
-        max_length=20,
-        choices=[
-            ('pending', 'Pending'),
-            ('accepted', 'Accepted'),
-            ('declined', 'Declined'),
-            ('completed', 'Completed')
-        ],
+        max_length=50,
+        choices=get_status_choices,
         default='pending'
     )
     selected_forms = models.ManyToManyField(DynamicForm)

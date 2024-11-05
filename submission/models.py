@@ -4,17 +4,45 @@ from django.db import models
 from django.contrib.auth.models import User
 from forms_builder.models import StudyType, DynamicForm
 from django.utils import timezone
+from django.core.cache import cache
+from django.db.utils import OperationalError
+from django.apps import apps
 
-STATUS_CHOICES = [
-    ('draft', 'Draft'),
-    ('submitted', 'Submitted'),
-    ('revision_requested', 'Revision Requested'),
-    ('under_revision', 'Under Revision'),
-    ('accepted', 'Accepted'),
-    ('suspended', 'Suspended'),
-    ('finished', 'Finished'),
-    ('terminated', 'Terminated'),
-]
+def get_status_choices():
+    DEFAULT_CHOICES = [
+        ('draft', 'Draft'),
+        ('submitted', 'Submitted'),
+        
+    ]
+    
+    try:
+        choices = cache.get('status_choices')
+        if not choices:
+            StatusChoice = apps.get_model('submission', 'StatusChoice')
+            choices = list(StatusChoice.objects.filter(is_active=True).values_list('code', 'label'))
+            if choices:
+                cache.set('status_choices', choices)
+        return choices or DEFAULT_CHOICES
+    except (OperationalError, LookupError):
+        return DEFAULT_CHOICES
+
+class StatusChoice(models.Model):
+    code = models.CharField(max_length=50, unique=True)
+    label = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+        verbose_name = 'Status Choice'
+        verbose_name_plural = 'Status Choices'
+
+    def __str__(self):
+        return self.label
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        cache.delete('status_choices')
 
 class Submission(models.Model):
     temporary_id = models.AutoField(primary_key=True)
@@ -24,7 +52,11 @@ class Submission(models.Model):
         User, related_name='primary_investigations', on_delete=models.CASCADE
     )
     study_type = models.ForeignKey(StudyType, on_delete=models.SET_NULL, null=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    status = models.CharField(
+        max_length=50,
+        choices=get_status_choices,
+        default='draft'
+    )
     date_created = models.DateTimeField(auto_now_add=True)
     last_modified = models.DateTimeField(auto_now=True)
     date_submitted = models.DateTimeField(blank=True, null=True)
@@ -116,7 +148,10 @@ class VersionHistory(models.Model):
         Submission, related_name='version_histories', on_delete=models.CASCADE
     )
     version = models.PositiveIntegerField()
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    status = models.CharField(
+        max_length=50,
+        choices=get_status_choices
+    )
     date = models.DateTimeField()
 
     def __str__(self):

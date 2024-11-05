@@ -8,6 +8,7 @@ from .models import (
     FormDataEntry,
     Document,
     VersionHistory,
+    StatusChoice,
 )
 
 @admin.register(Submission)
@@ -69,3 +70,10 @@ class SystemSettingsAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         # Prevent deletion of settings
         return False
+
+@admin.register(StatusChoice)
+class StatusChoiceAdmin(admin.ModelAdmin):
+    list_display = ('code', 'label', 'is_active', 'order')
+    list_editable = ('is_active', 'order')
+    search_fields = ('code', 'label')
+    ordering = ('order',)
