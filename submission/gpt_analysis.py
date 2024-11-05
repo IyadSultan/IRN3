@@ -28,15 +28,29 @@ class ResearchAnalyzer:
         
         # Build prompt from form data
         prompt = (
-            "Please analyze this research submission and provide a comprehensive analysis. "
-            "Format your response in markdown with the following structure:\n\n"
-            "1. Use # for main title\n"
-            "2. Use ## for section headers\n"
-            "3. Use **bold** for emphasis\n"
-            "4. Use - for bullet points\n"
-            "5. Include sections for Study Type, Principal Investigator, Objectives, Methods, etc.\n"
-            "6. End with a Summary section\n\n"
-            "Study Information:\n"
+            """
+            Please analyze the following research submission and provide detailed suggestions to enhance the project, focusing on methodology, inclusion and exclusion criteria, objectives, endpoints, statistical analysis, and any other relevant issues.
+
+            Format your response in markdown with the following structure:
+
+            Use # for the main title
+            Use ## for section headers
+            Use bold for emphasis
+            Use - for bullet points
+            Include sections for:
+            Study Type
+                Principal Investigator
+                Objectives
+                Methods
+                Inclusion Criteria
+                Exclusion Criteria
+                Endpoints
+                Statistical Analysis
+                Other Relevant Issues
+                Provide specific recommendations for improvement in each section
+                End with a Summary section highlighting key suggestions and overall recommendations
+                Study Information:
+                """
         )
         prompt += f"Study Type: {self.submission.study_type.name}\n\n"
         
