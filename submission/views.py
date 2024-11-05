@@ -274,7 +274,7 @@ def add_coinvestigator(request, submission_id):
 
 @login_required
 def submission_form(request, submission_id, form_id):
-    """Handle dynamic form submission and display without validation."""
+    """Handle dynamic form submission and display."""
     submission = get_object_or_404(Submission, temporary_id=submission_id)
     if not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to edit this submission.")
@@ -286,37 +286,42 @@ def submission_form(request, submission_id, form_id):
     dynamic_form = get_object_or_404(DynamicForm, pk=form_id)
     action = request.POST.get('action')
 
-    def safe_json_loads(value):
-        try:
-            if isinstance(value, str) and value.startswith('['):
-                return json.loads(value)
-            return value
-        except json.JSONDecodeError:
-            return value
+    def process_field_value(value, field_type):
+        """Helper function to process field values based on field type."""
+        if field_type == 'checkbox':
+            try:
+                if isinstance(value, str):
+                    if value.startswith('['):
+                        return json.loads(value)
+                    # Handle comma-separated string values
+                    return [v.strip() for v in value.split(',') if v.strip()]
+                return value
+            except json.JSONDecodeError:
+                return []
+        return value
 
     if request.method == 'POST':
         # Handle navigation actions without form processing
-        if action == 'back':
-            previous_form = get_previous_form(submission, dynamic_form)
-            if previous_form:
-                return redirect('submission:submission_form', 
-                              submission_id=submission.temporary_id, 
-                              form_id=previous_form.id)
-            return redirect('submission:add_coinvestigator', 
-                          submission_id=submission.temporary_id)
-        
-        if action == 'exit_no_save':
+        if action in ['back', 'exit_no_save']:
+            if action == 'back':
+                previous_form = get_previous_form(submission, dynamic_form)
+                if previous_form:
+                    return redirect('submission:submission_form', 
+                                  submission_id=submission.temporary_id, 
+                                  form_id=previous_form.id)
+                return redirect('submission:add_coinvestigator', 
+                              submission_id=submission.temporary_id)
             return redirect('submission:dashboard')
 
         # Create form instance without validation
         DynamicFormClass = generate_django_form(dynamic_form)
-        form_data = request.POST.copy()
         
         # Save all form fields without validation
-        for field_name in DynamicFormClass.base_fields.keys():
-            value = request.POST.getlist(f'form_{dynamic_form.id}-{field_name}')
-            if len(value) > 1:  # Handle multiple values (e.g., MultipleChoiceField)
-                value = json.dumps(value)
+        for field_name, field in DynamicFormClass.base_fields.items():
+            if isinstance(field, forms.MultipleChoiceField):
+                # Handle multiple choice fields (including checkboxes)
+                values = request.POST.getlist(f'form_{dynamic_form.id}-{field_name}')
+                value = json.dumps(values) if values else '[]'
             else:
                 value = request.POST.get(f'form_{dynamic_form.id}-{field_name}', '')
                 
@@ -339,45 +344,55 @@ def submission_form(request, submission_id, form_id):
                               form_id=next_form.id)
             return redirect('submission:submission_review', 
                           submission_id=submission.temporary_id)
-    else:
-        # GET request handling remains the same
-        DynamicFormClass = generate_django_form(dynamic_form)
-        current_data = {}
-        for entry in FormDataEntry.objects.filter(
-            submission=submission,
-            form=dynamic_form,
-            version=submission.version
-        ):
-            if isinstance(DynamicFormClass.base_fields.get(entry.field_name), forms.MultipleChoiceField):
+    
+    # GET request handling
+    DynamicFormClass = generate_django_form(dynamic_form)
+    current_data = {}
+    
+    # Get current version's data
+    for entry in FormDataEntry.objects.filter(
+        submission=submission,
+        form=dynamic_form,
+        version=submission.version
+    ):
+        field = DynamicFormClass.base_fields.get(entry.field_name)
+        if field:
+            if isinstance(field, forms.MultipleChoiceField):
                 try:
-                    current_data[entry.field_name] = json.loads(entry.value)
-                except (json.JSONDecodeError, TypeError):
+                    current_data[entry.field_name] = process_field_value(
+                        entry.value, 
+                        getattr(dynamic_form.fields.get(name=entry.field_name), 'field_type', None)
+                    )
+                except json.JSONDecodeError:
                     current_data[entry.field_name] = []
             else:
                 current_data[entry.field_name] = entry.value
 
-        if not current_data and submission.version > 1 and not submission.is_locked:
-            previous_data = {}
-            for entry in FormDataEntry.objects.filter(
-                submission=submission,
-                form=dynamic_form,
-                version=submission.version - 1
-            ):
-                if isinstance(DynamicFormClass.base_fields.get(entry.field_name), forms.MultipleChoiceField):
+    # If no current data and not version 1, get previous version's data
+    if not current_data and submission.version > 1 and not submission.is_locked:
+        for entry in FormDataEntry.objects.filter(
+            submission=submission,
+            form=dynamic_form,
+            version=submission.version - 1
+        ):
+            field = DynamicFormClass.base_fields.get(entry.field_name)
+            if field:
+                if isinstance(field, forms.MultipleChoiceField):
                     try:
-                        previous_data[entry.field_name] = json.loads(entry.value)
-                    except (json.JSONDecodeError, TypeError):
-                        previous_data[entry.field_name] = []
+                        current_data[entry.field_name] = process_field_value(
+                            entry.value,
+                            getattr(dynamic_form.fields.get(name=entry.field_name), 'field_type', None)
+                        )
+                    except json.JSONDecodeError:
+                        current_data[entry.field_name] = []
                 else:
-                    previous_data[entry.field_name] = entry.value
-            initial_data = previous_data
-        else:
-            initial_data = current_data
+                    current_data[entry.field_name] = entry.value
 
-        form_instance = DynamicFormClass(
-            initial=initial_data, 
-            prefix=f'form_{dynamic_form.id}'
-        )
+    # Create form instance with processed data
+    form_instance = DynamicFormClass(
+        initial=current_data,
+        prefix=f'form_{dynamic_form.id}'
+    )
 
     context = {
         'form': form_instance,
