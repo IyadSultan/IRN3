@@ -53,12 +53,20 @@ from django import forms
 from django.contrib.auth.models import User
 from .models import ResearchAssistant, Submission  # Import all needed models
 
+from django import forms
+from django.contrib.auth.models import User
+from users.models import Role
+from .models import ResearchAssistant, CoInvestigator, Submission
+
 class ResearchAssistantForm(forms.ModelForm):
     assistant = forms.ModelChoiceField(
         queryset=User.objects.all(),
         required=True,
         label="Research Assistant",
-        widget=forms.Select(attrs={'class': 'select2'})
+        widget=forms.Select(attrs={
+            'class': 'select2',
+            'data-placeholder': 'Search for research assistant...'
+        })
     )
     can_edit = forms.BooleanField(
         required=False, 
@@ -80,31 +88,46 @@ class ResearchAssistantForm(forms.ModelForm):
         model = ResearchAssistant
         fields = ['assistant', 'can_edit', 'can_submit', 'can_view_communications']
 
-    def clean(self):
-        cleaned_data = super().clean()
-        assistant = cleaned_data.get('assistant')
+    def __init__(self, *args, **kwargs):
+        self.submission = kwargs.pop('submission', None)
+        super().__init__(*args, **kwargs)
+
+    def clean_assistant(self):
+        assistant = self.cleaned_data.get('assistant')
         
         if not assistant:
             raise forms.ValidationError("Please select a research assistant.")
 
-        # You could add additional validation here
-        # For example, checking if the user is already an assistant
-        
-        return cleaned_data
+        if self.submission:
+            # Check if user is primary investigator
+            if self.submission.primary_investigator == assistant:
+                raise forms.ValidationError(
+                    "This user is already the primary investigator of this submission."
+                )
+
+            # Check if user is a co-investigator
+            if CoInvestigator.objects.filter(submission=self.submission, user=assistant).exists():
+                raise forms.ValidationError(
+                    "This user is already a co-investigator of this submission."
+                )
+
+            # Check if user is already a research assistant
+            if ResearchAssistant.objects.filter(submission=self.submission, user=assistant).exists():
+                raise forms.ValidationError(
+                    "This user is already a research assistant of this submission."
+                )
+
+        return assistant
 
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.user = self.cleaned_data['assistant']
+        if self.submission:
+            instance.submission = self.submission
         if commit:
             instance.save()
         return instance
 
-
-
-from django import forms
-from django.contrib.auth.models import User
-from .models import CoInvestigator
-from users.models import Role
 
 class CoInvestigatorForm(forms.ModelForm):
     investigator = forms.ModelChoiceField(
@@ -120,11 +143,8 @@ class CoInvestigatorForm(forms.ModelForm):
         queryset=Role.objects.all(),
         required=True,
         label="Roles",
-        widget=forms.SelectMultiple(attrs={
-            'class': 'select2',
-            'data-placeholder': 'Search for roles...',
-            'multiple': 'multiple'
-        })
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Select all applicable roles"
     )
     can_edit = forms.BooleanField(
         required=False, 
@@ -145,6 +165,54 @@ class CoInvestigatorForm(forms.ModelForm):
     class Meta:
         model = CoInvestigator
         fields = ['investigator', 'roles', 'can_edit', 'can_submit', 'can_view_communications']
+
+    def __init__(self, *args, **kwargs):
+        self.submission = kwargs.pop('submission', None)
+        super().__init__(*args, **kwargs)
+
+    def clean_investigator(self):
+        investigator = self.cleaned_data.get('investigator')
+        
+        if not investigator:
+            raise forms.ValidationError("Please select a co-investigator.")
+
+        if self.submission:
+            # Check if user is primary investigator
+            if self.submission.primary_investigator == investigator:
+                raise forms.ValidationError(
+                    "This user is already the primary investigator of this submission."
+                )
+
+            # Check if user is a research assistant
+            if ResearchAssistant.objects.filter(submission=self.submission, user=investigator).exists():
+                raise forms.ValidationError(
+                    "This user is already a research assistant of this submission."
+                )
+
+            # Check if user is already a co-investigator
+            if CoInvestigator.objects.filter(submission=self.submission, user=investigator).exists():
+                raise forms.ValidationError(
+                    "This user is already a co-investigator of this submission."
+                )
+
+        return investigator
+
+    def clean_roles(self):
+        roles = self.cleaned_data.get('roles')
+        if not roles:
+            raise forms.ValidationError("Please select at least one role.")
+        return roles
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.user = self.cleaned_data['investigator']
+        if self.submission:
+            instance.submission = self.submission
+        if commit:
+            instance.save()
+            # Save the many-to-many relationships
+            self.save_m2m()
+        return instance
 
 def generate_django_form(dynamic_form):
     from django import forms

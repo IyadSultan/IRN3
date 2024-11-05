@@ -97,15 +97,16 @@
     $(document).ready(function() {
         // Initialize Select2 for assistant field
         $('#id_assistant').select2({
-            theme: 'bootstrap4',
-            ajax: {
-                url: '{% url "submission:user-autocomplete" %}',
-                dataType: 'json',
-                delay: 250,
-                data: function (params) {
-                    return {
-                        term: params.term,
-                        page: params.page
+    theme: 'bootstrap4',
+    ajax: {
+        url: '{% url "submission:user-autocomplete" %}',
+        dataType: 'json',
+        delay: 250,
+        data: function (params) {
+            return {
+                term: params.term,
+                submission_id: '{{ submission.id }}',
+                user_type: 'assistant'
                     };
                 },
                 processResults: function (data) {

@@ -50,7 +50,7 @@
                                 <tr>
                                     <td>QRC Certificate</td>
                                     <td>
-                                        {% if user.userprofile.has_valid_qrc %}
+                                        {% if user.userprofile.has_qrc %}
                                             <span class="badge bg-success">Valid</span>
                                         {% else %}
                                             <span class="badge bg-danger">Expired/Missing</span>
@@ -61,7 +61,7 @@
                                 <tr>
                                     <td>CTC Certificate</td>
                                     <td>
-                                        {% if user.userprofile.has_valid_ctc %}
+                                        {% if user.userprofile.has_ctc %}
                                             <span class="badge bg-success">Valid</span>
                                         {% else %}
                                             <span class="badge bg-danger">Expired/Missing</span>
@@ -72,7 +72,7 @@
                                 <tr>
                                     <td>CV</td>
                                     <td>
-                                        {% if user.userprofile.has_valid_cv %}
+                                        {% if user.userprofile.has_cv %}
                                             <span class="badge bg-success">Valid</span>
                                         {% else %}
                                             <span class="badge bg-danger">Missing</span>

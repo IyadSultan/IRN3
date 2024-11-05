@@ -11,21 +11,21 @@ from django.core.cache import cache
 ROLE_CHOICES = [
     ('KHCC investigator', 'KHCC investigator'),
     ('Non-KHCC investigator', 'Non-KHCC investigator'),
-    ('Research Assistant/Coordinator', 'Research Assistant/Coordinator'),
-    ('OSAR head', 'OSAR head'),
-    ('OSAR coordinator', 'OSAR coordinator'),
-    ('IRB chair', 'IRB chair'),
-    ('RC coordinator', 'RC coordinator'),
-    ('IRB member', 'IRB member'),
-    ('RC chair', 'RC chair'),
-    ('RC member', 'RC member'),
-    ('RC coordinator', 'RC coordinator'),
-    ('AHARPP Head', 'AHARPP Head'),
-    ('System administrator', 'System administrator'),
-    ('CEO', 'CEO'),
-    ('CMO', 'CMO'),
-    ('AIDI Head', 'AIDI Head'),
-    ('Grant Management Officer', 'Grant Management Officer'),
+    # ('Research Assistant/Coordinator', 'Research Assistant/Coordinator'),
+    # ('OSAR head', 'OSAR head'),
+    # ('OSAR coordinator', 'OSAR coordinator'),
+    # ('IRB chair', 'IRB chair'),
+    # ('RC coordinator', 'RC coordinator'),
+    # ('IRB member', 'IRB member'),
+    # ('RC chair', 'RC chair'),
+    # ('RC member', 'RC member'),
+    # ('RC coordinator', 'RC coordinator'),
+    # ('AHARPP Head', 'AHARPP Head'),
+    # ('System administrator', 'System administrator'),
+    # ('CEO', 'CEO'),
+    # ('CMO', 'CMO'),
+    # ('AIDI Head', 'AIDI Head'),
+    # ('Grant Management Officer', 'Grant Management Officer'),
 ]
 
 def validate_full_name(value):
@@ -89,39 +89,39 @@ class UserProfile(models.Model):
     def has_cv(self):
         """Check if user has uploaded a CV"""
         return self.user.documents.filter(
-            document_type='Other',
-            other_document_name__icontains='CV'
+            document_type='CV'
         ).exists()
 
-    @property
-    def is_gcp_expired(self):
-        """Check if GCP is expired or missing"""
-        today = timezone.now().date()
-        latest_gcp = self.user.documents.filter(
-            document_type='GCP'
-        ).order_by('-expiry_date').first()
-        if not latest_gcp or not latest_gcp.expiry_date:
-            return True
-        return latest_gcp.expiry_date <= today
+    # @property
+    # def is_gcp_expired(self):
+    #     """Check if GCP is expired or missing"""
+    #     today = timezone.now().date()
+    #     latest_gcp = self.user.documents.filter(
+    #         document_type='GCP'
+    #     ).order_by('-expiry_date').first()
+    #     if not latest_gcp or not latest_gcp.expiry_date:
+    #         return True
+    #     return latest_gcp.expiry_date <= today
 
-    # Helper properties for template usage
-    @property
-    def is_qrc_missing(self):
-        return not self.has_qrc
+    # # Helper properties for template usage
+    # @property
+    # def is_qrc_missing(self):
+    #     return not self.has_qrc
 
-    @property
-    def is_ctc_missing(self):
-        return not self.has_ctc
+    # @property
+    # def is_ctc_missing(self):
+    #     return not self.has_ctc
 
-    @property
-    def is_cv_missing(self):
-        return not self.has_cv
+    # @property
+    # def is_cv_missing(self):
+    #     return not self.has_cv
 
 class Document(models.Model):
     DOCUMENT_CHOICES = [
         ('GCP', 'Good Clinical Practice Certificate'),
         ('QRC', 'Qualitative Record Certificate'),
         ('CTC', 'Consent Training Certificate'),
+        ('CV', 'Curriculum Vitae'),
         ('Other', 'Other'),
     ]
 

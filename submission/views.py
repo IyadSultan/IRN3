@@ -172,7 +172,7 @@ def add_research_assistant(request, submission_id):
             elif action == 'save_continue':
                 return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
 
-        form = ResearchAssistantForm(request.POST)
+        form = ResearchAssistantForm(request.POST, submission=submission)
         if form.is_valid():
             assistant = form.cleaned_data.get('assistant')
             if assistant:
@@ -235,7 +235,7 @@ def add_coinvestigator(request, submission_id):
                     return redirect('submission:submission_review', 
                                   submission_id=submission.temporary_id)
 
-        form = CoInvestigatorForm(request.POST)
+        form = CoInvestigatorForm(request.POST, submission=submission)
         if form.is_valid():
             investigator = form.cleaned_data.get('investigator')
             selected_roles = form.cleaned_data.get('roles')
@@ -718,39 +718,56 @@ def update_coinvestigator_order(request, submission_id):
 
 @login_required
 def user_autocomplete(request):
-    term = request.GET.get('term', '').strip()  # Add strip() to handle whitespace
-    roles = request.GET.getlist('role', [])
+    term = request.GET.get('term', '').strip()
+    submission_id = request.GET.get('submission_id')
+    user_type = request.GET.get('user_type')  # 'investigator', 'assistant', or 'coinvestigator'
     
-    # Add minimum length check
     if len(term) < 2:
         return JsonResponse([], safe=False)
 
-    try:
-        users = User.objects.filter(
-            Q(userprofile__full_name__icontains=term) |
-            Q(first_name__icontains=term) |
-            Q(last_name__icontains=term) |
-            Q(email__icontains=term)
-        )
+    # Start with base user query
+    users = User.objects.filter(
+        Q(userprofile__full_name__icontains=term) |
+        Q(first_name__icontains=term) |
+        Q(last_name__icontains=term) |
+        Q(email__icontains=term)
+    )
 
-        if roles:
-            users = users.filter(userprofile__role__in=roles)
+    if submission_id:
+        submission = get_object_or_404(Submission, pk=submission_id)
+        
+        # Exclude users already assigned to this submission in any role
+        excluded_users = []
+        
+        # Exclude primary investigator
+        if submission.primary_investigator:
+            excluded_users.append(submission.primary_investigator.id)
+        
+        # Exclude research assistants
+        assistant_ids = ResearchAssistant.objects.filter(
+            submission=submission
+        ).values_list('user_id', flat=True)
+        excluded_users.extend(assistant_ids)
+        
+        # Exclude co-investigators
+        coinvestigator_ids = CoInvestigator.objects.filter(
+            submission=submission
+        ).values_list('user_id', flat=True)
+        excluded_users.extend(coinvestigator_ids)
 
-        users = users.select_related('userprofile').distinct()[:10]  # Added select_related
+        users = users.exclude(id__in=excluded_users)
 
-        results = [
-            {
-                'id': user.id,
-                'label': f"{user.userprofile.full_name or user.get_full_name()} ({user.email})"
-            }
-            for user in users
-        ]
+    users = users.distinct()[:10]
 
-        return JsonResponse(results, safe=False)
-    
-    except Exception as e:
-        # Log the error if you have logging configured
-        return JsonResponse({'error': 'An error occurred while searching users'}, status=500)
+    results = [
+        {
+            'id': user.id,
+            'label': f"{user.userprofile.full_name or user.get_full_name()} ({user.email})"
+        }
+        for user in users
+    ]
+
+    return JsonResponse(results, safe=False)
 
 @login_required
 def submission_autocomplete(request):
