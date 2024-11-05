@@ -49,8 +49,8 @@ class MessageForm(forms.ModelForm):
         if user:
             accessible_submissions = Submission.objects.filter(
                 Q(primary_investigator=user) |
-                Q(coinvestigators__user=user) |
-                Q(research_assistants__user=user)
+                Q(coinvestigator__user=user) |  # Changed to look up through the user field
+                Q(researchassistant__user=user)  # Changed to look up through the user field
             ).distinct()
             self.fields['related_submission'].queryset = accessible_submissions
 

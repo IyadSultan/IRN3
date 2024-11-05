@@ -79,7 +79,7 @@ class ResearchAnalyzer:
             prompt = self.get_analysis_prompt()
             
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
                 messages=[
                     {
                         "role": "system", 

@@ -10,12 +10,11 @@ class UserRegistrationForm(UserCreationForm):
     full_name = forms.CharField(
         max_length=255,
         required=True,
-        help_text='Enter your full name (at least three names)'
-    )
+        help_text='Enter your full name')
     
     class Meta:
         model = User
-        fields = ('username', 'full_name', 'email', 'password1', 'password2')
+        fields = ('username',  'email', 'password1', 'password2')
 
     def clean_full_name(self):
         full_name = self.cleaned_data.get('full_name')
@@ -30,7 +29,6 @@ class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
         fields = [
-            'full_name',
             'institution',
             'mobile',
             'khcc_employee_number',

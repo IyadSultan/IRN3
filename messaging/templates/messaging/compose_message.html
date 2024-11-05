@@ -1,179 +1,146 @@
 {% extends 'users/base.html' %}
-{% load i18n %}
 {% load crispy_forms_tags %}
 
-{% block extra_head %}
-    <!-- Add Select2 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <style>
-        .select2-container {
-            width: 100% !important;
-            margin-bottom: 10px;
-        }
-        
-        .select2-selection--single {
-            height: 38px !important;
-            padding: 5px !important;
-            border: 1px solid #ced4da !important;
-            border-radius: 4px !important;
-        }
-        
-        .select2-selection__rendered {
-            line-height: 26px !important;
-            padding-left: 8px !important;
-        }
-        
-        .select2-selection__arrow {
-            height: 36px !important;
-        }
-        
-        .select2-selection--multiple {
-            border: 1px solid #ced4da !important;
-            min-height: 38px !important;
-        }
-        
-        .select2-search__field {
-            margin-top: 5px !important;
-        }
-        
-        .select2-container .select2-selection--single .select2-selection__clear {
-            margin-right: 25px;
-            color: #999;
-            font-size: 18px;
-        }
-        
-        .form-label {
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-            color: #495057;
-        }
-    </style>
-{% endblock %}
+{% block title %}Compose Message{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h2>
-        {% if is_reply %}Reply{% elif is_reply_all %}Reply All{% elif is_forward %}Forward{% else %}Compose Message{% endif %}
-    </h2>
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        
-        <!-- Subject Field -->
-        <div class="mb-3">
-            <label for="id_subject" class="form-label">Subject</label>
-            {{ form.subject }}
-        </div>
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h2>
+                        {% if is_reply %}Reply
+                        {% elif is_reply_all %}Reply All
+                        {% elif is_forward %}Forward
+                        {% else %}Compose Message
+                        {% endif %}
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" novalidate>
+                        {% csrf_token %}
+                        
+                        {# Subject Field #}
+                        {{ form.subject|as_crispy_field }}
 
-        <!-- Related Submission Field -->
-        <div class="mb-4">
-            <label for="id_related_submission" class="form-label">Related Study</label>
-            {{ form.related_submission }}
-            <small class="text-muted d-block mt-1">Search by study title or IRB number</small>
-        </div>
+                        {# Related Study Field #}
+                        {{ form.related_submission|as_crispy_field }}
+                        <small class="text-muted d-block mt-1 mb-3">Search by study title or IRB number</small>
 
-        <!-- Recipients Fields -->
-        <div class="mb-3">
-            <label for="id_recipients" class="form-label">To</label>
-            {{ form.recipients }}
-        </div>
-        <div class="mb-3">
-            <label for="id_cc" class="form-label">CC</label>
-            {{ form.cc }}
-        </div>
-        <div class="mb-3">
-            <label for="id_bcc" class="form-label">BCC</label>
-            {{ form.bcc }}
-        </div>
+                        {# Recipients Fields #}
+                        {{ form.recipients|as_crispy_field }}
+                        {{ form.cc|as_crispy_field }}
+                        {{ form.bcc|as_crispy_field }}
 
-        <!-- Message Body -->
-        <div class="mb-3">
-            <label for="id_body" class="form-label">Message</label>
-            {{ form.body }}
-        </div>
+                        {# Message Body #}
+                        {{ form.body|as_crispy_field }}
 
-        <!-- Attachments -->
-        <div class="mb-3">
-            <label for="id_attachment" class="form-label">Attachment</label>
-            {{ form.attachment }}
-            <small class="text-muted">Select a file to attach</small>
-        </div>
+                        {# Attachments #}
+                        {{ form.attachment|as_crispy_field }}
+                        <small class="text-muted d-block mt-1 mb-3">Select a file to attach</small>
 
-        <!-- Submit Buttons -->
-        <div class="mt-4">
-            <button type="submit" class="btn btn-primary">Send</button>
-            <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary">Cancel</a>
+                        {# Submit Buttons #}
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary me-md-2">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">Send</button>
+                            <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary">Cancel</a>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-    </form>
+    </div>
 </div>
 {% endblock %}
 
-{% block extra_js %}
-    <!-- Add Select2 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script>
-        $(document).ready(function() {
-            // Initialize Select2 for recipients, cc, and bcc fields
-            $('#id_recipients, #id_cc, #id_bcc').select2({
-                theme: 'bootstrap4',
-                ajax: {
-                    url: '{% url "messaging:user_autocomplete" %}',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return {
-                            term: params.term,
-                            page: params.page
-                        };
-                    },
-                    processResults: function (data) {
-                        return {
-                            results: data.map(function(item) {
-                                return {
-                                    id: item.id,
-                                    text: item.label
-                                };
-                            })
-                        };
-                    },
-                    cache: true
+{% block page_specific_js %}
+<script>
+    $(document).ready(function() {
+        // Initialize Select2 for recipients, cc, and bcc fields
+        $('#id_recipients, #id_cc, #id_bcc').select2({
+            theme: 'bootstrap4',
+            ajax: {
+                url: '{% url "messaging:user_autocomplete" %}',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        term: params.term,
+                        page: params.page
+                    };
                 },
-                minimumInputLength: 2,
-                placeholder: 'Search for users...',
-                allowClear: true,
-                multiple: true
-            });
-
-            // Initialize Select2 for submission field
-            $('#id_related_submission').select2({
-                theme: 'bootstrap4',
-                ajax: {
-                    url: '{% url "messaging:submission_autocomplete" %}',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return {
-                            term: params.term,
-                            page: params.page
-                        };
-                    },
-                    processResults: function (data) {
-                        return data;
-                    },
-                    cache: true
+                processResults: function (data) {
+                    return {
+                        results: data.map(function(item) {
+                            return {
+                                id: item.id,
+                                text: item.label
+                            };
+                        })
+                    };
                 },
-                minimumInputLength: 2,
-                placeholder: 'Search for a study...',
-                allowClear: true,
-                multiple: false,
-                width: '100%',
-                dropdownParent: $('#id_related_submission').parent()
-            });
-
-            // Optional: Show selected file name
-            $('#id_attachment').on('change', function() {
-                var fileName = $(this).val().split('\\').pop();
-                $(this).next('.text-muted').text(fileName || 'Select a file to attach');
-            });
+                cache: true
+            },
+            minimumInputLength: 2,
+            placeholder: 'Search for users...',
+            allowClear: true,
+            multiple: true,
+            width: '100%'
         });
-    </script>
+
+        // Initialize Select2 for related submission field
+        $('#id_related_submission').select2({
+            theme: 'bootstrap4',
+            ajax: {
+                url: '{% url "messaging:submission_autocomplete" %}',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        term: params.term,
+                        page: params.page
+                    };
+                },
+                processResults: function (data) {
+                    return data;
+                },
+                cache: true
+            },
+            minimumInputLength: 2,
+            placeholder: 'Search for a study...',
+            allowClear: true,
+            multiple: false,
+            width: '100%'
+        });
+
+        // Handle initial values if they exist
+        {% if form.recipients.initial %}
+            var initialRecipients = {{ form.recipients.initial|safe }};
+            initialRecipients.forEach(function(user) {
+                var option = new Option(user.text, user.id, true, true);
+                $('#id_recipients').append(option);
+            });
+            $('#id_recipients').trigger('change');
+        {% endif %}
+
+        {% if form.related_submission.initial %}
+            var initialSubmission = {
+                id: '{{ form.related_submission.initial.id }}',
+                text: '{{ form.related_submission.initial.title|escapejs }}'
+            };
+            var initialOption = new Option(initialSubmission.text, initialSubmission.id, true, true);
+            $('#id_related_submission').append(initialOption).trigger('change');
+        {% endif %}
+
+        // Optional: Show selected file name
+        $('#id_attachment').on('change', function() {
+            var fileName = $(this).val().split('\\').pop();
+            $(this).next('.text-muted').text(fileName || 'Select a file to attach');
+        });
+    });
+</script>
 {% endblock %}

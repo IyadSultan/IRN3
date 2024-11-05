@@ -33,29 +33,18 @@ def compose_message(request):
             message = form.save(commit=False)
             message.sender = request.user
             message.save()
+            
+            # Save many-to-many relationships after saving the message
             form.save_m2m()
             
-            # Handle attachment
-            if 'attachment' in request.FILES:
-                file = request.FILES['attachment']
-                MessageAttachment.objects.create(
-                    message=message,
-                    file=file,
-                    filename=file.name
-                )
-            
-            messages.success(request, 'Message sent successfully.')
+            messages.success(request, 'Message sent successfully!')
             return redirect('messaging:inbox')
     else:
         form = MessageForm(user=request.user)
     
-    context = {
-        'form': form,
-        'is_reply': False,
-        'is_reply_all': False,
-        'is_forward': False,
-    }
-    return render(request, 'messaging/compose_message.html', context)
+    return render(request, 'messaging/compose_message.html', {
+        'form': form
+    })
 
 @login_required
 def reply(request, message_id):
@@ -217,7 +206,7 @@ def submission_autocomplete(request):
     # Query submissions that the user has access to
     submissions = Submission.objects.filter(
         Q(primary_investigator=user) |
-        Q(coinvestigators__user=user) |
+        Q(coinvestigator__user=user) |
         Q(research_assistants__user=user),
         Q(title__icontains=term) |
         Q(irb_number__icontains=term)

@@ -1,0 +1,11 @@
+Update your templates to check for the new permissions:
+
+
+
+{% if submission.can_submit(request.user) %}
+    <button type="submit">Submit</button>
+{% endif %}
+
+{% if submission.can_view_communications(request.user) %}
+    <a href="{% url 'submission:communications' submission.id %}">View Communications</a>
+{% endif %}

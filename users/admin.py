@@ -20,6 +20,7 @@ class UserProfileAdmin(admin.ModelAdmin):
 class DocumentAdmin(admin.ModelAdmin):
     list_display = ('user', 'document_type', 'issue_date', 'expiry_date')
     list_filter = ('document_type',)
+    search_fields = ('user__username', 'user__email')  # Allow searching by username or email of the user
 
 @admin.register(SystemSettings)
 class SystemSettingsAdmin(admin.ModelAdmin):

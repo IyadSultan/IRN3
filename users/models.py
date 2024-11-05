@@ -36,8 +36,8 @@ class Group(models.Model):
 
 def validate_full_name(value):
     names = value.strip().split()
-    if len(names) < 3:
-        raise ValidationError('Full name must contain at least three names.')
+    if len(names) < 2:
+        raise ValidationError('Full name must contain at least two names.')
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -52,7 +52,7 @@ class UserProfile(models.Model):
     full_name = models.CharField(
         max_length=255,
         default='',
-        help_text='Full name (at least three names required)'
+        help_text='Full name (at least tw names required)'
     )
 
     def __str__(self):

@@ -479,7 +479,106 @@ def submission_review(request, submission_id):
                 logger.error(f"Error in GPT analysis: {str(e)}")
                 messages.error(request, "Error generating analysis. Please try again later.")
 
-        # [Rest of your existing action handlers...]
+        elif action == 'submit_final':
+            if missing_documents or validation_errors:
+                messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
+            else:
+                try:
+                    # Lock submission and update status
+                    submission.is_locked = True
+                    submission.status = 'submitted'
+                    submission.date_submitted = timezone.now()
+                    # Don't increment version yet
+                    submission.save()
+                    
+                    # Create version history entry starting with version 1
+                    VersionHistory.objects.create(
+                        submission=submission,
+                        version=1,  # Start with version 1
+                        status=submission.status,
+                        date=timezone.now(),
+                    )
+
+                    # Get PI's full name
+                    pi_full_name = submission.primary_investigator.userprofile.full_name or submission.primary_investigator.get_full_name()
+
+                    # Create confirmation message with personalized greeting
+                    message = Message.objects.create(
+                        sender=request.user,
+                        subject=f'Submission {submission.temporary_id} - Version 1 Confirmation',
+                        body=f'Dear {pi_full_name},\n\nYour submission (ID: {submission.temporary_id}) has been successfully submitted. Please find the attached PDF for your records.',
+                        study_name=submission.title if hasattr(submission, 'title') else None,
+                    )
+                    message.recipients.add(submission.primary_investigator)
+                    
+                    # Generate PDF for version 1
+                    current_version = 1
+                    logger.info(f"Generating PDF for submission {submission.temporary_id} version {current_version}")
+                    
+                    buffer = generate_submission_pdf(
+                        submission=submission,
+                        version=current_version,
+                        user=request.user,
+                        as_buffer=True
+                    )
+                    
+                    if not buffer:
+                        raise ValueError(f"Failed to generate PDF for version {current_version}")
+                    
+                    pdf_filename = f"submission_{submission.temporary_id}_v{current_version}.pdf"
+                    pdf_content = ContentFile(buffer.getvalue())
+                    
+                    attachment = MessageAttachment(
+                        message=message,
+                        filename=pdf_filename
+                    )
+                    attachment.file.save(pdf_filename, pdf_content, save=True)
+                    
+                    # Now increment the version for future revisions
+                    submission.version = 2  # Next version will be 2
+                    submission.save()
+                    
+                    messages.success(request, 'Submission has been finalized and locked. A confirmation message has been sent.')
+                    
+                except Exception as e:
+                    logger.error(f"Error in submission finalization process: {str(e)}")
+                    logger.error("Error details:", exc_info=True)
+                    messages.warning(request, 'Submission completed but there was an error sending the confirmation message.')
+                
+                return redirect('submission:dashboard')
+
+        elif action == 'back':
+            last_form = submission.study_type.forms.order_by('-order').first()
+            if last_form:
+                return redirect('submission:submission_form',
+                              submission_id=submission.temporary_id,
+                              form_id=last_form.id)
+            return redirect('submission:add_coinvestigator',
+                          submission_id=submission.temporary_id)
+
+        elif action == 'exit_no_save':
+            return redirect('submission:dashboard')
+
+        elif action == 'upload_document':
+            doc_form = DocumentForm(request.POST, request.FILES)
+            if doc_form.is_valid():
+                document = doc_form.save(commit=False)
+                document.submission = submission
+                document.uploaded_by = request.user
+                
+                ext = document.file.name.split('.')[-1].lower()
+                if ext in Document.ALLOWED_EXTENSIONS:
+                    document.save()
+                    messages.success(request, 'Document uploaded successfully.')
+                else:
+                    messages.error(
+                        request,
+                        f'Invalid file type: .{ext}. Allowed types are: {", ".join(Document.ALLOWED_EXTENSIONS)}'
+                    )
+            else:
+                messages.error(request, 'Please correct the errors in the document form.')
+
+       
 
     context = {
         'submission': submission,
