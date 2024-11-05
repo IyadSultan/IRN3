@@ -3,7 +3,7 @@
 from django import forms
 from django.contrib.auth.models import User
 from .models import ReviewRequest
-from forms_builder.forms.models import Form as DynamicForm
+from forms_builder.models import StudyType, DynamicForm
 
 class ReviewRequestForm(forms.ModelForm):
     requested_to = forms.ModelChoiceField(

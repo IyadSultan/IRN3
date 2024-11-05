@@ -28,7 +28,11 @@ class ReviewConfig(AppConfig):
     name = "review"
 import os
 
-app_directory = r'C:\Users\isult\Dropbox\AI\Projects\IRN3\review'
+# try to remove combined.py if it exists
+if os.path.exists('combined.py'):
+    os.remove('combined.py')
+
+app_directory = "../review/"
 output_file = 'combined.py'
 
 # List all python files in the directory
@@ -41,14 +45,14 @@ with open(output_file, 'a') as outfile:
                 outfile.write(line)
 
 
-app_directory = r'C:\Users\isult\Dropbox\AI\Projects\IRN3\review\templates\review'
-output_file = 'combined.py'
+app_directory = 'templates/review'
 
-# List all python files in the directory
-py_files = [f for f in os.listdir(app_directory) if f.endswith('.py')]
+# List all HTML files in the directory
+html_files = [f for f in os.listdir(app_directory) if f.endswith('.html')]
 
+# Open the output file in append mode to avoid overwriting existing content
 with open(output_file, 'a') as outfile:
-    for fname in py_files:
+    for fname in html_files:
         with open(os.path.join(app_directory, fname)) as infile:
             for line in infile:
                 outfile.write(line)# review/forms.py
@@ -56,7 +60,7 @@ with open(output_file, 'a') as outfile:
 from django import forms
 from django.contrib.auth.models import User
 from .models import ReviewRequest
-from forms_builder.forms.models import Form as DynamicForm
+from forms_builder.models import StudyType, DynamicForm
 
 class ReviewRequestForm(forms.ModelForm):
     requested_to = forms.ModelChoiceField(
@@ -91,9 +95,28 @@ class ConflictOfInterestForm(forms.Form):
 
 from django.db import models
 from django.contrib.auth.models import User
-from submission.models import Submission
+from submission.models import Submission, get_status_choices
 from forms_builder.models import DynamicForm
 from datetime import datetime
+from django.core.cache import cache 
+
+class StatusChoice(models.Model):
+    code = models.CharField(max_length=50, unique=True)
+    label = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+        verbose_name = 'Status Choice'
+        verbose_name_plural = 'Status Choices'
+
+    def __str__(self):
+        return self.label
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        cache.delete('status_choices')
 
 class ReviewRequest(models.Model):
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
@@ -113,13 +136,8 @@ class ReviewRequest(models.Model):
     message = models.TextField(blank=True)
     deadline = models.DateField()
     status = models.CharField(
-        max_length=20,
-        choices=[
-            ('pending', 'Pending'),
-            ('accepted', 'Accepted'),
-            ('declined', 'Declined'),
-            ('completed', 'Completed')
-        ],
+        max_length=50,
+        choices=get_status_choices,
         default='pending'
     )
     selected_forms = models.ManyToManyField(DynamicForm)
@@ -156,7 +174,19 @@ class FormResponse(models.Model):
 
     def __str__(self):
         return f"Response to {self.form} for {self.review}"
-from django.test import TestCase, Client
+# tasks.py
+from celery import shared_task
+from django.utils import timezone
+from datetime import timedelta
+
+@shared_task
+def send_review_reminders():
+    upcoming_deadlines = ReviewRequest.objects.filter(
+        status='pending',
+        deadline__lte=timezone.now() + timedelta(days=2)
+    )
+    for request in upcoming_deadlines:
+        send_reminder_email(request)from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User, Permission, Group
 from django.utils import timezone
@@ -518,6 +548,10 @@ def create_review_request(request, submission_id):
 @login_required
 def submit_review(request, review_request_id):
     review_request = get_object_or_404(ReviewRequest, pk=review_request_id)
+
+      # Check if user can access this submission
+    if not request.user.has_perm('submission.can_view_submission', review_request.submission):
+        raise PermissionDenied
     
     if request.user != review_request.requested_to:
         return HttpResponseForbidden()
@@ -594,7 +628,7 @@ def submit_review(request, review_request_id):
 </form>
 {% endblock %}
 
-<!-- review/templates/review/review_dashboard.html -->
+<!-- review/templates/review//dashboard.html -->
 {% extends 'base.html' %}
 {% block content %}
 <h2>Review Dashboard</h2>
@@ -640,7 +674,6 @@ def submit_review(request, review_request_id):
     {% endfor %}
 </ul>
 {% endblock %}
-
 <!-- review/templates/review/submit_review.html -->
 {% extends 'base.html' %}
 {% block content %}

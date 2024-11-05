@@ -1,0 +1,93 @@
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Request Review Extension{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Request Review Extension</h2>
+                </div>
+                <div class="card-body">
+                    <!-- Review Details -->
+                    <div class="alert alert-info">
+                        <h5>Review Details</h5>
+                        <p><strong>Submission:</strong> {{ review_request.submission.title }}</p>
+                        <p><strong>Current Deadline:</strong> {{ review_request.deadline|date:"F d, Y" }}</p>
+                        <p><strong>Days Remaining:</strong> {{ review_request.days_until_deadline }}</p>
+                    </div>
+
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- New Deadline -->
+                        <div class="mb-3">
+                            <label for="new_deadline" class="form-label">New Deadline</label>
+                            <input type="date" 
+                                   class="form-control" 
+                                   id="new_deadline" 
+                                   name="new_deadline"
+                                   min="{{ min_date }}"
+                                   max="{{ max_date }}"
+                                   required>
+                            <div class="form-text">Select a new deadline (maximum 30 days extension)</div>
+                        </div>
+
+                        <!-- Reason -->
+                        <div class="mb-3">
+                            <label for="reason" class="form-label">Reason for Extension</label>
+                            <textarea class="form-control" 
+                                      id="reason" 
+                                      name="reason" 
+                                      rows="4"
+                                      required></textarea>
+                            <div class="form-text">Please provide a detailed reason for requesting an extension</div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'review:review_dashboard' %}" 
+                               class="btn btn-secondary me-md-2">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-clock"></i> Request Extension
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Validate form before submission
+        document.querySelector('form').addEventListener('submit', function(e) {
+            var newDeadline = document.getElementById('new_deadline').value;
+            var reason = document.getElementById('reason').value;
+            
+            if (!newDeadline || !reason) {
+                e.preventDefault();
+                alert('Please fill in all required fields');
+                return false;
+            }
+            
+            var selectedDate = new Date(newDeadline);
+            var currentDate = new Date();
+            
+            if (selectedDate <= currentDate) {
+                e.preventDefault();
+                alert('New deadline must be in the future');
+                return false;
+            }
+        });
+    });
+</script>
+{% endblock %}

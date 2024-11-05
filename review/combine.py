@@ -1,6 +1,10 @@
 import os
 
-app_directory = r'C:\Users\isult\Dropbox\AI\Projects\IRN3\review'
+# try to remove combined.py if it exists
+if os.path.exists('combined.py'):
+    os.remove('combined.py')
+
+app_directory = "../review/"
 output_file = 'combined.py'
 
 # List all python files in the directory
@@ -13,14 +17,14 @@ with open(output_file, 'a') as outfile:
                 outfile.write(line)
 
 
-app_directory = r'C:\Users\isult\Dropbox\AI\Projects\IRN3\review\templates\review'
-output_file = 'combined.py'
+app_directory = 'templates/review'
 
-# List all python files in the directory
-py_files = [f for f in os.listdir(app_directory) if f.endswith('.py')]
+# List all HTML files in the directory
+html_files = [f for f in os.listdir(app_directory) if f.endswith('.html')]
 
+# Open the output file in append mode to avoid overwriting existing content
 with open(output_file, 'a') as outfile:
-    for fname in py_files:
+    for fname in html_files:
         with open(os.path.join(app_directory, fname)) as infile:
             for line in infile:
                 outfile.write(line)

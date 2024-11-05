@@ -13,6 +13,7 @@ urlpatterns = [
     path('users/', include('users.urls', namespace='users')),
     path('messaging/', include('messaging.urls', namespace='messaging')),
     path('submission/', include('submission.urls', namespace='submission')),
+    path('review/', include('review.urls', namespace='review')),
 ]
 
 

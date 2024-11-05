@@ -1,0 +1,144 @@
+{# review/templates/review/pdf/dashboard_export.html #}
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .header { text-align: center; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left;
+        font-size: 12px; }
+        th { background-color: #f5f5f5; }
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: white;
+        }
+        .status-pending { background-color: #ffc107; }
+        .status-accepted { background-color: #17a2b8; }
+        .status-completed { background-color: #28a745; }
+        .status-overdue { background-color: #dc3545; }
+        .section-header { 
+            font-size: 16px;
+            font-weight: bold;
+            margin: 20px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #333;
+        }
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 10px;
+            padding: 10px 0;
+            border-top: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Review Dashboard Export</h1>
+        <p>Generated on: {{ date|date:"F d, Y H:i" }}</p>
+        <p>Reviewer: {{ user.userprofile.full_name }}</p>
+    </div>
+
+    <div class="section-header">Pending Reviews</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Primary Investigator</th>
+                <th>Study Type</th>
+                <th>Deadline</th>
+                <th>Status</th>
+                <th>Days Remaining</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for review in pending_reviews %}
+            <tr>
+                <td>{{ review.submission.title }}</td>
+                <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
+                <td>{{ review.submission.study_type.name }}</td>
+                <td>{{ review.deadline|date:"M d, Y" }}</td>
+                <td>
+                    <span class="status-badge status-{{ review.status|lower }}">
+                        {{ review.get_status_display }}
+                    </span>
+                </td>
+                <td>{{ review.days_until_deadline }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="section-header">Completed Reviews</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Primary Investigator</th>
+                <th>Study Type</th>
+                <th>Submitted On</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for review in completed_reviews %}
+            <tr>
+                <td>{{ review.submission.title }}</td>
+                <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
+                <td>{{ review.submission.study_type.name }}</td>
+                <td>{{ review.date_submitted|date:"M d, Y" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        <p>Generated from iRN System - Page {page_number} of {total_pages}</p>
+    </div>
+</body>
+</html>
+
+{# review/templates/review/includes/review_actions.html #}
+<div class="btn-group" role="group">
+    {% if review.status == 'pending' %}
+    <a href="{% url 'review:submit_review' review.id %}" class="btn btn-sm btn-primary">
+        <i class="fas fa-edit"></i> Review
+    </a>
+    {% elif review.status == 'accepted' %}
+    <a href="{% url 'review:submit_review' review.id %}" class="btn btn-sm btn-info">
+        <i class="fas fa-check"></i> Complete
+    </a>
+    {% endif %}
+    
+    <button type="button" class="btn btn-sm btn-secondary dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="fas fa-ellipsis-v"></i>
+    </button>
+    <ul class="dropdown-menu">
+        <li>
+            <a class="dropdown-item" href="{% url 'review:view_review' review.id %}">
+                <i class="fas fa-eye"></i> View Details
+            </a>
+        </li>
+        {% if review.status == 'pending' %}
+        <li>
+            <a class="dropdown-item text-warning" href="{% url 'review:request_extension' review.id %}">
+                <i class="fas fa-clock"></i> Request Extension
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item text-danger" href="{% url 'review:decline_review' review.id %}">
+                <i class="fas fa-times"></i> Decline Review
+            </a>
+        </li>
+        {% endif %}
+        <li>
+            <a class="dropdown-item" href="{% url 'messaging:compose_message' %}?related_review={{ review.id }}">
+                <i class="fas fa-envelope"></i> Send Message
+            </a>
+        </li>
+    </ul>
+</div>

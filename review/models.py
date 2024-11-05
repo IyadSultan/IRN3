@@ -1,13 +1,35 @@
-# review/models.py
-
 from django.db import models
 from django.contrib.auth.models import User
 from submission.models import Submission, get_status_choices
 from forms_builder.models import DynamicForm
 from datetime import datetime
-from django.core.cache import cache 
+from django.core.cache import cache
+from django.utils import timezone
+from django.apps import apps
+
+def get_status_choices():
+    """Get status choices for review requests."""
+    DEFAULT_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('declined', 'Declined'),
+        ('completed', 'Completed'),
+        ('overdue', 'Overdue'),
+    ]
+    
+    try:
+        choices = cache.get('review_status_choices')
+        if not choices:
+            StatusChoice = apps.get_model('review', 'StatusChoice')
+            choices = list(StatusChoice.objects.filter(is_active=True).values_list('code', 'label'))
+            if choices:
+                cache.set('review_status_choices', choices)
+        return choices or DEFAULT_CHOICES
+    except Exception:
+        return DEFAULT_CHOICES
 
 class StatusChoice(models.Model):
+    """Model to store custom status choices."""
     code = models.CharField(max_length=50, unique=True)
     label = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
@@ -23,7 +45,9 @@ class StatusChoice(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        cache.delete('status_choices')
+        cache.delete('review_status_choices')
+
+
 
 class ReviewRequest(models.Model):
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
@@ -52,6 +76,19 @@ class ReviewRequest(models.Model):
     conflict_of_interest_details = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=1)
+    extension_requested = models.BooleanField(default=False)
+    proposed_deadline = models.DateField(null=True, blank=True)
+    extension_reason = models.TextField(null=True, blank=True)
+    
+    @property
+    def is_overdue(self):
+        return self.deadline < timezone.now().date()
+
+    @property
+    def days_until_deadline(self):
+        return (self.deadline - timezone.now().date()).days
 
     def save(self, *args, **kwargs):
         # Ensure submission_version is an integer
@@ -69,6 +106,7 @@ class Review(models.Model):
     submission_version = models.PositiveIntegerField()
     comments = models.TextField()
     date_submitted = models.DateTimeField(auto_now_add=True)
+    is_archived = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Review by {self.reviewer} for {self.submission}"

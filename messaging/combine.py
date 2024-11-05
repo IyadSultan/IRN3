@@ -6,7 +6,7 @@ try:
 except FileNotFoundError:
     pass
 
-app_directory = '../'
+app_directory = '../messaging/'
 output_file = 'combined.py'
 
 # List all python files in the directory

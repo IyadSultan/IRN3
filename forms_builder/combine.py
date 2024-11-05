@@ -4,7 +4,7 @@ import os
 if os.path.exists('combined.py'):
     os.remove('combined.py')
 
-app_directory = "../submission/"
+app_directory = "../forms_builder/"
 output_file = 'combined.py'
 
 # List all python files in the directory
@@ -17,7 +17,7 @@ with open(output_file, 'a') as outfile:
                 outfile.write(line)
 
 
-app_directory = 'templates/submission'
+app_directory = 'templates/admin/forms_builder'
 
 # List all HTML files in the directory
 html_files = [f for f in os.listdir(app_directory) if f.endswith('.html')]

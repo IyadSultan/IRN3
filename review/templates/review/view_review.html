@@ -1,0 +1,163 @@
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Review Details{% endblock %}
+
+{% block page_specific_css %}
+<style>
+    .status-badge {
+        padding: 0.4em 0.8em;
+        border-radius: 0.25rem;
+        font-size: 0.875em;
+    }
+    .form-response {
+        margin-bottom: 2rem;
+        padding: 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+    }
+    .form-response h3 {
+        color: #2c3e50;
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+    }
+    .response-field {
+        margin-bottom: 1rem;
+    }
+    .response-field label {
+        font-weight: bold;
+        color: #495057;
+    }
+    .response-field .value {
+        margin-left: 1rem;
+    }
+    .metadata {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.25rem;
+        margin-bottom: 1rem;
+    }
+    .metadata-item {
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Review Header -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">Review Details</h2>
+                <div>
+                    {% if can_edit %}
+                    <a href="{% url 'review:submit_review' review.id %}" class="btn btn-primary">
+                        <i class="fas fa-edit"></i> Edit Review
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'review:review_dashboard' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Metadata Section -->
+            <div class="metadata">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="metadata-item">
+                            <strong>Submission:</strong> {{ submission.title }}
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Version:</strong> {{ review.submission_version }}
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Reviewer:</strong> {{ review.reviewer.userprofile.full_name }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="metadata-item">
+                            <strong>Submitted:</strong> {{ review.date_submitted|date:"F d, Y H:i" }}
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Status:</strong> 
+                            <span class="status-badge status-{{ review_request.status }}">
+                                {{ review_request.get_status_display }}
+                            </span>
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Requested By:</strong> {{ review_request.requested_by.userprofile.full_name }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Responses -->
+            {% if form_responses %}
+                {% for response in form_responses %}
+                <div class="form-response">
+                    <h3>{{ response.form.name }}</h3>
+                    {% for field_name, field_value in response.response_data.items %}
+                    <div class="response-field">
+                        <label>{{ field_name }}:</label>
+                        <div class="value">
+                            {% if field_value|length > 100 %}
+                                <pre class="pre-scrollable">{{ field_value }}</pre>
+                            {% else %}
+                                {{ field_value }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">
+                    No form responses found for this review.
+                </div>
+            {% endif %}
+
+            <!-- Comments Section -->
+            {% if review.comments %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3 class="mb-0">Additional Comments</h3>
+                </div>
+                <div class="card-body">
+                    {{ review.comments|linebreaks }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="card">
+        <div class="card-body">
+            <div class="d-flex justify-content-between">
+                <div>
+                    {% if is_requester or is_pi %}
+                    <a href="{% url 'messaging:compose_message' %}?related_review={{ review.id }}" 
+                       class="btn btn-info">
+                        <i class="fas fa-envelope"></i> Contact Reviewer
+                    </a>
+                    {% endif %}
+                </div>
+                <div>
+                    {% if is_pi or is_requester %}
+                    <a href="{% url 'submission:download_submission_pdf' submission.id review.submission_version %}" 
+                       class="btn btn-secondary">
+                        <i class="fas fa-file-pdf"></i> Download Submission Version
+                    </a>
+                    {% endif %}
+                    <button onclick="window.print()" class="btn btn-primary">
+                        <i class="fas fa-print"></i> Print Review
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

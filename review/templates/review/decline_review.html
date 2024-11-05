@@ -1,0 +1,119 @@
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Decline Review Request{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h2 class="mb-0">Decline Review Request</h2>
+                </div>
+                <div class="card-body">
+                    <!-- Review Details -->
+                    <div class="alert alert-info">
+                        <h5>Review Details</h5>
+                        <p><strong>Submission:</strong> {{ review_request.submission.title }}</p>
+                        <p><strong>Requested By:</strong> {{ review_request.requested_by.userprofile.full_name }}</p>
+                        <p><strong>Deadline:</strong> {{ review_request.deadline|date:"F d, Y" }}</p>
+                        {% if review_request.message %}
+                        <p><strong>Original Request Message:</strong></p>
+                        <div class="border-left pl-3">{{ review_request.message|linebreaks }}</div>
+                        {% endif %}
+                    </div>
+
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Reason -->
+                        <div class="mb-3">
+                            <label for="reason" class="form-label required">Reason for Declining</label>
+                            <textarea class="form-control" 
+                                      id="reason" 
+                                      name="reason" 
+                                      rows="4"
+                                      required
+                                      placeholder="Please provide a detailed reason for declining this review request..."></textarea>
+                            <div class="form-text">This message will be sent to the requester and the primary investigator.</div>
+                        </div>
+
+                        <!-- Confirmation Checkbox -->
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="checkbox" 
+                                       id="confirm" 
+                                       required>
+                                <label class="form-check-label" for="confirm">
+                                    I confirm that I want to decline this review request
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'review:review_dashboard' %}" 
+                               class="btn btn-secondary me-md-2">
+                                <i class="fas fa-arrow-left"></i> Cancel
+                            </a>
+                            <button type="submit" 
+                                    class="btn btn-danger" 
+                                    id="submitBtn" 
+                                    disabled>
+                                <i class="fas fa-times"></i> Decline Review
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.querySelector('form');
+        const reasonInput = document.getElementById('reason');
+        const confirmCheckbox = document.getElementById('confirm');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Enable/disable submit button based on form state
+        function updateSubmitButton() {
+            submitBtn.disabled = !(
+                reasonInput.value.trim().length >= 10 && 
+                confirmCheckbox.checked
+            );
+        }
+
+        reasonInput.addEventListener('input', updateSubmitButton);
+        confirmCheckbox.addEventListener('change', updateSubmitButton);
+
+        // Form validation
+        form.addEventListener('submit', function(e) {
+            if (!reasonInput.value.trim()) {
+                e.preventDefault();
+                alert('Please provide a reason for declining.');
+                reasonInput.focus();
+                return false;
+            }
+
+            if (!confirmCheckbox.checked) {
+                e.preventDefault();
+                alert('Please confirm that you want to decline this review.');
+                return false;
+            }
+
+            if (reasonInput.value.trim().length < 10) {
+                e.preventDefault();
+                alert('Please provide a more detailed reason (at least 10 characters).');
+                reasonInput.focus();
+                return false;
+            }
+        });
+    });
+</script>
+{% endblock %}

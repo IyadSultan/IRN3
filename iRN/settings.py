@@ -204,3 +204,5 @@ CACHES = {
         'LOCATION': 'unique-snowflake',
     }
 }
+
+DATATABLES_PAGE_LENGTH = 10
