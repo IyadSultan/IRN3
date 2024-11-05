@@ -11,22 +11,28 @@ from django.core.cache import cache
 ROLE_CHOICES = [
     ('KHCC investigator', 'KHCC investigator'),
     ('Non-KHCC investigator', 'Non-KHCC investigator'),
-    # ('Research Assistant/Coordinator', 'Research Assistant/Coordinator'),
-    # ('OSAR head', 'OSAR head'),
-    # ('OSAR coordinator', 'OSAR coordinator'),
-    # ('IRB chair', 'IRB chair'),
-    # ('RC coordinator', 'RC coordinator'),
-    # ('IRB member', 'IRB member'),
-    # ('RC chair', 'RC chair'),
-    # ('RC member', 'RC member'),
-    # ('RC coordinator', 'RC coordinator'),
-    # ('AHARPP Head', 'AHARPP Head'),
-    # ('System administrator', 'System administrator'),
-    # ('CEO', 'CEO'),
-    # ('CMO', 'CMO'),
-    # ('AIDI Head', 'AIDI Head'),
-    # ('Grant Management Officer', 'Grant Management Officer'),
+    ('Research Assistant/Coordinator', 'Research Assistant/Coordinator'),
+    ('OSAR head', 'OSAR head'),
+    ('OSAR coordinator', 'OSAR coordinator'),
+    ('IRB chair', 'IRB chair'),
+    ('RC coordinator', 'RC coordinator'),
+    ('IRB member', 'IRB member'),
+    ('RC chair', 'RC chair'),
+    ('RC member', 'RC member'),
+    ('RC coordinator', 'RC coordinator'),
+    ('AHARPP Head', 'AHARPP Head'),
+    ('System administrator', 'System administrator'),
+    ('CEO', 'CEO'),
+    ('CMO', 'CMO'),
+    ('AIDI Head', 'AIDI Head'),
+    ('Grant Management Officer', 'Grant Management Officer'),
 ]
+
+class Group(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+
+    def __str__(self):
+        return self.name
 
 def validate_full_name(value):
     names = value.strip().split()
@@ -40,6 +46,7 @@ class UserProfile(models.Model):
     khcc_employee_number = models.CharField(max_length=20, blank=True, null=True)
     title = models.CharField(max_length=255)
     role = models.CharField(max_length=50, choices=ROLE_CHOICES)
+    groups = models.ManyToManyField(Group, related_name='user_profiles', blank=True)
     photo = models.ImageField(upload_to='photos/', blank=True, null=True)
     is_approved = models.BooleanField(default=False)
     full_name = models.CharField(
@@ -61,6 +68,22 @@ class UserProfile(models.Model):
         if not self.full_name and self.user:
             self.full_name = f"{self.user.first_name} {self.user.last_name}".strip()
         super().save(*args, **kwargs)
+
+    def is_in_group(self, group_name):
+        return self.groups.filter(name=group_name).exists()
+    
+    def is_irb_member(self):
+        return self.is_in_group('IRB Member')
+
+    def is_research_council_member(self):
+        return self.is_in_group('Research Council Member')
+
+    def is_head_of_irb(self):
+        return self.is_in_group('Head of IRB')
+
+    def is_osar_admin(self):
+        return self.is_in_group('OSAR Admin')
+
 
     @property
     def has_valid_gcp(self):

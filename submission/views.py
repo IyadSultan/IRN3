@@ -744,3 +744,60 @@ def submission_autocomplete(request):
 
 
 
+
+@login_required
+def submission_detail(request, submission_id):
+    submission = get_object_or_404(Submission, id=submission_id)
+    versions = submission.version_histories.all()
+    return render(request, 'submission/submission_detail.html', {
+        'submission': submission,
+        'versions': versions
+    })
+
+@login_required
+def view_version(request, submission_id, version_number):
+    """View a specific version of a submission."""
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    # Check permissions
+    if not has_edit_permission(request.user, submission):
+        messages.error(request, "You do not have permission to view this submission.")
+        return redirect('submission:dashboard')
+
+    # Check if version exists
+    version_history = get_object_or_404(
+        VersionHistory, 
+        submission=submission, 
+        version=version_number
+    )
+
+    # Get form data for this version
+    form_data = {}
+    for form in submission.study_type.forms.all():
+        entries = FormDataEntry.objects.filter(
+            submission=submission,
+            form=form,
+            version=version_number
+        ).select_related('form')
+        
+        form_data[form.name] = {
+            'form': form,
+            'entries': {entry.field_name: entry.value for entry in entries}
+        }
+
+    # Get documents that existed at this version
+    # You might need to adjust this depending on how you track document versions
+    documents = submission.documents.filter(
+        uploaded_at__lte=version_history.date
+    )
+
+    context = {
+        'submission': submission,
+        'version_number': version_number,
+        'version_history': version_history,
+        'form_data': form_data,
+        'documents': documents,
+        'is_current_version': version_number == submission.version,
+    }
+    
+    return render(request, 'submission/view_version.html', context)

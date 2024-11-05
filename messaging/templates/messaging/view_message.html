@@ -1,6 +1,5 @@
 {% extends 'users/base.html' %}
 {% load static %}
-
 {% block title %}View Message{% endblock %}
 
 {% block extra_css %}
@@ -29,40 +28,37 @@
         <div class="card-header message-header">
             <h2 class="mb-3">{{ message.subject }}</h2>
             <div class="row">
-                <div class="col-md-6">
-                    <p><strong>From:</strong> {{ message.sender.username }}</p>
-                    <p><strong>To:</strong> {{ message.recipients.all|join:", " }}</p>
+                <div class="col-md-8">
+                    <p><strong>From:</strong> {{ message.sender.get_full_name }}</p>
+                    <p><strong>To:</strong>
+                        {% for recipient in message.recipients.all %}
+                            {{ recipient.get_full_name }}{% if not forloop.last %}, {% endif %}
+                        {% endfor %}
+                    </p>
                     {% if message.cc.all %}
-                        <p><strong>CC:</strong> {{ message.cc.all|join:", " }}</p>
-                    {% endif %}
-                    {% if message.bcc.all %}
-                        <p><strong>BCC:</strong> {{ message.bcc.all|join:", " }}</p>
+                        <p><strong>CC:</strong>
+                            {% for cc_recipient in message.cc.all %}
+                                {{ cc_recipient.get_full_name }}{% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        </p>
                     {% endif %}
                     {% if message.study_name %}
                         <p><strong>Study Name:</strong> {{ message.study_name }}</p>
                     {% endif %}
+                    {% if message.related_submission %}
+                        <p><strong>Related Submission:</strong>
+                            <a href="{% url 'submission:submission_detail' message.related_submission.id %}">
+                                {{ message.related_submission.title }}
+                            </a>
+                        </p>
+                    {% endif %}
                     <p><strong>Sent At:</strong> {{ message.sent_at|date:"F d, Y H:i" }}</p>
-                    <p><strong>Attachments:</strong> 
-                        {% if message.attachments.all %}
-                            <ul class="list-unstyled">
-                            {% for attachment in message.attachments.all %}
-                                <li>
-                                    <i class="fas fa-paperclip"></i>
-                                    <a href="{{ attachment.file.url }}" target="_blank">
-                                        {{ attachment.filename }}
-                                    </a>
-                                </li>
-                            {% endfor %}
-                            </ul>
-                        {% else %}
-                            None
-                        {% endif %}
-                    </p>
-                    <p><strong>Hashtags:</strong> {% if message.hashtags.all %}{{ message.hashtags.all|join:", " }}{% else %}None{% endif %}</p>
+                    {% if message.hashtags %}
+                        <p><strong>Hashtags:</strong> {{ message.hashtags }}</p>
+                    {% endif %}
                 </div>
-                <div class="col-md-6 text-md-right">
-                    <p><strong>Date:</strong> {{ message.sent_at|date:"F d, Y H:i" }}</p>
-                    <p><strong>Study Name:</strong> {{ message.study_name }}</p>
+                <div class="col-md-4 text-md-right">
+                    <!-- Additional info can be placed here if needed -->
                 </div>
             </div>
         </div>
@@ -74,21 +70,14 @@
                 <a href="{% url 'messaging:reply' message.id %}" class="btn btn-primary">Reply</a>
                 <a href="{% url 'messaging:reply_all' message.id %}" class="btn btn-secondary">Reply All</a>
                 <a href="{% url 'messaging:forward' message.id %}" class="btn btn-info">Forward</a>
-                {% if user == message.sender %}
-                    <form method="post" action="{% url 'messaging:archive_message'%}" style="display: inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to archive this message?');">Archive</button>
-                    </form>
-                {% else %}
-                    <form method="post" action="{% url 'messaging:archive_message' %}" style="display: inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-warning">Archive</button>
-                    </form>
-                {% endif %}
+                <form method="post" action="{% url 'messaging:archive_message' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="message_ids" value="{{ message.id }}">
+                    <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to archive this message?');">Archive</button>
+                </form>
             </div>
         </div>
     </div>
-    
     <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary mt-3">Back to Inbox</a>
 </div>
 {% endblock %}

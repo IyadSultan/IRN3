@@ -1,0 +1,28 @@
+<!-- review/templates/review/review_dashboard.html -->
+{% extends 'base.html' %}
+{% block content %}
+<h2>Review Dashboard</h2>
+<h3>Pending Reviews</h3>
+<ul>
+    {% for review_request in pending_reviews %}
+        <li>
+            <a href="{% url 'review:submit_review' review_request.id %}">
+                {{ review_request.submission.title }} (Version {{ review_request.submission.version }})
+            </a>
+            - Deadline: {{ review_request.deadline }}
+        </li>
+    {% empty %}
+        <li>No pending reviews.</li>
+    {% endfor %}
+</ul>
+<h3>Completed Reviews</h3>
+<ul>
+    {% for review in completed_reviews %}
+        <li>
+            {{ review.submission.title }} (Version {{ review.submission.version }}) - Submitted on {{ review.date_submitted }}
+        </li>
+    {% empty %}
+        <li>No completed reviews.</li>
+    {% endfor %}
+</ul>
+{% endblock %}

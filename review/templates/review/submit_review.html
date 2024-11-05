@@ -1,0 +1,29 @@
+<!-- review/templates/review/submit_review.html -->
+{% extends 'base.html' %}
+{% block content %}
+<h2>Submit Review for "{{ submission.title }}" (Version {{ submission.version }})</h2>
+
+{% if review_request.conflict_of_interest_declared is None %}
+    <form method="post">
+        {% csrf_token %}
+        {{ conflict_form.as_p }}
+        <button type="submit" class="btn btn-primary">Proceed</button>
+    </form>
+{% else %}
+    <!-- Display Submission Details -->
+    <h3>Submission Details</h3>
+    <!-- Include any relevant submission information here -->
+
+    <!-- Render Dynamic Forms -->
+    <form method="post">
+        {% csrf_token %}
+        {% for form, form_instance in forms %}
+            <h3>{{ form.title }}</h3>
+            {{ form_instance.as_p }}
+        {% endfor %}
+        <label for="comments">Additional Comments:</label>
+        <textarea name="comments" id="comments" rows="4"></textarea>
+        <button type="submit" class="btn btn-success">Submit Review</button>
+    </form>
+{% endif %}
+{% endblock %}

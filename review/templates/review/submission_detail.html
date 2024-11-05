@@ -1,0 +1,18 @@
+<!-- submission/templates/submission_detail.html -->
+{% extends 'base.html' %}
+{% block content %}
+<h2>{{ submission.title }}</h2>
+<p>Current Version: {{ submission.version }}</p>
+<h3>All Versions</h3>
+<ul>
+    {% for version in versions %}
+        <li>
+            Version {{ version.version }} - {{ version.status }} on {{ version.date }}
+            <a href="{% url 'submission:view_version' submission.id version.version %}">View</a>
+            {% if not forloop.last %}
+                <a href="{% url 'submission:compare_versions' submission.id version.version submission.version %}">Compare with Latest</a>
+            {% endif %}
+        </li>
+    {% endfor %}
+</ul>
+{% endblock %}
