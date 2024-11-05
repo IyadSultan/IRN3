@@ -13,7 +13,12 @@
 ┃ ┃ ┣ 📜 dashboard.html
 ┃ ┃ ┣ 📜 start_submission.html
 ┃ ┃ ┣ 📜 dynamic_form.html
-┃ ┃ ┗ 📜 submission_review.html
+┃ ┃ ┣ 📜 submission_review.html
+┃ ┃ ┣ 📜 review.html
+┃ ┃ ┣ 📜 compare_versions.html
+┃ ┃ ┣ 📜 version_history.html
+┃ ┃ ┣ 📜 submission_forms.html
+┃ ┃ ┣ 📜 edit_submission.html
 ┃ ┣ 📜 models.py
 ┃ ┣ 📜 views.py
 ┃ ┣ 📜 urls.py
@@ -23,19 +28,25 @@
 ┃ ┣ 📂 templates
 ┃ ┃ ┣ 📜 base.html
 ┃ ┃ ┣ 📜 profile.html
-┃ ┃ ┗ 📜 dashboard.html
+┃ ┃ ┣ 📜 dashboard.html
 ┃ ┣ 📜 models.py
 ┃ ┣ 📜 views.py
 ┃ ┗ 📜 urls.py
 ┣ 📂 messaging
 ┃ ┣ 📂 migrations
 ┃ ┣ 📂 templates
+┃ ┃ ┣ 📜 inbox.html
+┃ ┃ ┣ 📜 archived_messages.html
+┃ ┃ ┣ 📜 compose_message.html
 ┃ ┣ 📜 models.py
 ┃ ┣ 📜 views.py
 ┃ ┗ 📜 urls.py
 ┣ 📂 forms_builder
 ┃ ┣ 📂 migrations
 ┃ ┣ 📂 templates
+┃ ┃ ┣ 📜 admin/forms_builder/example_json.html
+┃ ┃ ┣ 📜 admin/forms_builder/revision_view.html
+┃ ┃ ┣ 📜 admin/forms_builder/dynamicform_history.html
 ┃ ┣ 📜 models.py
 ┃ ┣ 📜 views.py
 ┃ ┗ 📜 urls.py
@@ -50,115 +61,161 @@
 
 ### Users App
 ```python
+ROLE_CHOICES = [
+    ('KHCC investigator', 'KHCC investigator'),
+    ('Non-KHCC investigator', 'Non-KHCC investigator')
+]
+
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    role = models.CharField(max_length=50, choices=[
-        ('PI', 'Primary Investigator'),
-        ('CO_I', 'Co-Investigator'),
-        ('RA', 'Research Assistant'),
-        ('ADMIN', 'Administrator'),
-        ('REVIEWER', 'Reviewer')
-    ])
-    department = models.CharField(max_length=100)
-    phone = models.CharField(max_length=20)
-    institution = models.CharField(max_length=200)
-    orcid_id = models.CharField(max_length=50, blank=True)
-    bio = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    institution = models.CharField(max_length=255, default='King Hussein Cancer Center')
+    mobile = models.CharField(max_length=20)
+    khcc_employee_number = models.CharField(max_length=20, blank=True, null=True)
+    title = models.CharField(max_length=255)
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES)
+    photo = models.ImageField(upload_to='photos/', blank=True, null=True)
+    is_approved = models.BooleanField(default=False)
+    full_name = models.CharField(
+        max_length=255,
+        default='',
+        help_text='Full name (at least three names required)'
+    )
+
+class Document(models.Model):
+    DOCUMENT_CHOICES = [
+        ('GCP', 'Good Clinical Practice Certificate'),
+        ('QRC', 'Qualitative Record Certificate'),
+        ('CTC', 'Consent Training Certificate'),
+        ('CV', 'Curriculum Vitae'),
+        ('Other', 'Other'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='documents')
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_CHOICES)
+    other_document_name = models.CharField(max_length=255, blank=True, null=True)
+    issue_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField(blank=True, null=True)
+    file = models.FileField(upload_to='documents/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 ```
 
 ### Submission App
 ```python
+STATUS_CHOICES = [
+    ('draft', 'Draft'),
+    ('submitted', 'Submitted'),
+    ('revision_requested', 'Revision Requested'),
+    ('under_revision', 'Under Revision'),
+    ('accepted', 'Accepted'),
+    ('suspended', 'Suspended'),
+    ('finished', 'Finished'),
+    ('terminated', 'Terminated'),
+]
+
 class Submission(models.Model):
-    STATUS_CHOICES = [
-        ('draft', 'Draft'),
-        ('submitted', 'Submitted'),
-        ('under_review', 'Under Review'),
-        ('revisions_requested', 'Revisions Requested'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected')
-    ]
-    
-    temporary_id = models.CharField(max_length=50, unique=True)
-    title = models.CharField(max_length=500)
-    study_type = models.ForeignKey('StudyType', on_delete=models.PROTECT)
-    primary_investigator = models.ForeignKey(User, on_delete=models.PROTECT)
-    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='draft')
-    version = models.IntegerField(default=1)
-    is_locked = models.BooleanField(default=False)
+    temporary_id = models.AutoField(primary_key=True)
+    irb_number = models.CharField(max_length=20, blank=True, null=True)
+    title = models.CharField(max_length=255)
+    primary_investigator = models.ForeignKey(
+        User, related_name='primary_investigations', on_delete=models.CASCADE
+    )
+    study_type = models.ForeignKey(StudyType, on_delete=models.SET_NULL, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     date_created = models.DateTimeField(auto_now_add=True)
-    date_submitted = models.DateTimeField(null=True, blank=True)
-    date_updated = models.DateTimeField(auto_now=True)
+    last_modified = models.DateTimeField(auto_now=True)
+    date_submitted = models.DateTimeField(blank=True, null=True)
+    version = models.PositiveIntegerField(default=1)
+    is_locked = models.BooleanField(default=False)
 
-class StudyType(models.Model):
-    name = models.CharField(max_length=200)
-    description = models.TextField()
-    forms = models.ManyToManyField('forms_builder.DynamicForm', through='StudyTypeForm')
-    required_documents = models.JSONField(default=dict)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+class CoInvestigator(models.Model):
+    submission = models.ForeignKey('Submission', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    roles = models.ManyToManyField(Role, related_name='coinvestigators')
+    can_edit = models.BooleanField(default=False)
+    can_submit = models.BooleanField(default=False)
+    can_view_communications = models.BooleanField(default=False)
+    order = models.IntegerField(default=0)
 
-class StudyTypeForm(models.Model):
-    study_type = models.ForeignKey(StudyType, on_delete=models.CASCADE)
-    dynamic_form = models.ForeignKey('forms_builder.DynamicForm', on_delete=models.CASCADE)
-    order = models.IntegerField()
-    
     class Meta:
+        unique_together = ['submission', 'user']
         ordering = ['order']
 
+class ResearchAssistant(models.Model):
+    submission = models.ForeignKey('Submission', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    can_edit = models.BooleanField(default=False)
+    can_submit = models.BooleanField(default=False)
+    can_view_communications = models.BooleanField(default=False)
+    date_added = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['submission', 'user']
+
+class FormDataEntry(models.Model):
+    submission = models.ForeignKey(
+        Submission, related_name='form_data_entries', on_delete=models.CASCADE
+    )
+    form = models.ForeignKey(DynamicForm, on_delete=models.CASCADE)
+    field_name = models.CharField(max_length=255)
+    value = models.TextField()
+    date_saved = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['submission', 'form', 'field_name']),
+        ]
+
 class Document(models.Model):
-    submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
+    submission = models.ForeignKey(
+        Submission, related_name='documents', on_delete=models.CASCADE
+    )
+    uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE)
     file = models.FileField(upload_to='documents/')
-    description = models.TextField()
-    uploaded_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    description = models.CharField(max_length=255, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    ALLOWED_EXTENSIONS = ['pdf', 'png', 'jpeg', 'jpg', 'doc', 'docx', 'txt']
+
+class VersionHistory(models.Model):
+    submission = models.ForeignKey(
+        Submission, related_name='version_histories', on_delete=models.CASCADE
+    )
+    version = models.PositiveIntegerField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    date = models.DateTimeField()
 ```
 
 ### Forms Builder App
 ```python
+FIELD_TYPES = [
+    ('text', 'Text'),
+    ('email', 'Email'),
+    ('tel', 'Telephone'),
+    ('number', 'Number'),
+    ('date', 'Date'),
+    ('textarea', 'Text Area'),
+    ('checkbox', 'Checkboxes'),
+    ('radio', 'Radio Buttons'),
+    ('select', 'Dropdown List'),
+    ('choice', 'Multiple Choice'),
+    ('table', 'Table'),
+]
+
+class StudyType(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+
 class DynamicForm(models.Model):
-    name = models.CharField(max_length=200)
-    description = models.TextField()
-    fields = models.ManyToManyField('FormField', through='FormFieldOrder')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-class FormField(models.Model):
-    FIELD_TYPES = [
-        ('text', 'Text Input'),
-        ('textarea', 'Text Area'),
-        ('select', 'Select'),
-        ('multiselect', 'Multi Select'),
-        ('radio', 'Radio Buttons'),
-        ('checkbox', 'Checkboxes'),
-        ('date', 'Date Input'),
-        ('file', 'File Upload')
-    ]
-    
-    name = models.CharField(max_length=200)
-    displayed_name = models.CharField(max_length=200)
-    field_type = models.CharField(max_length=50, choices=FIELD_TYPES)
-    required = models.BooleanField(default=False)
-    help_text = models.TextField(blank=True)
-    choices = models.JSONField(null=True, blank=True)
-    validation_rules = models.JSONField(null=True, blank=True)
-
-class FormFieldOrder(models.Model):
-    form = models.ForeignKey(DynamicForm, on_delete=models.CASCADE)
-    field = models.ForeignKey(FormField, on_delete=models.CASCADE)
-    order = models.IntegerField()
-    
-    class Meta:
-        ordering = ['order']
-
-class FormDataEntry(models.Model):
-    submission = models.ForeignKey('submission.Submission', on_delete=models.CASCADE)
-    form = models.ForeignKey(DynamicForm, on_delete=models.CASCADE)
-    field_name = models.CharField(max_length=200)
-    value = models.TextField()
-    version = models.IntegerField()
-    created_at = models.DateTimeField(auto_now_add=True)
+    name = models.CharField(max_length=255)
+    version = models.CharField(max_length=50)
+    date_created = models.DateTimeField(auto_now_add=True)
+    requested_per_investigator = models.BooleanField(default=False)
+    study_types = models.ManyToManyField(StudyType, related_name='forms')
+    json_input = models.TextField(blank=True, null=True)
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text='Defines the sequence in which forms appear'
+    )
 ```
 
 ### Messaging App
@@ -185,6 +242,17 @@ class MessageAttachment(models.Model):
     file = models.FileField(upload_to='message_attachments/')
     filename = models.CharField(max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+class MessageReadStatus(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    message = models.ForeignKey(Message, related_name='read_statuses', on_delete=models.CASCADE)
+    is_read = models.BooleanField(default=False)
+
+class Comment(models.Model):
+    message = models.ForeignKey(Message, related_name='comments', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    body = models.TextField()
+    commented_at = models.DateTimeField(auto_now_add=True)
 ```
 
 ## Views and Functions

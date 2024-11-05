@@ -476,11 +476,14 @@ def submission_review(request, submission_id):
                         date=timezone.now(),
                     )
 
-                    # Create confirmation message
+                    # Get PI's full name
+                    pi_full_name = submission.primary_investigator.userprofile.full_name or submission.primary_investigator.get_full_name()
+
+                    # Create confirmation message with personalized greeting
                     message = Message.objects.create(
                         sender=request.user,
                         subject=f'Submission {submission.temporary_id} - Version 1 Confirmation',
-                        body=f'Your submission (ID: {submission.temporary_id}) has been successfully submitted. Please find the attached PDF for your records.',
+                        body=f'Dear {pi_full_name},\n\nYour submission (ID: {submission.temporary_id}) has been successfully submitted. Please find the attached PDF for your records.',
                         study_name=submission.title if hasattr(submission, 'title') else None,
                     )
                     message.recipients.add(submission.primary_investigator)
