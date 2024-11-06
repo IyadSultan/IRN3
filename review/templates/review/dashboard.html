@@ -79,6 +79,42 @@
         </div>
     </div>
 
+    {% if submissions_needing_review %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Submissions Needing Review</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Primary Investigator</th>
+                        <th>Study Type</th>
+                        <th>Submitted On</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for submission in submissions_needing_review %}
+                    <tr>
+                        <td>{{ submission.title }}</td>
+                        <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                        <td>{{ submission.study_type.name }}</td>
+                        <td>{{ submission.date_submitted|date:"M d, Y" }}</td>
+                        <td>
+                            <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-plus"></i> Create Review Request
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Pending Reviews Table -->
     <div class="card mb-4">
         <div class="card-header">

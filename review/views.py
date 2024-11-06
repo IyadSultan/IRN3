@@ -339,6 +339,19 @@ def review_dashboard(request):
         'study_types': study_types,
         'status_choices': status_choices
     }
+    # Fetch submissions needing review for OSAR coordinators
+    
+    if request.user.groups.filter(name='OSAR Coordinator').exists():
+        submissions_needing_review = Submission.objects.filter(
+            status='submitted'
+                ).exclude(
+                    review_requests__isnull=False
+                ).select_related('primary_investigator__userprofile')
+
+        context['submissions_needing_review'] = submissions_needing_review
+
+    return render(request, 'review/dashboard.html', context)
+
 
     return render(request, 'review/dashboard.html', context)
 

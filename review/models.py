@@ -51,7 +51,7 @@ class StatusChoice(models.Model):
 
 
 class ReviewRequest(models.Model):
-    submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE,  related_name='review_requests' )
     submission_version = models.PositiveIntegerField(
         help_text="Version number of the submission being reviewed"
     )
