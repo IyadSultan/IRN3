@@ -616,8 +616,8 @@ AIDI System
                             osar_notification.recipients.add(coordinator)
 
                         # Prepare for future revisions
-                        submission.version = 2  # Next version will be 2
-                        submission.save()
+                        # submission.version = 2  # Next version will be 2
+                        # submission.save()
 
                         messages.success(request, 'Submission has been finalized and sent to OSAR coordinator.')
                         return redirect('submission:dashboard')

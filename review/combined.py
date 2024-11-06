@@ -58,27 +58,80 @@ with open(output_file, 'a') as outfile:
                 outfile.write(line)# review/forms.py
 
 from django import forms
+from django.utils import timezone
 from django.contrib.auth.models import User
 from .models import ReviewRequest
-from forms_builder.models import StudyType, DynamicForm
+from forms_builder.models import DynamicForm
+from dal import autocomplete
+
+from django import forms
+from django.utils import timezone
+from django.contrib.auth.models import User, Group
+from django.db.models import Q
+from .models import ReviewRequest
+from forms_builder.models import DynamicForm
+from dal import autocomplete
 
 class ReviewRequestForm(forms.ModelForm):
     requested_to = forms.ModelChoiceField(
-        queryset=User.objects.filter(groups__name='IRB Member'),
-        widget=forms.Select(attrs={'class': 'form-control'})
-    )
-    selected_forms = forms.ModelMultipleChoiceField(
-        queryset=DynamicForm.objects.all(),
-        widget=forms.CheckboxSelectMultiple
+        queryset=User.objects.none(),
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'data-placeholder': 'Select a reviewer...',
+        }),
+        label="Select Reviewer",
+        help_text="Choose a qualified reviewer for this submission"
     )
 
     class Meta:
         model = ReviewRequest
-        fields = ['requested_to', 'message', 'deadline', 'selected_forms']
+        fields = ['requested_to', 'deadline', 'message', 'selected_forms']
         widgets = {
-            'deadline': forms.DateInput(attrs={'type': 'date'}),
-            'message': forms.Textarea(attrs={'rows': 3}),
+            'deadline': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'message': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
         }
+
+    def __init__(self, *args, study_type=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Get relevant reviewer groups
+        reviewer_groups = set(['IRB Member', 'Research Council Member', 'AHARPP Reviewer'])
+        
+        if study_type:
+            reviewer_groups = set()
+            try:
+                if getattr(study_type, 'requires_irb', True):
+                    reviewer_groups.add('IRB Member')
+                if getattr(study_type, 'requires_research_council', True):
+                    reviewer_groups.add('Research Council Member')
+                if getattr(study_type, 'requires_aharpp', True):
+                    reviewer_groups.add('AHARPP Reviewer')
+            except AttributeError:
+                # If attributes don't exist, include all reviewer groups
+                reviewer_groups = set(['IRB Member', 'Research Council Member', 'AHARPP Reviewer'])
+        
+        # Filter reviewers based on group membership
+        reviewers = User.objects.filter(
+            groups__name__in=reviewer_groups,
+            is_active=True
+        ).distinct().select_related(
+            'userprofile'
+        ).order_by(
+            'userprofile__full_name'
+        )
+        
+        # Update the queryset for requested_to field
+        self.fields['requested_to'].queryset = reviewers
+        
+        # Add user full names to the display
+        self.fields['requested_to'].label_from_instance = lambda user: (
+            f"{user.get_full_name() or user.username} "
+            f"({', '.join(user.groups.values_list('name', flat=True))})"
+        )
+
+        # Get all available forms
+        form_queryset = DynamicForm.objects.all().order_by('name')
+        self.fields['selected_forms'].queryset = form_queryset
 
 class ConflictOfInterestForm(forms.Form):
     conflict_of_interest = forms.ChoiceField(
@@ -144,7 +197,7 @@ class StatusChoice(models.Model):
 
 
 class ReviewRequest(models.Model):
-    submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE,  related_name='review_requests' )
     submission_version = models.PositiveIntegerField(
         help_text="Version number of the submission being reviewed"
     )
@@ -443,6 +496,8 @@ class ReviewFormTests(TestCase):
 
 from django.urls import path
 from . import views
+from submission.views import user_autocomplete
+
 
 app_name = 'review'
 
@@ -457,7 +512,7 @@ urlpatterns = [
     path('review/<int:review_id>/decline/', views.decline_review, name='decline_review'),
     path('submission/<int:submission_id>/summary/', views.review_summary, name='review_summary'),
     path('submission/<int:submission_id>/decision/', views.process_irb_decision, name='process_decision'),
-    
+    path('user-autocomplete/', user_autocomplete, name='user-autocomplete'),
 ]# review/utils.py
 
 from messaging.models import Message
@@ -891,6 +946,19 @@ def review_dashboard(request):
         'study_types': study_types,
         'status_choices': status_choices
     }
+    # Fetch submissions needing review for OSAR coordinators
+    
+    if request.user.groups.filter(name='OSAR Coordinator').exists():
+        submissions_needing_review = Submission.objects.filter(
+            status='submitted'
+                ).exclude(
+                    review_requests__isnull=False
+                ).select_related('primary_investigator__userprofile')
+
+        context['submissions_needing_review'] = submissions_needing_review
+
+    return render(request, 'review/dashboard.html', context)
+
 
     return render(request, 'review/dashboard.html', context)
 
@@ -900,12 +968,11 @@ def review_dashboard(request):
 def create_review_request(request, submission_id):
     submission = get_object_or_404(Submission, pk=submission_id)
     
-    if submission.status not in ['submitted', 'under_revision']:
-        messages.error(request, 'This submission is not in a reviewable state.')
-        return redirect('submission:detail', submission_id)
-        
     if request.method == 'POST':
-        form = ReviewRequestForm(request.POST)
+        form = ReviewRequestForm(
+            request.POST, 
+            study_type=submission.study_type
+        )
         if form.is_valid():
             review_request = form.save(commit=False)
             review_request.submission = submission
@@ -913,18 +980,22 @@ def create_review_request(request, submission_id):
             review_request.submission_version = submission.version
             review_request.save()
             form.save_m2m()
-            
             messages.success(request, 'Review request created successfully.')
-            return redirect('review:dashboard')
+            return redirect('review:review_dashboard')
     else:
-        form = ReviewRequestForm()
-    
-    return render(request, 'review/create_request.html', {
-        'form': form,
-        'submission': submission
-    })
+        initial_data = {
+            'deadline': timezone.now().date() + timezone.timedelta(days=14),
+        }
+        form = ReviewRequestForm(
+            initial=initial_data,
+            study_type=submission.study_type  # Make sure to pass study_type here
+        )
 
-# review/views.py
+    context = {
+        'form': form,
+        'submission': submission,
+    }
+    return render(request, 'review/create_review_request.html', context)
 
 
 
@@ -1401,11 +1472,39 @@ def get_available_reviewers(user, submission):
 <h2>Create Review Request for "{{ submission.title }}" (Version {{ submission.version }})</h2>
 <form method="post">
     {% csrf_token %}
-    {{ form.as_p }}
+    {{ form.non_field_errors }}
+
+    <div class="form-group">
+        {{ form.requested_to.label_tag }}
+        {{ form.requested_to }}
+        {{ form.requested_to.errors }}
+        <small class="form-text text-muted">{{ form.requested_to.help_text }}</small>
+    </div>
+
+    <div class="form-group">
+        {{ form.deadline.label_tag }}
+        {{ form.deadline }}
+        {{ form.deadline.errors }}
+        <small class="form-text text-muted">{{ form.deadline.help_text }}</small>
+    </div>
+
+    <div class="form-group">
+        {{ form.message.label_tag }}
+        {{ form.message }}
+        {{ form.message.errors }}
+        <small class="form-text text-muted">{{ form.message.help_text }}</small>
+    </div>
+
+    <div class="form-group">
+        {{ form.selected_forms.label_tag }}
+        {{ form.selected_forms }}
+        {{ form.selected_forms.errors }}
+        <small class="form-text text-muted">{{ form.selected_forms.help_text }}</small>
+    </div>
+
     <button type="submit" class="btn btn-primary">Send Review Request</button>
 </form>
 {% endblock %}
-
 {% extends 'users/base.html' %}
 {% load static %}
 
@@ -1486,6 +1585,42 @@ def get_available_reviewers(user, submission):
             </div>
         </div>
     </div>
+
+    {% if submissions_needing_review %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Submissions Needing Review</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Primary Investigator</th>
+                        <th>Study Type</th>
+                        <th>Submitted On</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for submission in submissions_needing_review %}
+                    <tr>
+                        <td>{{ submission.title }}</td>
+                        <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                        <td>{{ submission.study_type.name }}</td>
+                        <td>{{ submission.date_submitted|date:"M d, Y" }}</td>
+                        <td>
+                            <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-plus"></i> Create Review Request
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Pending Reviews Table -->
     <div class="card mb-4">

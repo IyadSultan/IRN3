@@ -2,6 +2,8 @@
 
 from django.urls import path
 from . import views
+from submission.views import user_autocomplete
+
 
 app_name = 'review'
 
@@ -16,5 +18,5 @@ urlpatterns = [
     path('review/<int:review_id>/decline/', views.decline_review, name='decline_review'),
     path('submission/<int:submission_id>/summary/', views.review_summary, name='review_summary'),
     path('submission/<int:submission_id>/decision/', views.process_irb_decision, name='process_decision'),
-    
+    path('user-autocomplete/', user_autocomplete, name='user-autocomplete'),
 ]

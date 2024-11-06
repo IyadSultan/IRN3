@@ -4,8 +4,36 @@
 <h2>Create Review Request for "{{ submission.title }}" (Version {{ submission.version }})</h2>
 <form method="post">
     {% csrf_token %}
-    {{ form.as_p }}
+    {{ form.non_field_errors }}
+
+    <div class="form-group">
+        {{ form.requested_to.label_tag }}
+        {{ form.requested_to }}
+        {{ form.requested_to.errors }}
+        <small class="form-text text-muted">{{ form.requested_to.help_text }}</small>
+    </div>
+
+    <div class="form-group">
+        {{ form.deadline.label_tag }}
+        {{ form.deadline }}
+        {{ form.deadline.errors }}
+        <small class="form-text text-muted">{{ form.deadline.help_text }}</small>
+    </div>
+
+    <div class="form-group">
+        {{ form.message.label_tag }}
+        {{ form.message }}
+        {{ form.message.errors }}
+        <small class="form-text text-muted">{{ form.message.help_text }}</small>
+    </div>
+
+    <div class="form-group">
+        {{ form.selected_forms.label_tag }}
+        {{ form.selected_forms }}
+        {{ form.selected_forms.errors }}
+        <small class="form-text text-muted">{{ form.selected_forms.help_text }}</small>
+    </div>
+
     <button type="submit" class="btn btn-primary">Send Review Request</button>
 </form>
 {% endblock %}
-
