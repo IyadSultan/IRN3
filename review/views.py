@@ -13,6 +13,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
+from .utils.notifications import send_review_request_notification
 
 from .forms import ReviewRequestForm, ConflictOfInterestForm
 from .models import ReviewRequest, Review, FormResponse, get_status_choices
@@ -373,6 +374,9 @@ def create_review_request(request, submission_id):
             review_request.submission_version = submission.version
             review_request.save()
             form.save_m2m()
+            
+            # Pass the review_request object instead of request
+            send_review_request_notification(review_request)
             messages.success(request, 'Review request created successfully.')
             return redirect('review:review_dashboard')
     else:
@@ -381,7 +385,7 @@ def create_review_request(request, submission_id):
         }
         form = ReviewRequestForm(
             initial=initial_data,
-            study_type=submission.study_type  # Make sure to pass study_type here
+            study_type=submission.study_type
         )
 
     context = {

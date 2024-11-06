@@ -49,7 +49,7 @@ class Message(models.Model):
     sent_at = models.DateTimeField(auto_now_add=True)
     is_archived = models.BooleanField(default=False)
     hashtags = models.CharField(max_length=255, blank=True, null=True)
-    thread_id = models.UUIDField(default=uuid.uuid4, editable=False)
+    thread_id = models.UUIDField(default=uuid.uuid4, editable=False, null=True, blank=True)
     related_submission = models.ForeignKey(
         'submission.Submission',
         on_delete=models.SET_NULL,
