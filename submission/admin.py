@@ -9,6 +9,7 @@ from .models import (
     Document,
     VersionHistory,
     StatusChoice,
+    SystemSettings,
 )
 
 @admin.register(Submission)
@@ -19,9 +20,6 @@ class SubmissionAdmin(admin.ModelAdmin):
     ordering = ('-date_created',)
     fields = ('title', 'study_type', 'primary_investigator', 'irb_number', 'status', 'date_created', 'last_modified', 'is_locked')
     readonly_fields = ('date_created', 'last_modified')
-
-from django.contrib import admin
-from .models import CoInvestigator
 
 @admin.register(CoInvestigator)
 class CoInvestigatorAdmin(admin.ModelAdmin):
@@ -58,17 +56,12 @@ class VersionHistoryAdmin(admin.ModelAdmin):
     search_fields = ('submission__title',)
     list_filter = ('status', 'date')
 
-from django.contrib import admin
-from .models import SystemSettings  # Add this import
-
 @admin.register(SystemSettings)
 class SystemSettingsAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
-        # Only allow one instance of settings
         return not SystemSettings.objects.exists()
 
     def has_delete_permission(self, request, obj=None):
-        # Prevent deletion of settings
         return False
 
 @admin.register(StatusChoice)

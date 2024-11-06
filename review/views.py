@@ -1,25 +1,26 @@
 # review/views.py
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required, permission_required
-from django.contrib import messages
-from django.utils import timezone
-from django.http import HttpResponseForbidden, JsonResponse
-from django.db.models import Q, F, Count, Case, When, Value, IntegerField
-from django.template.loader import render_to_string
-from django.core.paginator import Paginator
-from django.db import transaction
-from .models import ReviewRequest, Review, FormResponse, get_status_choices
 from datetime import timedelta, datetime
 from io import BytesIO
 import json
 
-from .models import ReviewRequest, Review, FormResponse
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required, permission_required
+from django.core.paginator import Paginator
+from django.db import transaction
+from django.db.models import Q, F, Count, Case, When, Value, IntegerField
+from django.http import HttpResponseForbidden, JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.template.loader import render_to_string
+from django.urls import reverse
+from django.utils import timezone
+
 from .forms import ReviewRequestForm, ConflictOfInterestForm
-from submission.models import Submission
-from forms_builder.models import DynamicForm, StudyType
+from .models import ReviewRequest, Review, FormResponse, get_status_choices
 from .utils.pdf_generator import generate_review_dashboard_pdf
+from forms_builder.models import DynamicForm, StudyType
 from messaging.models import Message
-from users.utils import get_system_user  # Changed import to correct location
+from submission.models import Submission
+from users.utils import get_system_user
 
 # Rest of your view functions...
 
@@ -231,130 +232,67 @@ def view_review(request, review_id):
 @login_required
 def review_dashboard(request):
     """
-    Display the review dashboard showing pending and completed reviews.
-    Supports filtering, searching, and DataTables integration.
+    Enhanced dashboard showing role-specific views including OSAR coordinator's submissions.
     """
-    # Get filter parameters from request
-    status = request.GET.get('status', '')
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    study_type = request.GET.get('study_type', '')
+    user = request.user
+    context = {}
+
+    # Check if user is OSAR coordinator
+    is_osar_coordinator = user.groups.filter(name='OSAR Coordinator').exists()
     
-    # Base queryset for pending reviews with all necessary related data
+    if is_osar_coordinator:
+        # Get new submissions that need initial review
+        new_submissions = Submission.objects.filter(
+            status='submitted'
+        ).select_related(
+            'primary_investigator__userprofile',
+            'study_type'
+        ).order_by('-date_submitted')
+
+        # Get submissions already forwarded by this coordinator
+        forwarded_submissions = Submission.objects.filter(
+            status='under_review',
+            review_requests__requested_by=user
+        ).distinct().select_related(
+            'primary_investigator__userprofile',
+            'study_type'
+        )
+
+        context.update({
+            'new_submissions': new_submissions,
+            'forwarded_submissions': forwarded_submissions,
+            'is_osar_coordinator': True
+        })
+
+    # Get pending reviews for all users
     pending_reviews = ReviewRequest.objects.filter(
-        requested_to=request.user
+        requested_to=user,
+        status__in=['pending', 'accepted']
     ).select_related(
         'submission__study_type',
         'requested_by__userprofile',
         'submission__primary_investigator__userprofile'
     ).annotate(
         days_until_deadline=Case(
-            When(
-                deadline__gt=timezone.now().date(),
-                then=F('deadline') - timezone.now().date()
-            ),
+            When(deadline__gt=timezone.now().date(),
+                 then=F('deadline') - timezone.now().date()),
             default=Value(0),
             output_field=IntegerField(),
         )
     )
 
-    # Apply filters if provided
-    if status:
-        pending_reviews = pending_reviews.filter(status=status)
-    if date_from:
-        pending_reviews = pending_reviews.filter(deadline__gte=date_from)
-    if date_to:
-        pending_reviews = pending_reviews.filter(deadline__lte=date_to)
-    if study_type:
-        pending_reviews = pending_reviews.filter(submission__study_type=study_type)
-
     # Get completed reviews
     completed_reviews = Review.objects.filter(
-        reviewer=request.user
+        reviewer=user
     ).select_related(
         'submission__study_type',
-        'submission__primary_investigator__userprofile',
-        'review_request'
-    ).order_by('-date_submitted')
+        'submission__primary_investigator__userprofile'
+    )
 
-    # Handle DataTables AJAX request
-    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-        draw = int(request.GET.get('draw', 1))
-        start = int(request.GET.get('start', 0))
-        length = int(request.GET.get('length', 10))
-        search_value = request.GET.get('search[value]', '')
-        
-        # Handle search
-        if search_value:
-            pending_reviews = pending_reviews.filter(
-                Q(submission__title__icontains=search_value) |
-                Q(submission__primary_investigator__userprofile__full_name__icontains=search_value) |
-                Q(submission__study_type__name__icontains=search_value)
-            )
-        
-        # Total records before filtering
-        total_records = pending_reviews.count()
-        
-        # Handle ordering
-        order_column = request.GET.get('order[0][column]', '0')
-        order_dir = request.GET.get('order[0][dir]', 'asc')
-        
-        # Define orderable columns
-        order_columns = {
-            '0': 'submission__title',
-            '1': 'submission__primary_investigator__userprofile__full_name',
-            '2': 'submission__study_type__name',
-            '3': 'deadline',
-            '4': 'status',
-            '5': 'days_until_deadline'
-        }
-        
-        if order_dir == 'desc':
-            order_by = f"-{order_columns[order_column]}"
-        else:
-            order_by = order_columns[order_column]
-        
-        pending_reviews = pending_reviews.order_by(order_by)
-        
-        # Pagination
-        pending_reviews = pending_reviews[start:start + length]
-        
-        # Prepare data for response
-        data = []
-        for review in pending_reviews:
-            data.append({
-                'title': review.submission.title,
-                'investigator': review.submission.primary_investigator.userprofile.full_name,
-                'study_type': review.submission.study_type.name,
-                'deadline': review.deadline.strftime('%Y-%m-%d'),
-                'status': review.get_status_display(),
-                'days_remaining': review.days_until_deadline,
-                'actions': render_to_string('review/includes/review_actions.html', {
-                    'review': review,
-                    'user': request.user
-                })
-            })
-        
-        return JsonResponse({
-            'draw': draw,
-            'recordsTotal': total_records,
-            'recordsFiltered': total_records,
-            'data': data
-        })
-
-    # Prepare context for template rendering
-    context = {
-        'pending_reviews': pending_reviews[:10],  # Initial load limited to 10
-        'completed_reviews': completed_reviews,
-        'study_types': StudyType.objects.all(),
-        'status_choices': [
-            ('pending', 'Pending'),
-            ('accepted', 'Accepted'),
-            ('completed', 'Completed'),
-            ('declined', 'Declined'),
-            ('overdue', 'Overdue')
-        ]
-    }
+    context.update({
+        'pending_reviews': pending_reviews,
+        'completed_reviews': completed_reviews
+    })
     
     return render(request, 'review/dashboard.html', context)
 
@@ -387,75 +325,474 @@ def create_review_request(request, submission_id):
         'submission': submission
     })
 
+# review/views.py
+
+
+
+
 @login_required
 def submit_review(request, review_request_id):
+    """Handle submission of a review."""
     review_request = get_object_or_404(ReviewRequest, pk=review_request_id)
 
-      # Check if user can access this submission
-    if not request.user.has_perm('submission.can_view_submission', review_request.submission):
-        raise PermissionDenied
-    
+    # Check permissions
     if request.user != review_request.requested_to:
-        return HttpResponseForbidden()
-        
-    if review_request.conflict_of_interest_declared is None:
+        return HttpResponseForbidden("You don't have permission to submit this review.")
+    
+    if review_request.status not in ['pending', 'accepted']:
+        messages.error(request, "This review can no longer be submitted.")
+        return redirect('review:review_dashboard')
+
+    try:
+        # Handle review submission
         if request.method == 'POST':
-            form = ConflictOfInterestForm(request.POST)
-            if form.is_valid():
-                has_conflict = form.cleaned_data['conflict_of_interest'] == 'yes'
-                review_request.conflict_of_interest_declared = has_conflict
-                if has_conflict:
-                    review_request.conflict_of_interest_details = form.cleaned_data['conflict_details']
-                    review_request.status = 'declined'
-                else:
-                    review_request.status = 'accepted'
-                review_request.save()
-                return redirect('review:dashboard')
-        else:
-            form = ConflictOfInterestForm()
-        return render(request, 'review/conflict_of_interest.html', {
-            'form': form,
-            'review_request': review_request
-        })
-    
-    # Handle review submission
-    if request.method == 'POST':
-        forms_valid = True
-        form_responses = []
-        
-        for dynamic_form in review_request.selected_forms.all():
-            form = FormForForm(dynamic_form, request.POST, prefix=f'form_{dynamic_form.id}')
-            if form.is_valid():
-                form_responses.append((dynamic_form, form))
-            else:
-                forms_valid = False
-                break
-        
-        if forms_valid:
-            review = Review.objects.create(
-                review_request=review_request,
-                reviewer=request.user,
-                submission=review_request.submission,
-                submission_version=review_request.submission_version,
-                comments=request.POST.get('comments', '')
-            )
-            
-            for dynamic_form, form in form_responses:
-                FormResponse.objects.create(
-                    review=review,
-                    form=dynamic_form,
-                    response_data=form.cleaned_data
+            with transaction.atomic():
+                # Validate all forms
+                forms_valid = True
+                form_responses = []
+                
+                for dynamic_form in review_request.selected_forms.all():
+                    form = FormForForm(
+                        dynamic_form, 
+                        request.POST, 
+                        prefix=f'form_{dynamic_form.id}'
+                    )
+                    if form.is_valid():
+                        form_responses.append((dynamic_form, form))
+                    else:
+                        forms_valid = False
+                        break
+
+                if not forms_valid:
+                    raise ValueError("Please complete all required fields in the forms.")
+
+                # Create review record
+                review = Review.objects.create(
+                    review_request=review_request,
+                    reviewer=request.user,
+                    submission=review_request.submission,
+                    submission_version=review_request.submission_version,
+                    comments=request.POST.get('comments', '')
                 )
-            
-            review_request.status = 'completed'
-            review_request.save()
-            messages.success(request, 'Review submitted successfully.')
-            return redirect('review:dashboard')
-    
-    return render(request, 'review/submit_review.html', {
+
+                # Save form responses
+                for dynamic_form, form in form_responses:
+                    FormResponse.objects.create(
+                        review=review,
+                        form=dynamic_form,
+                        response_data=form.cleaned_data
+                    )
+
+                # Update review request status
+                review_request.status = 'completed'
+                review_request.save()
+
+                # Send notification to requester and PI
+                system_user = get_system_user()
+                
+                message = Message.objects.create(
+                    sender=system_user,
+                    subject=f'Review Completed - {review_request.submission.title}',
+                    body=f"""
+Dear {review_request.requested_by.userprofile.full_name},
+
+The review for "{review_request.submission.title}" has been completed by {request.user.userprofile.full_name}.
+
+You can view the review details here:
+{request.build_absolute_uri(reverse('review:view_review', args=[review.id]))}
+
+Best regards,
+AIDI System
+                    """.strip(),
+                    study_name=review_request.submission.title,
+                    related_submission=review_request.submission
+                )
+
+                # Add recipients
+                message.recipients.add(review_request.requested_by)
+                
+                # CC the PI if different from requester
+                if (review_request.submission.primary_investigator != 
+                    review_request.requested_by):
+                    message.cc.add(review_request.submission.primary_investigator)
+
+                # Check if all required reviews are completed
+                all_reviews_completed = check_all_reviews_completed(
+                    review_request.submission
+                )
+
+                if all_reviews_completed:
+                    # Update submission status
+                    update_submission_after_reviews(
+                        review_request.submission, 
+                        request
+                    )
+
+                messages.success(request, "Review submitted successfully.")
+                return redirect('review:review_dashboard')
+
+    except ValueError as e:
+        messages.error(request, str(e))
+    except Exception as e:
+        messages.error(request, f"Error submitting review: {str(e)}")
+
+    # Render form for GET or if there were errors
+    context = {
         'review_request': review_request,
-        'forms': [FormForForm(form, prefix=f'form_{form.id}') 
-                 for form in review_request.selected_forms.all()]
-    })
+        'forms': [
+            FormForForm(form, prefix=f'form_{form.id}')
+            for form in review_request.selected_forms.all()
+        ]
+    }
+    return render(request, 'review/submit_review.html', context)
+
+def check_all_reviews_completed(submission):
+    """Check if all required reviews for a submission are completed."""
+    pending_reviews = ReviewRequest.objects.filter(
+        submission=submission,
+        status__in=['pending', 'accepted']
+    ).exists()
+    
+    return not pending_reviews
+
+def update_submission_after_reviews(submission, request):
+    """Update submission status after all reviews are completed."""
+    try:
+        with transaction.atomic():
+            # Get all completed reviews
+            completed_reviews = Review.objects.filter(
+                submission=submission,
+                review_request__status='completed'
+            ).select_related('reviewer', 'review_request')
+
+            # Create notification about all reviews being completed
+            system_user = get_system_user()
+            
+            message = Message.objects.create(
+                sender=system_user,
+                subject=f'All Reviews Completed - {submission.title}',
+                body=f"""
+Dear {submission.primary_investigator.userprofile.full_name},
+
+All requested reviews for your submission "{submission.title}" have been completed.
+
+Reviews Summary:
+{get_reviews_summary(completed_reviews)}
+
+Next Steps:
+1. The IRB coordinator will review all feedback
+2. You will receive further instructions based on the review outcomes
+
+Best regards,
+AIDI System
+                """.strip(),
+                study_name=submission.title,
+                related_submission=submission
+            )
+
+            # Add recipients
+            message.recipients.add(submission.primary_investigator)
+            
+            # Update submission status
+            submission.status = 'reviews_completed'
+            submission.save()
+
+    except Exception as e:
+        messages.error(
+            request, 
+            f"Error updating submission after reviews: {str(e)}"
+        )
+
+def get_reviews_summary(completed_reviews):
+    """Generate a summary of completed reviews."""
+    summary = []
+    for review in completed_reviews:
+        summary.append(f"""
+Reviewer: {review.reviewer.userprofile.full_name}
+Completed: {review.date_submitted.strftime('%Y-%m-%d %H:%M')}
+""".strip())
+    
+    return "\n\n".join(summary)
+
+# review/views.py
+
+@login_required
+def review_summary(request, submission_id):
+    """
+    Display a summary of all reviews for a submission.
+    Only accessible to PI, requester, and IRB coordinators.
+    """
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    # Check permissions
+    if not (request.user == submission.primary_investigator or
+            request.user.groups.filter(name='IRB Coordinator').exists() or
+            submission.review_requests.filter(requested_by=request.user).exists()):
+        messages.error(request, "You don't have permission to view this review summary.")
+        return redirect('submission:dashboard')
+
+    reviews = Review.objects.filter(
+        submission=submission
+    ).select_related(
+        'reviewer__userprofile',
+        'review_request'
+    ).prefetch_related(
+        'formresponse_set__form'
+    ).order_by('date_submitted')
+
+    context = {
+        'submission': submission,
+        'reviews': reviews,
+        'can_make_decision': request.user.groups.filter(name='IRB Coordinator').exists()
+    }
+    return render(request, 'review/review_summary.html', context)
+
+@login_required
+def process_irb_decision(request, submission_id):
+    """
+    Process IRB coordinator's decision after reviewing all reviews.
+    """
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    # Check permissions
+    if not request.user.groups.filter(name='IRB Coordinator').exists():
+        messages.error(request, "You don't have permission to make IRB decisions.")
+        return redirect('submission:dashboard')
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                decision = request.POST.get('decision')
+                comments = request.POST.get('comments')
+                
+                if not decision:
+                    raise ValueError("Please select a decision")
+                
+                if decision not in ['approved', 'revision_required', 'rejected']:
+                    raise ValueError("Invalid decision")
+
+                # Update submission status
+                submission.status = decision
+                submission.save()
+                
+                # Create version history entry
+                VersionHistory.objects.create(
+                    submission=submission,
+                    version=submission.version,
+                    status=decision,
+                    date=timezone.now()
+                )
+
+                # Send notification to PI
+                system_user = get_system_user()
+                
+                message = Message.objects.create(
+                    sender=system_user,
+                    subject=f'IRB Decision - {submission.title}',
+                    body=f"""
+Dear {submission.primary_investigator.userprofile.full_name},
+
+The IRB has made a decision regarding your submission "{submission.title}".
+
+Decision: {decision.replace('_', ' ').title()}
+
+{comments if comments else ''}
+
+{'Please review the comments and submit a revised version.' if decision == 'revision_required' else ''}
+
+Best regards,
+AIDI System
+                    """.strip(),
+                    study_name=submission.title,
+                    related_submission=submission
+                )
+                
+                message.recipients.add(submission.primary_investigator)
+                
+                # Handle each decision type
+                if decision == 'revision_required':
+                    submission.version += 1
+                    submission.save()
+                    messages.success(request, 
+                        "Decision recorded. PI has been notified to submit revisions.")
+                
+                elif decision == 'approved':
+                    # Generate IRB approval number if not exists
+                    if not submission.irb_number:
+                        submission.irb_number = generate_irb_number(submission)
+                        submission.save()
+                    messages.success(request, 
+                        "Submission approved. PI has been notified.")
+                
+                else:  # rejected
+                    messages.success(request, 
+                        "Submission rejected. PI has been notified.")
+
+                return redirect('review:review_summary', submission_id=submission.id)
+
+        except ValueError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f"Error processing decision: {str(e)}")
+    
+    context = {
+        'submission': submission,
+    }
+    return render(request, 'review/process_decision.html', context)
+
+def generate_irb_number(submission):
+    """Generate a unique IRB number for approved submissions."""
+    year = timezone.now().year
+    # Get count of approved submissions this year
+    count = Submission.objects.filter(
+        status='approved',
+        irb_number__startswith=f'IRB-{year}'
+    ).count()
+    
+    # Format: IRB-YYYY-XXXX where XXXX is zero-padded sequential number
+    return f'IRB-{year}-{(count + 1):04d}'
 
 
+
+# submission/views.py
+
+
+
+
+
+
+# review/views.py
+
+@login_required
+def forward_review(request, review_request_id):
+    """Forward a review request to additional reviewers."""
+    review_request = get_object_or_404(ReviewRequest, pk=review_request_id)
+    
+    # Check permissions
+    if not (request.user.groups.filter(name__in=[
+        'OSAR Coordinator', 'IRB Head', 'Research Council Head', 'AHARPP Head'
+    ]).exists() or review_request.can_forward):
+        messages.error(request, "You don't have permission to forward review requests.")
+        return redirect('review:review_dashboard')
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                reviewer_ids = request.POST.getlist('reviewers')
+                message = request.POST.get('message')
+                deadline = request.POST.get('deadline')
+                allow_forwarding = request.POST.get('allow_forwarding') == 'true'
+
+                if not reviewer_ids:
+                    raise ValueError("Please select at least one reviewer.")
+                if not deadline:
+                    raise ValueError("Please specify a deadline.")
+
+                deadline_date = timezone.datetime.strptime(deadline, '%Y-%m-%d').date()
+                if deadline_date <= timezone.now().date():
+                    raise ValueError("Deadline must be in the future.")
+
+                # Create new review requests
+                for reviewer_id in reviewer_ids:
+                    reviewer = User.objects.get(id=reviewer_id)
+                    
+                    # Create forwarded review request
+                    new_request = ReviewRequest.objects.create(
+                        submission=review_request.submission,
+                        submission_version=review_request.submission_version,
+                        requested_by=request.user,
+                        requested_to=reviewer,
+                        deadline=deadline_date,
+                        message=message,
+                        status='pending',
+                        parent_request=review_request,
+                        can_forward=allow_forwarding,
+                        forwarding_chain=review_request.forwarding_chain + [request.user.id]
+                    )
+
+                    # Copy selected forms
+                    new_request.selected_forms.set(review_request.selected_forms.all())
+
+                    # Send notification
+                    Message.objects.create(
+                        sender=request.user,
+                        subject=f'Forwarded Review Request - {review_request.submission.title}',
+                        body=f"""
+Dear {reviewer.userprofile.full_name},
+
+A review request has been forwarded to you by {request.user.userprofile.full_name}.
+
+Submission Details:
+Title: {review_request.submission.title}
+PI: {review_request.submission.primary_investigator.userprofile.full_name}
+Deadline: {deadline_date.strftime('%Y-%m-%d')}
+
+Message:
+{message}
+
+{'You are authorized to forward this review request to others.' if allow_forwarding else ''}
+
+Please log in to the system to begin your review.
+
+Best regards,
+{request.user.userprofile.full_name}
+                        """.strip(),
+                        study_name=review_request.submission.title,
+                        related_submission=review_request.submission
+                    ).recipients.add(reviewer)
+
+                messages.success(request, f"Review request forwarded to {len(reviewer_ids)} reviewer(s).")
+                return redirect('review:review_dashboard')
+
+        except ValueError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f"Error forwarding review request: {str(e)}")
+
+    # Get available reviewers based on the user's role
+    available_reviewers = get_available_reviewers(request.user, review_request.submission)
+
+    context = {
+        'review_request': review_request,
+        'available_reviewers': available_reviewers,
+        'min_date': (timezone.now() + timezone.timedelta(days=1)).strftime('%Y-%m-%d'),
+        'suggested_date': (timezone.now() + timezone.timedelta(days=14)).strftime('%Y-%m-%d'),
+        'user_role': get_user_primary_role(request.user)
+    }
+    return render(request, 'review/forward_review.html', context)
+
+def get_available_reviewers(user, submission):
+    """Get available reviewers based on user's role."""
+    if user.groups.filter(name='OSAR Coordinator').exists():
+        # OSAR can forward to heads of different committees
+        return User.objects.filter(
+            groups__name__in=['IRB Head', 'Research Council Head', 'AHARPP Head']
+        ).exclude(
+            review_requests__submission=submission
+        ).select_related('userprofile')
+    
+    elif user.groups.filter(name='IRB Head').exists():
+        # IRB Head can forward to IRB members
+        return User.objects.filter(
+            groups__name='IRB Member'
+        ).exclude(
+            review_requests__submission=submission
+        ).select_related('userprofile')
+    
+    elif user.groups.filter(name='Research Council Head').exists():
+        # RC Head can forward to RC members
+        return User.objects.filter(
+            groups__name='Research Council Member'
+        ).exclude(
+            review_requests__submission=submission
+        ).select_related('userprofile')
+    
+    elif user.groups.filter(name='AHARPP Head').exists():
+        # AHARPP Head can forward to AHARPP reviewers
+        return User.objects.filter(
+            groups__name='AHARPP Reviewer'
+        ).exclude(
+            review_requests__submission=submission
+        ).select_related('userprofile')
+    
+    return User.objects.none()

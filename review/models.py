@@ -15,6 +15,7 @@ def get_status_choices():
         ('declined', 'Declined'),
         ('completed', 'Completed'),
         ('overdue', 'Overdue'),
+        ('reviews_completed', 'Reviews Completed'),
     ]
     
     try:
@@ -82,6 +83,22 @@ class ReviewRequest(models.Model):
     proposed_deadline = models.DateField(null=True, blank=True)
     extension_reason = models.TextField(null=True, blank=True)
     
+    parent_request = models.ForeignKey(
+        'self', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='child_requests'
+    )
+    forwarding_chain = models.JSONField(
+        default=list,
+        help_text="List of users who forwarded this request"
+    )
+    can_forward = models.BooleanField(
+        default=False,
+        help_text="Whether this reviewer can forward to others"
+    )
+
     @property
     def is_overdue(self):
         return self.deadline < timezone.now().date()
@@ -104,7 +121,7 @@ class Review(models.Model):
     reviewer = models.ForeignKey(User, on_delete=models.CASCADE)
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
     submission_version = models.PositiveIntegerField()
-    comments = models.TextField()
+    comments = models.TextField(blank=True)
     date_submitted = models.DateTimeField(auto_now_add=True)
     is_archived = models.BooleanField(default=False)
 
@@ -113,9 +130,13 @@ class Review(models.Model):
 
 class FormResponse(models.Model):
     review = models.ForeignKey(Review, on_delete=models.CASCADE)
-    form = models.ForeignKey(DynamicForm, on_delete=models.CASCADE)
+    form = models.ForeignKey('forms_builder.DynamicForm', on_delete=models.CASCADE)
     response_data = models.JSONField()
     date_submitted = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Response to {self.form} for {self.review}"
+
+
+
+

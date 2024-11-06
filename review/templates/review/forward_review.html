@@ -1,0 +1,170 @@
+{# review/templates/review/forward_review.html #}
+{% extends 'users/base.html' %}
+{% load static %}
+
+{% block title %}Forward Review Request{% endblock %}
+
+{% block page_specific_css %}
+<style>
+    .review-chain {
+        position: relative;
+        margin-bottom: 2rem;
+    }
+    .chain-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    .chain-connector {
+        position: absolute;
+        left: 15px;
+        top: 30px;
+        bottom: 0;
+        width: 2px;
+        background-color: #dee2e6;
+    }
+    .chain-node {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: #007bff;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        position: relative;
+        z-index: 1;
+    }
+    .chain-content {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        flex-grow: 1;
+    }
+    .reviewer-select {
+        min-height: 200px;
+    }
+    .selected-reviewers {
+        margin-top: 1rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+    }
+    .selected-reviewer {
+        display: inline-block;
+        background-color: #e9ecef;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        margin: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Main Forwarding Form -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Forward Review Request</h2>
+                </div>
+                <div class="card-body">
+                    <!-- Submission Info -->
+                    <div class="alert alert-info">
+                        <h5>Submission Details</h5>
+                        <p><strong>Title:</strong> {{ review_request.submission.title }}</p>
+                        <p><strong>Primary Investigator:</strong> 
+                           {{ review_request.submission.primary_investigator.userprofile.full_name }}</p>
+                        <p><strong>Study Type:</strong> 
+                           {{ review_request.submission.study_type.name }}</p>
+                        <p><strong>Current Status:</strong> 
+                           <span class="badge bg-{{ review_request.submission.status|lower }}">
+                               {{ review_request.submission.get_status_display }}
+                           </span>
+                        </p>
+                    </div>
+
+                    <form method="post" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Reviewer Selection -->
+                        <div class="mb-3">
+                            <label class="form-label required">Select Reviewers</label>
+                            <select name="reviewers" multiple class="form-select reviewer-select" required>
+                                {% for reviewer in available_reviewers %}
+                                <option value="{{ reviewer.id }}">
+                                    {{ reviewer.userprofile.full_name }} 
+                                    ({{ reviewer.groups.first.name }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                Hold Ctrl/Cmd to select multiple reviewers
+                            </div>
+                        </div>
+
+                        <!-- Selected Reviewers Preview -->
+                        <div class="selected-reviewers d-none">
+                            <h6>Selected Reviewers:</h6>
+                            <div id="selectedReviewersList"></div>
+                        </div>
+
+                        <!-- Deadline -->
+                        <div class="mb-3">
+                            <label for="deadline" class="form-label required">Review Deadline</label>
+                            <input type="date" 
+                                   class="form-control" 
+                                   id="deadline" 
+                                   name="deadline"
+                                   min="{{ min_date }}"
+                                   value="{{ suggested_date }}"
+                                   required>
+                        </div>
+
+                        <!-- Message -->
+                        <div class="mb-3">
+                            <label for="message" class="form-label required">Message to Reviewers</label>
+                            <textarea class="form-control" 
+                                      id="message" 
+                                      name="message" 
+                                      rows="4"
+                                      required></textarea>
+                        </div>
+
+                        <!-- Forward Permission -->
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="checkbox" 
+                                       id="allow_forwarding" 
+                                       name="allow_forwarding" 
+                                       value="true">
+                                <label class="form-check-label" for="allow_forwarding">
+                                    Allow these reviewers to forward to others
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" 
+                                    class="btn btn-secondary me-md-2" 
+                                    onclick="history.back()">
+                                Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                Forward Review Request
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Review Chain Visualization -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-t

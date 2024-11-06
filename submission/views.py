@@ -396,7 +396,6 @@ def submission_form(request, submission_id, form_id):
     return render(request, 'submission/dynamic_form.html', context)
 
 
-
 @login_required
 def submission_review(request, submission_id):
     """Review submission before final submission."""
@@ -435,7 +434,6 @@ def submission_review(request, submission_id):
                     errors[field_name] = ['Please select at least one option']
             else:
                 field_value = form_instance.data.get(f'form_{dynamic_form.id}-{field_name}')
-
                 if field.required and not field_value:
                     is_valid = False
                     errors[field_name] = ['This field is required']
@@ -449,20 +447,16 @@ def submission_review(request, submission_id):
     if request.method == 'POST':
         action = request.POST.get('action')
         
-        # Handle KHCC Brain Analysis
         if action == 'analyze_submission':
             try:
-                # Use temporary_id instead of id for cache key
                 cache_key = f'gpt_analysis_{submission.temporary_id}_{submission.version}'
                 analysis = cache.get(cache_key)
                 
                 if not analysis:
-                    # Create analyzer instance and get analysis
                     analyzer = ResearchAnalyzer(submission, submission.version)
                     analysis = analyzer.analyze_submission()
                     
                     if analysis and not analysis.startswith("Error"):
-                        # Cache successful analysis for 1 hour
                         cache.set(cache_key, analysis, 3600)
                     
                 context = {
@@ -484,68 +478,101 @@ def submission_review(request, submission_id):
                 messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
             else:
                 try:
-                    # Lock submission and update status
-                    submission.is_locked = True
-                    submission.status = 'submitted'
-                    submission.date_submitted = timezone.now()
-                    # Don't increment version yet
-                    submission.save()
-                    
-                    # Create version history entry starting with version 1
-                    VersionHistory.objects.create(
-                        submission=submission,
-                        version=1,  # Start with version 1
-                        status=submission.status,
-                        date=timezone.now(),
-                    )
+                    with transaction.atomic():
+                        # Lock submission and update status
+                        submission.is_locked = True
+                        submission.status = 'submitted'
+                        submission.date_submitted = timezone.now()
+                        submission.save()
+                        
+                        # Create version history entry
+                        VersionHistory.objects.create(
+                            submission=submission,
+                            version=1,
+                            status=submission.status,
+                            date=timezone.now()
+                        )
 
-                    # Get PI's full name
-                    pi_full_name = submission.primary_investigator.userprofile.full_name or submission.primary_investigator.get_full_name()
+                        # Generate PDF
+                        buffer = generate_submission_pdf(
+                            submission=submission,
+                            version=1,
+                            user=request.user,
+                            as_buffer=True
+                        )
 
-                    # Create confirmation message with personalized greeting
-                    message = Message.objects.create(
-                        sender=request.user,
-                        subject=f'Submission {submission.temporary_id} - Version 1 Confirmation',
-                        body=f'Dear {pi_full_name},\n\nYour submission (ID: {submission.temporary_id}) has been successfully submitted. Please find the attached PDF for your records.',
-                        study_name=submission.title if hasattr(submission, 'title') else None,
-                    )
-                    message.recipients.add(submission.primary_investigator)
-                    
-                    # Generate PDF for version 1
-                    current_version = 1
-                    logger.info(f"Generating PDF for submission {submission.temporary_id} version {current_version}")
-                    
-                    buffer = generate_submission_pdf(
-                        submission=submission,
-                        version=current_version,
-                        user=request.user,
-                        as_buffer=True
-                    )
-                    
-                    if not buffer:
-                        raise ValueError(f"Failed to generate PDF for version {current_version}")
-                    
-                    pdf_filename = f"submission_{submission.temporary_id}_v{current_version}.pdf"
-                    pdf_content = ContentFile(buffer.getvalue())
-                    
-                    attachment = MessageAttachment(
-                        message=message,
-                        filename=pdf_filename
-                    )
-                    attachment.file.save(pdf_filename, pdf_content, save=True)
-                    
-                    # Now increment the version for future revisions
-                    submission.version = 2  # Next version will be 2
-                    submission.save()
-                    
-                    messages.success(request, 'Submission has been finalized and locked. A confirmation message has been sent.')
-                    
+                        if not buffer:
+                            raise ValueError("Failed to generate PDF for submission")
+
+                        # Send confirmation to PI
+                        pi_message = Message.objects.create(
+                            sender=get_system_user(),
+                            subject=f'Submission {submission.temporary_id} - Version 1 Confirmation',
+                            body=f"""
+Dear {submission.primary_investigator.userprofile.full_name},
+
+Your submission (ID: {submission.temporary_id}) has been successfully submitted.
+Please find the attached PDF for your records.
+
+Your submission will be reviewed by the OSAR coordinator who will direct it to the appropriate review bodies.
+
+Best regards,
+AIDI System
+                            """.strip(),
+                            study_name=submission.title,
+                            related_submission=submission
+                        )
+                        pi_message.recipients.add(submission.primary_investigator)
+                        
+                        # Attach PDF to PI message
+                        pdf_filename = f"submission_{submission.temporary_id}_v1.pdf"
+                        attachment = MessageAttachment(message=pi_message)
+                        attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
+
+                        # Notify OSAR coordinator
+                        osar_coordinators = User.objects.filter(
+                            groups__name='OSAR Coordinator'
+                        )
+                        
+                        osar_notification = Message.objects.create(
+                            sender=get_system_user(),
+                            subject=f'New Submission For Review - {submission.title}',
+                            body=f"""
+A new research submission requires your initial review and forwarding.
+
+Submission Details:
+- ID: {submission.temporary_id}
+- Title: {submission.title}
+- PI: {submission.primary_investigator.userprofile.full_name}
+- Study Type: {submission.study_type.name}
+- Submitted: {timezone.now().strftime('%Y-%m-%d %H:%M')}
+
+Please review and forward this submission to the appropriate review bodies.
+
+Access the submission here: {request.build_absolute_uri(reverse('review:review_dashboard'))}
+
+Best regards,
+AIDI System
+                            """.strip(),
+                            study_name=submission.title,
+                            related_submission=submission
+                        )
+                        
+                        for coordinator in osar_coordinators:
+                            osar_notification.recipients.add(coordinator)
+
+                        # Prepare for future revisions
+                        submission.version = 2  # Next version will be 2
+                        submission.save()
+
+                        messages.success(request, 'Submission has been finalized and sent to OSAR coordinator.')
+                        return redirect('submission:dashboard')
+
                 except Exception as e:
-                    logger.error(f"Error in submission finalization process: {str(e)}")
+                    logger.error(f"Error in submission finalization: {str(e)}")
                     logger.error("Error details:", exc_info=True)
-                    messages.warning(request, 'Submission completed but there was an error sending the confirmation message.')
-                
-                return redirect('submission:dashboard')
+                    messages.error(request, f"Error during submission: {str(e)}")
+                    return redirect('submission:dashboard')
 
         elif action == 'back':
             last_form = submission.study_type.forms.order_by('-order').first()
@@ -578,20 +605,16 @@ def submission_review(request, submission_id):
             else:
                 messages.error(request, 'Please correct the errors in the document form.')
 
-       
-
     context = {
         'submission': submission,
         'missing_documents': missing_documents,
         'validation_errors': validation_errors,
         'documents': documents,
         'doc_form': doc_form,
-        # Use temporary_id in cache key
         'gpt_analysis': cache.get(f'gpt_analysis_{submission.temporary_id}_{submission.version}')
     }
 
     return render(request, 'submission/submission_review.html', context)
-
 
 @login_required
 def document_delete(request, submission_id, document_id):

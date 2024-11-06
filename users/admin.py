@@ -2,7 +2,11 @@
 
 from django.contrib import admin
 from django.contrib.auth.models import Group
-from .models import UserProfile, Document, SystemSettings
+from .models import (
+    UserProfile,
+    Document,
+    Role,
+)
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
@@ -15,25 +19,11 @@ class UserProfileAdmin(admin.ModelAdmin):
         queryset.update(is_approved=True)
     approve_users.short_description = "Approve selected users"
 
-
 @admin.register(Document)
 class DocumentAdmin(admin.ModelAdmin):
     list_display = ('user', 'document_type', 'issue_date', 'expiry_date')
     list_filter = ('document_type',)
-    search_fields = ('user__username', 'user__email')  # Allow searching by username or email of the user
-
-@admin.register(SystemSettings)
-class SystemSettingsAdmin(admin.ModelAdmin):
-    def has_add_permission(self, request):
-        # Only allow one instance of settings
-        return not SystemSettings.objects.exists()
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
-from django.contrib import admin
-from .models import Role, UserProfile  # Add Role to your imports
+    search_fields = ('user__username', 'user__email')
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):

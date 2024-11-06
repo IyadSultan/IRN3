@@ -91,16 +91,39 @@ class ConflictOfInterestForm(forms.Form):
         required=False,
         label='Conflict Details'
     )
-# review/models.py
-
 from django.db import models
 from django.contrib.auth.models import User
 from submission.models import Submission, get_status_choices
 from forms_builder.models import DynamicForm
 from datetime import datetime
-from django.core.cache import cache 
+from django.core.cache import cache
+from django.utils import timezone
+from django.apps import apps
+
+def get_status_choices():
+    """Get status choices for review requests."""
+    DEFAULT_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('declined', 'Declined'),
+        ('completed', 'Completed'),
+        ('overdue', 'Overdue'),
+        ('reviews_completed', 'Reviews Completed'),
+    ]
+    
+    try:
+        choices = cache.get('review_status_choices')
+        if not choices:
+            StatusChoice = apps.get_model('review', 'StatusChoice')
+            choices = list(StatusChoice.objects.filter(is_active=True).values_list('code', 'label'))
+            if choices:
+                cache.set('review_status_choices', choices)
+        return choices or DEFAULT_CHOICES
+    except Exception:
+        return DEFAULT_CHOICES
 
 class StatusChoice(models.Model):
+    """Model to store custom status choices."""
     code = models.CharField(max_length=50, unique=True)
     label = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
@@ -116,7 +139,9 @@ class StatusChoice(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        cache.delete('status_choices')
+        cache.delete('review_status_choices')
+
+
 
 class ReviewRequest(models.Model):
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
@@ -145,6 +170,35 @@ class ReviewRequest(models.Model):
     conflict_of_interest_details = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=1)
+    extension_requested = models.BooleanField(default=False)
+    proposed_deadline = models.DateField(null=True, blank=True)
+    extension_reason = models.TextField(null=True, blank=True)
+    
+    parent_request = models.ForeignKey(
+        'self', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='child_requests'
+    )
+    forwarding_chain = models.JSONField(
+        default=list,
+        help_text="List of users who forwarded this request"
+    )
+    can_forward = models.BooleanField(
+        default=False,
+        help_text="Whether this reviewer can forward to others"
+    )
+
+    @property
+    def is_overdue(self):
+        return self.deadline < timezone.now().date()
+
+    @property
+    def days_until_deadline(self):
+        return (self.deadline - timezone.now().date()).days
 
     def save(self, *args, **kwargs):
         # Ensure submission_version is an integer
@@ -160,20 +214,25 @@ class Review(models.Model):
     reviewer = models.ForeignKey(User, on_delete=models.CASCADE)
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
     submission_version = models.PositiveIntegerField()
-    comments = models.TextField()
+    comments = models.TextField(blank=True)
     date_submitted = models.DateTimeField(auto_now_add=True)
+    is_archived = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Review by {self.reviewer} for {self.submission}"
 
 class FormResponse(models.Model):
     review = models.ForeignKey(Review, on_delete=models.CASCADE)
-    form = models.ForeignKey(DynamicForm, on_delete=models.CASCADE)
+    form = models.ForeignKey('forms_builder.DynamicForm', on_delete=models.CASCADE)
     response_data = models.JSONField()
     date_submitted = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Response to {self.form} for {self.review}"
+
+
+
+
 # tasks.py
 from celery import shared_task
 from django.utils import timezone
@@ -389,11 +448,17 @@ app_name = 'review'
 
 urlpatterns = [
     path('', views.review_dashboard, name='review_dashboard'),
-    path('dashboard/', views.review_dashboard, name='review_dashboard'),
     path('create/<int:submission_id>/', views.create_review_request, name='create_review_request'),
     path('submit/<int:review_request_id>/', views.submit_review, name='submit_review'),
-]
-# review/utils.py
+    path('dashboard/', views.review_dashboard, name='review_dashboard'),
+    path('review/<int:review_id>/', views.view_review, name='view_review'),
+    path('review/<int:review_id>/submit/', views.submit_review, name='submit_review'),
+    path('review/<int:review_id>/extension/', views.request_extension, name='request_extension'),
+    path('review/<int:review_id>/decline/', views.decline_review, name='decline_review'),
+    path('submission/<int:submission_id>/summary/', views.review_summary, name='review_summary'),
+    path('submission/<int:submission_id>/decision/', views.process_irb_decision, name='process_decision'),
+    
+]# review/utils.py
 
 from messaging.models import Message
 from django.contrib.auth import get_user_model
@@ -486,34 +551,301 @@ def send_review_completion_notification(review_request):
     message.recipients.add(recipient)
     message.save()
 # review/views.py
+from datetime import timedelta, datetime
+from io import BytesIO
+import json
 
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required, permission_required
+from django.core.paginator import Paginator
+from django.db import transaction
+from django.db.models import Q, F, Count, Case, When, Value, IntegerField
+from django.http import HttpResponseForbidden, JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils import timezone
-from django.http import HttpResponseForbidden
 
-from .models import ReviewRequest, Review, FormResponse
 from .forms import ReviewRequestForm, ConflictOfInterestForm
+from .models import ReviewRequest, Review, FormResponse, get_status_choices
+from .utils.pdf_generator import generate_review_dashboard_pdf
+from forms_builder.models import DynamicForm, StudyType
+from messaging.models import Message
 from submission.models import Submission
-from forms_builder.models import DynamicForm
-from forms_builder.forms import FormForForm
+from users.utils import get_system_user
+
+# Rest of your view functions...
+
+@login_required
+def decline_review(request, review_id):
+    """Handle declining a review request."""
+    review_request = get_object_or_404(ReviewRequest, pk=review_id)
+    
+    # Verify permissions
+    if request.user != review_request.requested_to:
+        messages.error(request, "You don't have permission to decline this review.")
+        return redirect('review:review_dashboard')
+
+    # Check if review can be declined
+    if review_request.status not in ['pending', 'accepted']:
+        messages.error(request, "This review can no longer be declined.")
+        return redirect('review:review_dashboard')
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                reason = request.POST.get('reason')
+                
+                if not reason:
+                    raise ValueError("Please provide a reason for declining the review.")
+
+                # Update review request status
+                review_request.status = 'declined'
+                review_request.conflict_of_interest_declared = True
+                review_request.conflict_of_interest_details = reason
+                review_request.save()
+
+                # Create notification message
+                system_user = get_system_user()
+                
+                message = Message.objects.create(
+                    sender=system_user,
+                    subject=f'Review Request Declined - {review_request.submission.title}',
+                    body=f"""
+Dear {review_request.requested_by.userprofile.full_name},
+
+The review request for "{review_request.submission.title}" has been declined by {request.user.userprofile.full_name}.
+
+Reason provided:
+{reason}
+
+Please assign a different reviewer.
+
+Best regards,
+AIDI System
+                    """.strip(),
+                    study_name=review_request.submission.title,
+                    related_submission=review_request.submission
+                )
+                
+                # Add recipients
+                message.recipients.add(review_request.requested_by)
+                if review_request.submission.primary_investigator != review_request.requested_by:
+                    message.cc.add(review_request.submission.primary_investigator)
+                
+                messages.success(request, "Review request declined successfully.")
+                return redirect('review:review_dashboard')
+                
+        except ValueError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f"Error declining review: {str(e)}")
+    
+    context = {
+        'review_request': review_request,
+    }
+    return render(request, 'review/decline_review.html', context)
+
+
+@login_required
+def request_extension(request, review_id):
+    """Handle review deadline extension requests."""
+    review_request = get_object_or_404(ReviewRequest, pk=review_id)
+    
+    # Verify permissions
+    if request.user != review_request.requested_to:
+        messages.error(request, "You don't have permission to request an extension for this review.")
+        return redirect('review:review_dashboard')
+
+    # Check if review is still pending
+    if review_request.status != 'pending':
+        messages.error(request, "Can only request extensions for pending reviews.")
+        return redirect('review:review_dashboard')
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                # Get form data
+                new_deadline = request.POST.get('new_deadline')
+                reason = request.POST.get('reason')
+                
+                if not new_deadline:
+                    raise ValueError("New deadline is required")
+                
+                # Convert string to date
+                new_deadline = timezone.datetime.strptime(new_deadline, '%Y-%m-%d').date()
+                
+                # Validate new deadline
+                if new_deadline <= review_request.deadline:
+                    raise ValueError("New deadline must be after current deadline")
+                
+                if new_deadline <= timezone.now().date():
+                    raise ValueError("New deadline must be in the future")
+                
+                # Calculate extension days
+                extension_days = (new_deadline - review_request.deadline).days
+                
+                # Create notification message
+                message = Message.objects.create(
+                    sender=request.user,
+                    subject=f'Extension Request for Review #{review_id}',
+                    body=f"""
+Extension Request Details:
+-------------------------
+Review: {review_request.submission.title}
+Current Deadline: {review_request.deadline}
+Requested New Deadline: {new_deadline}
+Extension Days: {extension_days} days
+Reason: {reason}
+
+Please review this request and respond accordingly.
+                    """.strip(),
+                    study_name=review_request.submission.title,
+                    related_submission=review_request.submission
+                )
+                
+                # Add recipients
+                message.recipients.add(review_request.requested_by)
+                
+                # Update review request with pending extension
+                review_request.extension_requested = True
+                review_request.proposed_deadline = new_deadline
+                review_request.extension_reason = reason
+                review_request.save()
+                
+                messages.success(request, 
+                    "Extension request submitted successfully. You will be notified once it's reviewed.")
+                return redirect('review:review_dashboard')
+                
+        except ValueError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f"Error submitting extension request: {str(e)}")
+    
+    context = {
+        'review_request': review_request,
+        'min_date': (timezone.now() + timedelta(days=1)).strftime('%Y-%m-%d'),
+        'max_date': (timezone.now() + timedelta(days=30)).strftime('%Y-%m-%d'),
+    }
+    return render(request, 'review/request_extension.html', context)
+
+@login_required
+def view_review(request, review_id):
+    """
+    View a specific review and its form responses.
+    """
+    # Try to get the review first
+    review = get_object_or_404(Review, pk=review_id)
+    
+    # Check permissions
+    if not (request.user == review.reviewer or 
+            request.user == review.review_request.requested_by or
+            request.user == review.submission.primary_investigator):
+        messages.error(request, "You don't have permission to view this review.")
+        return redirect('review:review_dashboard')
+    
+    try:
+        # Get all form responses for this review
+        form_responses = FormResponse.objects.filter(
+            review=review
+        ).select_related(
+            'form'  # Include the form information
+        ).order_by(
+            'form__order'  # Order by form order if specified
+        )
+
+        # Get the review request for context
+        review_request = review.review_request
+
+        # Get submission version at time of review
+        submission = review.submission
+        version_history = submission.version_histories.filter(
+            version=review.submission_version
+        ).first()
+
+        context = {
+            'review': review,
+            'review_request': review_request,
+            'form_responses': form_responses,
+            'submission': submission,
+            'version_history': version_history,
+            'can_edit': request.user == review.reviewer and not review.is_completed,
+            'is_pi': request.user == submission.primary_investigator,
+            'is_requester': request.user == review_request.requested_by,
+        }
+        
+        return render(request, 'review/view_review.html', context)
+
+    except Exception as e:
+        messages.error(request, f"Error retrieving review details: {str(e)}")
+        return redirect('review:review_dashboard')
+
 
 @login_required
 def review_dashboard(request):
+    """
+    Enhanced dashboard showing role-specific views including OSAR coordinator's submissions.
+    """
+    user = request.user
+    context = {}
+
+    # Check if user is OSAR coordinator
+    is_osar_coordinator = user.groups.filter(name='OSAR Coordinator').exists()
+    
+    if is_osar_coordinator:
+        # Get new submissions that need initial review
+        new_submissions = Submission.objects.filter(
+            status='submitted'
+        ).select_related(
+            'primary_investigator__userprofile',
+            'study_type'
+        ).order_by('-date_submitted')
+
+        # Get submissions already forwarded by this coordinator
+        forwarded_submissions = Submission.objects.filter(
+            status='under_review',
+            review_requests__requested_by=user
+        ).distinct().select_related(
+            'primary_investigator__userprofile',
+            'study_type'
+        )
+
+        context.update({
+            'new_submissions': new_submissions,
+            'forwarded_submissions': forwarded_submissions,
+            'is_osar_coordinator': True
+        })
+
+    # Get pending reviews for all users
     pending_reviews = ReviewRequest.objects.filter(
-        requested_to=request.user,
+        requested_to=user,
         status__in=['pending', 'accepted']
-    ).select_related('submission')
-    
+    ).select_related(
+        'submission__study_type',
+        'requested_by__userprofile',
+        'submission__primary_investigator__userprofile'
+    ).annotate(
+        days_until_deadline=Case(
+            When(deadline__gt=timezone.now().date(),
+                 then=F('deadline') - timezone.now().date()),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    )
+
+    # Get completed reviews
     completed_reviews = Review.objects.filter(
-        reviewer=request.user
-    ).select_related('submission')
-    
-    context = {
+        reviewer=user
+    ).select_related(
+        'submission__study_type',
+        'submission__primary_investigator__userprofile'
+    )
+
+    context.update({
         'pending_reviews': pending_reviews,
         'completed_reviews': completed_reviews
-    }
+    })
+    
     return render(request, 'review/dashboard.html', context)
 
 @login_required
@@ -545,78 +877,477 @@ def create_review_request(request, submission_id):
         'submission': submission
     })
 
+# review/views.py
+
+
+
+
 @login_required
 def submit_review(request, review_request_id):
+    """Handle submission of a review."""
     review_request = get_object_or_404(ReviewRequest, pk=review_request_id)
 
-      # Check if user can access this submission
-    if not request.user.has_perm('submission.can_view_submission', review_request.submission):
-        raise PermissionDenied
-    
+    # Check permissions
     if request.user != review_request.requested_to:
-        return HttpResponseForbidden()
-        
-    if review_request.conflict_of_interest_declared is None:
+        return HttpResponseForbidden("You don't have permission to submit this review.")
+    
+    if review_request.status not in ['pending', 'accepted']:
+        messages.error(request, "This review can no longer be submitted.")
+        return redirect('review:review_dashboard')
+
+    try:
+        # Handle review submission
         if request.method == 'POST':
-            form = ConflictOfInterestForm(request.POST)
-            if form.is_valid():
-                has_conflict = form.cleaned_data['conflict_of_interest'] == 'yes'
-                review_request.conflict_of_interest_declared = has_conflict
-                if has_conflict:
-                    review_request.conflict_of_interest_details = form.cleaned_data['conflict_details']
-                    review_request.status = 'declined'
-                else:
-                    review_request.status = 'accepted'
-                review_request.save()
-                return redirect('review:dashboard')
-        else:
-            form = ConflictOfInterestForm()
-        return render(request, 'review/conflict_of_interest.html', {
-            'form': form,
-            'review_request': review_request
-        })
-    
-    # Handle review submission
-    if request.method == 'POST':
-        forms_valid = True
-        form_responses = []
-        
-        for dynamic_form in review_request.selected_forms.all():
-            form = FormForForm(dynamic_form, request.POST, prefix=f'form_{dynamic_form.id}')
-            if form.is_valid():
-                form_responses.append((dynamic_form, form))
-            else:
-                forms_valid = False
-                break
-        
-        if forms_valid:
-            review = Review.objects.create(
-                review_request=review_request,
-                reviewer=request.user,
-                submission=review_request.submission,
-                submission_version=review_request.submission_version,
-                comments=request.POST.get('comments', '')
-            )
-            
-            for dynamic_form, form in form_responses:
-                FormResponse.objects.create(
-                    review=review,
-                    form=dynamic_form,
-                    response_data=form.cleaned_data
+            with transaction.atomic():
+                # Validate all forms
+                forms_valid = True
+                form_responses = []
+                
+                for dynamic_form in review_request.selected_forms.all():
+                    form = FormForForm(
+                        dynamic_form, 
+                        request.POST, 
+                        prefix=f'form_{dynamic_form.id}'
+                    )
+                    if form.is_valid():
+                        form_responses.append((dynamic_form, form))
+                    else:
+                        forms_valid = False
+                        break
+
+                if not forms_valid:
+                    raise ValueError("Please complete all required fields in the forms.")
+
+                # Create review record
+                review = Review.objects.create(
+                    review_request=review_request,
+                    reviewer=request.user,
+                    submission=review_request.submission,
+                    submission_version=review_request.submission_version,
+                    comments=request.POST.get('comments', '')
                 )
-            
-            review_request.status = 'completed'
-            review_request.save()
-            messages.success(request, 'Review submitted successfully.')
-            return redirect('review:dashboard')
-    
-    return render(request, 'review/submit_review.html', {
+
+                # Save form responses
+                for dynamic_form, form in form_responses:
+                    FormResponse.objects.create(
+                        review=review,
+                        form=dynamic_form,
+                        response_data=form.cleaned_data
+                    )
+
+                # Update review request status
+                review_request.status = 'completed'
+                review_request.save()
+
+                # Send notification to requester and PI
+                system_user = get_system_user()
+                
+                message = Message.objects.create(
+                    sender=system_user,
+                    subject=f'Review Completed - {review_request.submission.title}',
+                    body=f"""
+Dear {review_request.requested_by.userprofile.full_name},
+
+The review for "{review_request.submission.title}" has been completed by {request.user.userprofile.full_name}.
+
+You can view the review details here:
+{request.build_absolute_uri(reverse('review:view_review', args=[review.id]))}
+
+Best regards,
+AIDI System
+                    """.strip(),
+                    study_name=review_request.submission.title,
+                    related_submission=review_request.submission
+                )
+
+                # Add recipients
+                message.recipients.add(review_request.requested_by)
+                
+                # CC the PI if different from requester
+                if (review_request.submission.primary_investigator != 
+                    review_request.requested_by):
+                    message.cc.add(review_request.submission.primary_investigator)
+
+                # Check if all required reviews are completed
+                all_reviews_completed = check_all_reviews_completed(
+                    review_request.submission
+                )
+
+                if all_reviews_completed:
+                    # Update submission status
+                    update_submission_after_reviews(
+                        review_request.submission, 
+                        request
+                    )
+
+                messages.success(request, "Review submitted successfully.")
+                return redirect('review:review_dashboard')
+
+    except ValueError as e:
+        messages.error(request, str(e))
+    except Exception as e:
+        messages.error(request, f"Error submitting review: {str(e)}")
+
+    # Render form for GET or if there were errors
+    context = {
         'review_request': review_request,
-        'forms': [FormForForm(form, prefix=f'form_{form.id}') 
-                 for form in review_request.selected_forms.all()]
-    })
+        'forms': [
+            FormForForm(form, prefix=f'form_{form.id}')
+            for form in review_request.selected_forms.all()
+        ]
+    }
+    return render(request, 'review/submit_review.html', context)
+
+def check_all_reviews_completed(submission):
+    """Check if all required reviews for a submission are completed."""
+    pending_reviews = ReviewRequest.objects.filter(
+        submission=submission,
+        status__in=['pending', 'accepted']
+    ).exists()
+    
+    return not pending_reviews
+
+def update_submission_after_reviews(submission, request):
+    """Update submission status after all reviews are completed."""
+    try:
+        with transaction.atomic():
+            # Get all completed reviews
+            completed_reviews = Review.objects.filter(
+                submission=submission,
+                review_request__status='completed'
+            ).select_related('reviewer', 'review_request')
+
+            # Create notification about all reviews being completed
+            system_user = get_system_user()
+            
+            message = Message.objects.create(
+                sender=system_user,
+                subject=f'All Reviews Completed - {submission.title}',
+                body=f"""
+Dear {submission.primary_investigator.userprofile.full_name},
+
+All requested reviews for your submission "{submission.title}" have been completed.
+
+Reviews Summary:
+{get_reviews_summary(completed_reviews)}
+
+Next Steps:
+1. The IRB coordinator will review all feedback
+2. You will receive further instructions based on the review outcomes
+
+Best regards,
+AIDI System
+                """.strip(),
+                study_name=submission.title,
+                related_submission=submission
+            )
+
+            # Add recipients
+            message.recipients.add(submission.primary_investigator)
+            
+            # Update submission status
+            submission.status = 'reviews_completed'
+            submission.save()
+
+    except Exception as e:
+        messages.error(
+            request, 
+            f"Error updating submission after reviews: {str(e)}"
+        )
+
+def get_reviews_summary(completed_reviews):
+    """Generate a summary of completed reviews."""
+    summary = []
+    for review in completed_reviews:
+        summary.append(f"""
+Reviewer: {review.reviewer.userprofile.full_name}
+Completed: {review.date_submitted.strftime('%Y-%m-%d %H:%M')}
+""".strip())
+    
+    return "\n\n".join(summary)
+
+# review/views.py
+
+@login_required
+def review_summary(request, submission_id):
+    """
+    Display a summary of all reviews for a submission.
+    Only accessible to PI, requester, and IRB coordinators.
+    """
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    # Check permissions
+    if not (request.user == submission.primary_investigator or
+            request.user.groups.filter(name='IRB Coordinator').exists() or
+            submission.review_requests.filter(requested_by=request.user).exists()):
+        messages.error(request, "You don't have permission to view this review summary.")
+        return redirect('submission:dashboard')
+
+    reviews = Review.objects.filter(
+        submission=submission
+    ).select_related(
+        'reviewer__userprofile',
+        'review_request'
+    ).prefetch_related(
+        'formresponse_set__form'
+    ).order_by('date_submitted')
+
+    context = {
+        'submission': submission,
+        'reviews': reviews,
+        'can_make_decision': request.user.groups.filter(name='IRB Coordinator').exists()
+    }
+    return render(request, 'review/review_summary.html', context)
+
+@login_required
+def process_irb_decision(request, submission_id):
+    """
+    Process IRB coordinator's decision after reviewing all reviews.
+    """
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    # Check permissions
+    if not request.user.groups.filter(name='IRB Coordinator').exists():
+        messages.error(request, "You don't have permission to make IRB decisions.")
+        return redirect('submission:dashboard')
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                decision = request.POST.get('decision')
+                comments = request.POST.get('comments')
+                
+                if not decision:
+                    raise ValueError("Please select a decision")
+                
+                if decision not in ['approved', 'revision_required', 'rejected']:
+                    raise ValueError("Invalid decision")
+
+                # Update submission status
+                submission.status = decision
+                submission.save()
+                
+                # Create version history entry
+                VersionHistory.objects.create(
+                    submission=submission,
+                    version=submission.version,
+                    status=decision,
+                    date=timezone.now()
+                )
+
+                # Send notification to PI
+                system_user = get_system_user()
+                
+                message = Message.objects.create(
+                    sender=system_user,
+                    subject=f'IRB Decision - {submission.title}',
+                    body=f"""
+Dear {submission.primary_investigator.userprofile.full_name},
+
+The IRB has made a decision regarding your submission "{submission.title}".
+
+Decision: {decision.replace('_', ' ').title()}
+
+{comments if comments else ''}
+
+{'Please review the comments and submit a revised version.' if decision == 'revision_required' else ''}
+
+Best regards,
+AIDI System
+                    """.strip(),
+                    study_name=submission.title,
+                    related_submission=submission
+                )
+                
+                message.recipients.add(submission.primary_investigator)
+                
+                # Handle each decision type
+                if decision == 'revision_required':
+                    submission.version += 1
+                    submission.save()
+                    messages.success(request, 
+                        "Decision recorded. PI has been notified to submit revisions.")
+                
+                elif decision == 'approved':
+                    # Generate IRB approval number if not exists
+                    if not submission.irb_number:
+                        submission.irb_number = generate_irb_number(submission)
+                        submission.save()
+                    messages.success(request, 
+                        "Submission approved. PI has been notified.")
+                
+                else:  # rejected
+                    messages.success(request, 
+                        "Submission rejected. PI has been notified.")
+
+                return redirect('review:review_summary', submission_id=submission.id)
+
+        except ValueError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f"Error processing decision: {str(e)}")
+    
+    context = {
+        'submission': submission,
+    }
+    return render(request, 'review/process_decision.html', context)
+
+def generate_irb_number(submission):
+    """Generate a unique IRB number for approved submissions."""
+    year = timezone.now().year
+    # Get count of approved submissions this year
+    count = Submission.objects.filter(
+        status='approved',
+        irb_number__startswith=f'IRB-{year}'
+    ).count()
+    
+    # Format: IRB-YYYY-XXXX where XXXX is zero-padded sequential number
+    return f'IRB-{year}-{(count + 1):04d}'
 
 
+
+# submission/views.py
+
+
+
+
+
+
+# review/views.py
+
+@login_required
+def forward_review(request, review_request_id):
+    """Forward a review request to additional reviewers."""
+    review_request = get_object_or_404(ReviewRequest, pk=review_request_id)
+    
+    # Check permissions
+    if not (request.user.groups.filter(name__in=[
+        'OSAR Coordinator', 'IRB Head', 'Research Council Head', 'AHARPP Head'
+    ]).exists() or review_request.can_forward):
+        messages.error(request, "You don't have permission to forward review requests.")
+        return redirect('review:review_dashboard')
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                reviewer_ids = request.POST.getlist('reviewers')
+                message = request.POST.get('message')
+                deadline = request.POST.get('deadline')
+                allow_forwarding = request.POST.get('allow_forwarding') == 'true'
+
+                if not reviewer_ids:
+                    raise ValueError("Please select at least one reviewer.")
+                if not deadline:
+                    raise ValueError("Please specify a deadline.")
+
+                deadline_date = timezone.datetime.strptime(deadline, '%Y-%m-%d').date()
+                if deadline_date <= timezone.now().date():
+                    raise ValueError("Deadline must be in the future.")
+
+                # Create new review requests
+                for reviewer_id in reviewer_ids:
+                    reviewer = User.objects.get(id=reviewer_id)
+                    
+                    # Create forwarded review request
+                    new_request = ReviewRequest.objects.create(
+                        submission=review_request.submission,
+                        submission_version=review_request.submission_version,
+                        requested_by=request.user,
+                        requested_to=reviewer,
+                        deadline=deadline_date,
+                        message=message,
+                        status='pending',
+                        parent_request=review_request,
+                        can_forward=allow_forwarding,
+                        forwarding_chain=review_request.forwarding_chain + [request.user.id]
+                    )
+
+                    # Copy selected forms
+                    new_request.selected_forms.set(review_request.selected_forms.all())
+
+                    # Send notification
+                    Message.objects.create(
+                        sender=request.user,
+                        subject=f'Forwarded Review Request - {review_request.submission.title}',
+                        body=f"""
+Dear {reviewer.userprofile.full_name},
+
+A review request has been forwarded to you by {request.user.userprofile.full_name}.
+
+Submission Details:
+Title: {review_request.submission.title}
+PI: {review_request.submission.primary_investigator.userprofile.full_name}
+Deadline: {deadline_date.strftime('%Y-%m-%d')}
+
+Message:
+{message}
+
+{'You are authorized to forward this review request to others.' if allow_forwarding else ''}
+
+Please log in to the system to begin your review.
+
+Best regards,
+{request.user.userprofile.full_name}
+                        """.strip(),
+                        study_name=review_request.submission.title,
+                        related_submission=review_request.submission
+                    ).recipients.add(reviewer)
+
+                messages.success(request, f"Review request forwarded to {len(reviewer_ids)} reviewer(s).")
+                return redirect('review:review_dashboard')
+
+        except ValueError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f"Error forwarding review request: {str(e)}")
+
+    # Get available reviewers based on the user's role
+    available_reviewers = get_available_reviewers(request.user, review_request.submission)
+
+    context = {
+        'review_request': review_request,
+        'available_reviewers': available_reviewers,
+        'min_date': (timezone.now() + timezone.timedelta(days=1)).strftime('%Y-%m-%d'),
+        'suggested_date': (timezone.now() + timezone.timedelta(days=14)).strftime('%Y-%m-%d'),
+        'user_role': get_user_primary_role(request.user)
+    }
+    return render(request, 'review/forward_review.html', context)
+
+def get_available_reviewers(user, submission):
+    """Get available reviewers based on user's role."""
+    if user.groups.filter(name='OSAR Coordinator').exists():
+        # OSAR can forward to heads of different committees
+        return User.objects.filter(
+            groups__name__in=['IRB Head', 'Research Council Head', 'AHARPP Head']
+        ).exclude(
+            review_requests__submission=submission
+        ).select_related('userprofile')
+    
+    elif user.groups.filter(name='IRB Head').exists():
+        # IRB Head can forward to IRB members
+        return User.objects.filter(
+            groups__name='IRB Member'
+        ).exclude(
+            review_requests__submission=submission
+        ).select_related('userprofile')
+    
+    elif user.groups.filter(name='Research Council Head').exists():
+        # RC Head can forward to RC members
+        return User.objects.filter(
+            groups__name='Research Council Member'
+        ).exclude(
+            review_requests__submission=submission
+        ).select_related('userprofile')
+    
+    elif user.groups.filter(name='AHARPP Head').exists():
+        # AHARPP Head can forward to AHARPP reviewers
+        return User.objects.filter(
+            groups__name='AHARPP Reviewer'
+        ).exclude(
+            review_requests__submission=submission
+        ).select_related('userprofile')
+    
+    return User.objects.none()
 <!-- review/templates/review/create_review_request.html -->
 {% extends 'base.html' %}
 {% block content %}
@@ -628,35 +1359,824 @@ def submit_review(request, review_request_id):
 </form>
 {% endblock %}
 
-<!-- review/templates/review//dashboard.html -->
-{% extends 'base.html' %}
-{% block content %}
-<h2>Review Dashboard</h2>
-<h3>Pending Reviews</h3>
-<ul>
-    {% for review_request in pending_reviews %}
-        <li>
-            <a href="{% url 'review:submit_review' review_request.id %}">
-                {{ review_request.submission.title }} (Version {{ review_request.submission.version }})
-            </a>
-            - Deadline: {{ review_request.deadline }}
-        </li>
-    {% empty %}
-        <li>No pending reviews.</li>
-    {% endfor %}
-</ul>
-<h3>Completed Reviews</h3>
-<ul>
-    {% for review in completed_reviews %}
-        <li>
-            {{ review.submission.title }} (Version {{ review.submission.version }}) - Submitted on {{ review.date_submitted }}
-        </li>
-    {% empty %}
-        <li>No completed reviews.</li>
-    {% endfor %}
-</ul>
+{% extends 'users/base.html' %}
+{% load static %}
+
+{% block title %}Review Dashboard{% endblock %}
+
+{% block page_specific_css %}
+<style>
+    .status-badge {
+        padding: 0.4em 0.8em;
+        border-radius: 0.25rem;
+        font-size: 0.875em;
+    }
+    .submission-card {
+        transition: transform 0.2s;
+    }
+    .submission-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .days-count {
+        font-size: 0.9em;
+        padding: 0.2em 0.6em;
+        border-radius: 0.25rem;
+    }
+    .days-warning {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    .days-danger {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    .days-normal {
+        background-color: #d4edda;
+        color: #155724;
+    }
+</style>
 {% endblock %}
-<!-- submission/templates/submission_detail.html -->
+
+{% block content %}
+<div class="container-fluid mt-4">
+    {% if is_osar_coordinator %}
+    <!-- OSAR Coordinator View -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">New Submissions Requiring Review</h4>
+                </div>
+                <div class="card-body">
+                    {% if new_submissions %}
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="newSubmissionsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title</th>
+                                    <th>Principal Investigator</th>
+                                    <th>Study Type</th>
+                                    <th>Submitted Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for submission in new_submissions %}
+                                <tr>
+                                    <td>{{ submission.temporary_id }}</td>
+                                    <td>{{ submission.title }}</td>
+                                    <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                    <td>{{ submission.study_type.name }}</td>
+                                    <td data-order="{{ submission.date_submitted|date:'Y-m-d H:i:s' }}">
+                                        {{ submission.date_submitted|date:"M d, Y H:i" }}
+                                        <br>
+                                        <small class="text-muted">
+                                            {{ submission.date_submitted|timesince }} ago
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{% url 'review:forward_review' submission.id %}" 
+                                               class="btn btn-sm btn-primary">
+                                                <i class="fas fa-share"></i> Forward
+                                            </a>
+                                            <a href="{% url 'submission:view_submission' submission.id %}"
+                                               class="btn btn-sm btn-info">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-secondary dropdown-toggle"
+                                                    data-bs-toggle="dropdown">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <a class="dropdown-item" 
+                                                       href="{% url 'submission:download_submission_pdf' submission.id %}">
+                                                        <i class="fas fa-file-pdf"></i> Download PDF
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="dropdown-item" 
+                                                       href="{% url 'messaging:compose_message' %}?related_submission={{ submission.id }}">
+                                                        <i class="fas fa-envelope"></i> Contact PI
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        No new submissions requiring review.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forwarded Submissions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">Forwarded Submissions</h4>
+                </div>
+                <div class="card-body">
+                    {% if forwarded_submissions %}
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="forwardedSubmissionsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title</th>
+                                    <th>Principal Investigator</th>
+                                    <th>Forwarded To</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for submission in forwarded_submissions %}
+                                <tr>
+                                    <td>{{ submission.temporary_id }}</td>
+                                    <td>{{ submission.title }}</td>
+                                    <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                    <td>
+                                        {% for request in submission.review_requests.all %}
+                                        <div>
+                                            {{ request.requested_to.userprofile.full_name }}
+                                            <span class="badge bg-{{ request.status }}">
+                                                {{ request.get_status_display }}
+                                            </span>
+                                        </div>
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ submission.status }}">
+                                            {{ submission.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{% url 'review:review_summary' submission.id %}"
+                                               class="btn btn-sm btn-info">
+                                                <i class="fas fa-clipboard-list"></i> Summary
+                                            </a>
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-secondary dropdown-toggle"
+                                                    data-bs-toggle="dropdown">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <a class="dropdown-item" 
+                                                       href="{% url 'review:forward_review' submission.id %}">
+                                                        <i class="fas fa-share"></i> Forward Again
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="dropdown-item" 
+                                                       href="{% url 'messaging:compose_message' %}?related_submission={{ submission.id }}">
+                                                        <i class="fas fa-envelope"></i> Send Message
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        No forwarded submissions.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Regular Review Dashboard Content -->
+    <!-- ... Your existing review dashboard content ... -->
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+<script>
+$(document).ready(function() {
+    // Initialize DataTables
+    $('#newSubmissionsTable').DataTable({
+        order: [[4, 'desc']], // Sort by submission date
+        pageLength: 10,
+        language: {
+            emptyTable: "No new submissions to review"
+        }
+    });
+
+    $('#forwardedSubmissionsTable').DataTable({
+        pageLength: 10,
+        language: {
+            emptyTable: "No forwarded submissions"
+        }
+    });
+});
+</script>
+{% endblock %}{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Decline Review Request{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h2 class="mb-0">Decline Review Request</h2>
+                </div>
+                <div class="card-body">
+                    <!-- Review Details -->
+                    <div class="alert alert-info">
+                        <h5>Review Details</h5>
+                        <p><strong>Submission:</strong> {{ review_request.submission.title }}</p>
+                        <p><strong>Requested By:</strong> {{ review_request.requested_by.userprofile.full_name }}</p>
+                        <p><strong>Deadline:</strong> {{ review_request.deadline|date:"F d, Y" }}</p>
+                        {% if review_request.message %}
+                        <p><strong>Original Request Message:</strong></p>
+                        <div class="border-left pl-3">{{ review_request.message|linebreaks }}</div>
+                        {% endif %}
+                    </div>
+
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Reason -->
+                        <div class="mb-3">
+                            <label for="reason" class="form-label required">Reason for Declining</label>
+                            <textarea class="form-control" 
+                                      id="reason" 
+                                      name="reason" 
+                                      rows="4"
+                                      required
+                                      placeholder="Please provide a detailed reason for declining this review request..."></textarea>
+                            <div class="form-text">This message will be sent to the requester and the primary investigator.</div>
+                        </div>
+
+                        <!-- Confirmation Checkbox -->
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="checkbox" 
+                                       id="confirm" 
+                                       required>
+                                <label class="form-check-label" for="confirm">
+                                    I confirm that I want to decline this review request
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'review:review_dashboard' %}" 
+                               class="btn btn-secondary me-md-2">
+                                <i class="fas fa-arrow-left"></i> Cancel
+                            </a>
+                            <button type="submit" 
+                                    class="btn btn-danger" 
+                                    id="submitBtn" 
+                                    disabled>
+                                <i class="fas fa-times"></i> Decline Review
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.querySelector('form');
+        const reasonInput = document.getElementById('reason');
+        const confirmCheckbox = document.getElementById('confirm');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Enable/disable submit button based on form state
+        function updateSubmitButton() {
+            submitBtn.disabled = !(
+                reasonInput.value.trim().length >= 10 && 
+                confirmCheckbox.checked
+            );
+        }
+
+        reasonInput.addEventListener('input', updateSubmitButton);
+        confirmCheckbox.addEventListener('change', updateSubmitButton);
+
+        // Form validation
+        form.addEventListener('submit', function(e) {
+            if (!reasonInput.value.trim()) {
+                e.preventDefault();
+                alert('Please provide a reason for declining.');
+                reasonInput.focus();
+                return false;
+            }
+
+            if (!confirmCheckbox.checked) {
+                e.preventDefault();
+                alert('Please confirm that you want to decline this review.');
+                return false;
+            }
+
+            if (reasonInput.value.trim().length < 10) {
+                e.preventDefault();
+                alert('Please provide a more detailed reason (at least 10 characters).');
+                reasonInput.focus();
+                return false;
+            }
+        });
+    });
+</script>
+{% endblock %}{# review/templates/review/forward_review.html #}
+{% extends 'users/base.html' %}
+{% load static %}
+
+{% block title %}Forward Review Request{% endblock %}
+
+{% block page_specific_css %}
+<style>
+    .review-chain {
+        position: relative;
+        margin-bottom: 2rem;
+    }
+    .chain-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    .chain-connector {
+        position: absolute;
+        left: 15px;
+        top: 30px;
+        bottom: 0;
+        width: 2px;
+        background-color: #dee2e6;
+    }
+    .chain-node {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: #007bff;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        position: relative;
+        z-index: 1;
+    }
+    .chain-content {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        flex-grow: 1;
+    }
+    .reviewer-select {
+        min-height: 200px;
+    }
+    .selected-reviewers {
+        margin-top: 1rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+    }
+    .selected-reviewer {
+        display: inline-block;
+        background-color: #e9ecef;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        margin: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Main Forwarding Form -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Forward Review Request</h2>
+                </div>
+                <div class="card-body">
+                    <!-- Submission Info -->
+                    <div class="alert alert-info">
+                        <h5>Submission Details</h5>
+                        <p><strong>Title:</strong> {{ review_request.submission.title }}</p>
+                        <p><strong>Primary Investigator:</strong> 
+                           {{ review_request.submission.primary_investigator.userprofile.full_name }}</p>
+                        <p><strong>Study Type:</strong> 
+                           {{ review_request.submission.study_type.name }}</p>
+                        <p><strong>Current Status:</strong> 
+                           <span class="badge bg-{{ review_request.submission.status|lower }}">
+                               {{ review_request.submission.get_status_display }}
+                           </span>
+                        </p>
+                    </div>
+
+                    <form method="post" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Reviewer Selection -->
+                        <div class="mb-3">
+                            <label class="form-label required">Select Reviewers</label>
+                            <select name="reviewers" multiple class="form-select reviewer-select" required>
+                                {% for reviewer in available_reviewers %}
+                                <option value="{{ reviewer.id }}">
+                                    {{ reviewer.userprofile.full_name }} 
+                                    ({{ reviewer.groups.first.name }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                Hold Ctrl/Cmd to select multiple reviewers
+                            </div>
+                        </div>
+
+                        <!-- Selected Reviewers Preview -->
+                        <div class="selected-reviewers d-none">
+                            <h6>Selected Reviewers:</h6>
+                            <div id="selectedReviewersList"></div>
+                        </div>
+
+                        <!-- Deadline -->
+                        <div class="mb-3">
+                            <label for="deadline" class="form-label required">Review Deadline</label>
+                            <input type="date" 
+                                   class="form-control" 
+                                   id="deadline" 
+                                   name="deadline"
+                                   min="{{ min_date }}"
+                                   value="{{ suggested_date }}"
+                                   required>
+                        </div>
+
+                        <!-- Message -->
+                        <div class="mb-3">
+                            <label for="message" class="form-label required">Message to Reviewers</label>
+                            <textarea class="form-control" 
+                                      id="message" 
+                                      name="message" 
+                                      rows="4"
+                                      required></textarea>
+                        </div>
+
+                        <!-- Forward Permission -->
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="checkbox" 
+                                       id="allow_forwarding" 
+                                       name="allow_forwarding" 
+                                       value="true">
+                                <label class="form-check-label" for="allow_forwarding">
+                                    Allow these reviewers to forward to others
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" 
+                                    class="btn btn-secondary me-md-2" 
+                                    onclick="history.back()">
+                                Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                Forward Review Request
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Review Chain Visualization -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-t{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Request Review Extension{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Request Review Extension</h2>
+                </div>
+                <div class="card-body">
+                    <!-- Review Details -->
+                    <div class="alert alert-info">
+                        <h5>Review Details</h5>
+                        <p><strong>Submission:</strong> {{ review_request.submission.title }}</p>
+                        <p><strong>Current Deadline:</strong> {{ review_request.deadline|date:"F d, Y" }}</p>
+                        <p><strong>Days Remaining:</strong> {{ review_request.days_until_deadline }}</p>
+                    </div>
+
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- New Deadline -->
+                        <div class="mb-3">
+                            <label for="new_deadline" class="form-label">New Deadline</label>
+                            <input type="date" 
+                                   class="form-control" 
+                                   id="new_deadline" 
+                                   name="new_deadline"
+                                   min="{{ min_date }}"
+                                   max="{{ max_date }}"
+                                   required>
+                            <div class="form-text">Select a new deadline (maximum 30 days extension)</div>
+                        </div>
+
+                        <!-- Reason -->
+                        <div class="mb-3">
+                            <label for="reason" class="form-label">Reason for Extension</label>
+                            <textarea class="form-control" 
+                                      id="reason" 
+                                      name="reason" 
+                                      rows="4"
+                                      required></textarea>
+                            <div class="form-text">Please provide a detailed reason for requesting an extension</div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'review:review_dashboard' %}" 
+                               class="btn btn-secondary me-md-2">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-clock"></i> Request Extension
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Validate form before submission
+        document.querySelector('form').addEventListener('submit', function(e) {
+            var newDeadline = document.getElementById('new_deadline').value;
+            var reason = document.getElementById('reason').value;
+            
+            if (!newDeadline || !reason) {
+                e.preventDefault();
+                alert('Please fill in all required fields');
+                return false;
+            }
+            
+            var selectedDate = new Date(newDeadline);
+            var currentDate = new Date();
+            
+            if (selectedDate <= currentDate) {
+                e.preventDefault();
+                alert('New deadline must be in the future');
+                return false;
+            }
+        });
+    });
+</script>
+{% endblock %}{# review/templates/review/review_summary.html #}
+{% extends 'users/base.html' %}
+{% load static %}
+
+{% block title %}Review Summary - {{ submission.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2>Review Summary</h2>
+            <h4>{{ submission.title }}</h4>
+        </div>
+        <div class="card-body">
+            <!-- Submission Details -->
+            <div class="alert alert-info">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Primary Investigator:</strong> 
+                           {{ submission.primary_investigator.userprofile.full_name }}</p>
+                        <p><strong>Study Type:</strong> 
+                           {{ submission.study_type.name }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Version:</strong> {{ submission.version }}</p>
+                        <p><strong>Status:</strong> 
+                           <span class="badge bg-{{ submission.status|lower }}">
+                               {{ submission.get_status_display }}
+                           </span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reviews List -->
+            {% for review in reviews %}
+            <div class="card mb-3">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Review by {{ review.reviewer.userprofile.full_name }}</h5>
+                        <span class="text-muted">
+                            Submitted {{ review.date_submitted|date:"F d, Y H:i" }}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% for response in review.formresponse_set.all %}
+                    <div class="mb-4">
+                        <h6>{{ response.form.name }}</h6>
+                        {% for field, value in response.response_data.items %}
+                        <div class="mb-2">
+                            <strong>{{ field }}:</strong>
+                            <div class="ml-3">{{ value }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+
+                    {% if review.comments %}
+                    <div class="mt-3">
+                        <h6>Additional Comments</h6>
+                        <div class="border-left pl-3">
+                            {{ review.comments|linebreaks }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="alert alert-warning">
+                No reviews submitted yet.
+            </div>
+            {% endfor %}
+
+            <!-- IRB Coordinator Actions -->
+            {% if can_make_decision and submission.status == 'reviews_completed' %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Make IRB Decision</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'review:process_decision' submission.id %}">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Decision</label>
+                            <select name="decision" class="form-select" required>
+                                <option value="">Select decision...</option>
+                                <option value="approved">Approve</option>
+                                <option value="revision_required">Request Revision</option>
+                                <option value="rejected">Reject</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Comments</label>
+                            <textarea name="comments" class="form-control" rows="4" required></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            Submit Decision
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{# review/templates/review/process_decision.html #}
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Process IRB Decision{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Process IRB Decision</h2>
+                    <h5>{{ submission.title }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label required">Decision</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="decision" 
+                                       value="approved" id="decision_approved" required>
+                                <label class="form-check-label" for="decision_approved">
+                                    Approve
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="decision"
+                                       value="revision_required" id="decision_revision" required>
+                                <label class="form-check-label" for="decision_revision">
+                                    Request Revision
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="decision"
+                                       value="rejected" id="decision_rejected" required>
+                                <label class="form-check-label" for="decision_rejected">
+                                    Reject
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="comments" class="form-label required">Comments</label>
+                            <textarea class="form-control" id="comments" name="comments"
+                                    rows="5" required></textarea>
+                            <div class="invalid-feedback">
+                                Please provide comments explaining your decision.
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'review:review_summary' submission.id %}" 
+                               class="btn btn-secondary me-md-2">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Submit Decision</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Form validation
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+
+        // Dynamic requirements based on decision
+        const decisionInputs = document.querySelectorAll('input[name="decision"]');
+        const commentsField = document.getElementById('comments');
+        
+        decisionInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                if (this.value === 'revision_required' || this.value === 'rejected') {
+                    commentsField.setAttribute('required', '');
+                } else {
+                    commentsField.removeAttribute('required');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}<!-- submission/templates/submission_detail.html -->
 {% extends 'base.html' %}
 {% block content %}
 <h2>{{ submission.title }}</h2>
@@ -702,4 +2222,167 @@ def submit_review(request, review_request_id):
         <button type="submit" class="btn btn-success">Submit Review</button>
     </form>
 {% endif %}
+{% endblock %}
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Review Details{% endblock %}
+
+{% block page_specific_css %}
+<style>
+    .status-badge {
+        padding: 0.4em 0.8em;
+        border-radius: 0.25rem;
+        font-size: 0.875em;
+    }
+    .form-response {
+        margin-bottom: 2rem;
+        padding: 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+    }
+    .form-response h3 {
+        color: #2c3e50;
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+    }
+    .response-field {
+        margin-bottom: 1rem;
+    }
+    .response-field label {
+        font-weight: bold;
+        color: #495057;
+    }
+    .response-field .value {
+        margin-left: 1rem;
+    }
+    .metadata {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.25rem;
+        margin-bottom: 1rem;
+    }
+    .metadata-item {
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Review Header -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">Review Details</h2>
+                <div>
+                    {% if can_edit %}
+                    <a href="{% url 'review:submit_review' review.id %}" class="btn btn-primary">
+                        <i class="fas fa-edit"></i> Edit Review
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'review:review_dashboard' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Metadata Section -->
+            <div class="metadata">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="metadata-item">
+                            <strong>Submission:</strong> {{ submission.title }}
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Version:</strong> {{ review.submission_version }}
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Reviewer:</strong> {{ review.reviewer.userprofile.full_name }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="metadata-item">
+                            <strong>Submitted:</strong> {{ review.date_submitted|date:"F d, Y H:i" }}
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Status:</strong> 
+                            <span class="status-badge status-{{ review_request.status }}">
+                                {{ review_request.get_status_display }}
+                            </span>
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Requested By:</strong> {{ review_request.requested_by.userprofile.full_name }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Responses -->
+            {% if form_responses %}
+                {% for response in form_responses %}
+                <div class="form-response">
+                    <h3>{{ response.form.name }}</h3>
+                    {% for field_name, field_value in response.response_data.items %}
+                    <div class="response-field">
+                        <label>{{ field_name }}:</label>
+                        <div class="value">
+                            {% if field_value|length > 100 %}
+                                <pre class="pre-scrollable">{{ field_value }}</pre>
+                            {% else %}
+                                {{ field_value }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">
+                    No form responses found for this review.
+                </div>
+            {% endif %}
+
+            <!-- Comments Section -->
+            {% if review.comments %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3 class="mb-0">Additional Comments</h3>
+                </div>
+                <div class="card-body">
+                    {{ review.comments|linebreaks }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="card">
+        <div class="card-body">
+            <div class="d-flex justify-content-between">
+                <div>
+                    {% if is_requester or is_pi %}
+                    <a href="{% url 'messaging:compose_message' %}?related_review={{ review.id }}" 
+                       class="btn btn-info">
+                        <i class="fas fa-envelope"></i> Contact Reviewer
+                    </a>
+                    {% endif %}
+                </div>
+                <div>
+                    {% if is_pi or is_requester %}
+                    <a href="{% url 'submission:download_submission_pdf' submission.id review.submission_version %}" 
+                       class="btn btn-secondary">
+                        <i class="fas fa-file-pdf"></i> Download Submission Version
+                    </a>
+                    {% endif %}
+                    <button onclick="window.print()" class="btn btn-primary">
+                        <i class="fas fa-print"></i> Print Review
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
