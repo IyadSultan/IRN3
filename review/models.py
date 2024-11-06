@@ -10,6 +10,8 @@ from django.apps import apps
 def get_status_choices():
     """Get status choices for review requests."""
     DEFAULT_CHOICES = [
+        ('submitted', 'Submitted'),
+        ('under_review', 'Under Review'),
         ('pending', 'Pending'),
         ('accepted', 'Accepted'),
         ('declined', 'Declined'),

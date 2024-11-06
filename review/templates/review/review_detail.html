@@ -1,0 +1,19 @@
+
+# templates/reviews/review_detail.html
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Review #{{ review.review_id }}</h2>
+    <div class="card">
+        <div class="card-header">
+            <h3>{{ review.title }}</h3>
+            <span class="badge badge-primary">{{ review.status }}</span>
+        </div>
+        <div class="card-body">
+            <p>{{ review.content }}</p>
+            <p><small>Last updated: {{ review.updated_at|date }}</small></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

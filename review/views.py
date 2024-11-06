@@ -2,19 +2,18 @@
 from datetime import timedelta, datetime
 from io import BytesIO
 import json
-
+from django.db.models.functions import TruncDate, Now
+from django.db.models import ExpressionWrapper, F, DurationField, Q, Count, Case, When, Value, IntegerField
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q, F, Count, Case, When, Value, IntegerField
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from .utils.notifications import send_review_request_notification
-
 from .forms import ReviewRequestForm, ConflictOfInterestForm
 from .models import ReviewRequest, Review, FormResponse, get_status_choices
 from .utils.pdf_generator import generate_review_dashboard_pdf
@@ -236,9 +235,106 @@ from django.db.models import F, Case, When, Value, IntegerField
 from django.urls import reverse
 from django.utils import timezone
 
+
+# @login_required
+# def review_dashboard(request):
+#     """Display review dashboard with pending and completed reviews."""
+#     # Get pending review requests
+#     pending_reviews = ReviewRequest.objects.filter(
+#         requested_to=request.user,
+#         status__in=['pending', 'under_review'],
+#         is_active=True,
+#         message=''
+#     ).select_related(
+#         'submission__study_type',
+#         'submission__primary_investigator__userprofile',
+#         'submission__primary_investigator'
+#     ).annotate(
+#         title=F('submission__title'),
+#         study_type=F('submission__study_type__name'),
+#         days_remaining=Case(
+#             When(deadline__gte=timezone.now().date(),
+#                  then=(F('deadline') - timezone.now().date()) / 1),
+#             default=Value(0),
+#             output_field=IntegerField(),
+#         )
+#     ).order_by('deadline')
+    
+
+#     # Get completed review requests 
+#     completed_reviews = ReviewRequest.objects.filter(
+#         requested_to=request.user,
+#         status__in=['pending', 'under_review'],
+#         is_active=True
+#     ).exclude(
+#         message=''
+#     ).select_related(
+#         'submission__study_type',
+#         'submission__primary_investigator__userprofile'
+#     ).order_by('-updated_at')
+
+#     # Get submissions needing review
+#     # submissions_needing_review = Submission.objects.filter(
+#     #     status='under_review'
+#     # ).select_related(
+#     #     'study_type',
+#     #     'primary_investigator__userprofile'
+#     # )
+#     # Fetch submissions needing review for OSAR coordinators
+#     context = {
+#         'pending_reviews': pending_reviews,
+#         'completed_reviews': completed_reviews,
+#         'submissions_needing_review': submissions_needing_review,
+#         'study_types': study_types,
+#         'status_choices': status_choices
+#     }
+#     if request.user.groups.filter(name='OSAR Coordinator').exists():
+#         submissions_needing_review = Submission.objects.filter(
+#             status='submitted'
+#                 ).exclude(
+#                     review_requests__isnull=False
+#                 ).select_related('primary_investigator__userprofile')
+
+#         context['submissions_needing_review'] = submissions_needing_review
+
+#     # Get study types and status choices for filters
+#     study_types = StudyType.objects.all()
+#     status_choices = get_status_choices()
+
+#     context = {
+#         'pending_reviews': pending_reviews,
+#         'completed_reviews': completed_reviews,
+#         'submissions_needing_review': submissions_needing_review,
+#         'study_types': study_types,
+#         'status_choices': status_choices
+#     }
+#     print(pending_reviews)
+#     return render(request, 'review/dashboard.html', context)
+
+
+
+
+
+
 @login_required
 def review_dashboard(request):
+    from django.db.models.functions import TruncDate, Now
+    from django.db.models import ExpressionWrapper, F, DurationField
     """Enhanced dashboard showing role-specific views including OSAR coordinator's submissions."""
+    # Base query for pending reviews
+    pending_reviews = ReviewRequest.objects.filter(
+        requested_to=request.user,
+        status__in=['pending', 'under_review'],
+        is_active=True
+    ).select_related(
+        'submission__study_type',
+        'submission__primary_investigator__userprofile'
+    ).annotate(
+        days_remaining=ExpressionWrapper(
+            F('deadline') - TruncDate(Now()),
+            output_field=DurationField()
+        )
+    )
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
         # Handle AJAX request for DataTables
         # Get filter parameters
@@ -247,22 +343,6 @@ def review_dashboard(request):
         date_from = request.GET.get('date_from')
         date_to = request.GET.get('date_to')
         
-        # Base query for pending reviews
-        pending_reviews = ReviewRequest.objects.filter(
-            requested_to=request.user,
-            status__in=['pending', 'accepted']
-        ).select_related(
-            'submission__study_type',
-            'submission__primary_investigator__userprofile'
-        ).annotate(
-            days_remaining=Case(
-                When(deadline__gt=timezone.now().date(),
-                     then=F('deadline') - timezone.now().date()),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-
         # Apply filters
         if status:
             pending_reviews = pending_reviews.filter(status=status)
@@ -279,14 +359,14 @@ def review_dashboard(request):
             data.append({
                 'title': review.submission.title,
                 'investigator': review.submission.primary_investigator.userprofile.full_name,
-                'study_type': review.submission.study_type.name,
+                'study_type': review.submission.study_type.name if review.submission.study_type else '',
                 'deadline': review.deadline.strftime('%Y-%m-%d'),
                 'status': review.get_status_display(),
                 'days_remaining': review.days_remaining,
                 'actions': f"""
                     <div class="btn-group">
                         <a href="{reverse('review:submit_review', args=[review.id])}" 
-                           class="btn btn-sm btn-primary">
+                            class="btn btn-sm btn-primary">
                             <i class="fas fa-edit"></i> Review
                         </a>
                         <button type="button" 
@@ -297,13 +377,13 @@ def review_dashboard(request):
                         <ul class="dropdown-menu">
                             <li>
                                 <a class="dropdown-item" 
-                                   href="{reverse('review:request_extension', args=[review.id])}">
+                                    href="{reverse('review:request_extension', args=[review.id])}">
                                     <i class="fas fa-clock"></i> Request Extension
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item" 
-                                   href="{reverse('review:decline_review', args=[review.id])}">
+                                    href="{reverse('review:decline_review', args=[review.id])}">
                                     <i class="fas fa-times"></i> Decline Review
                                 </a>
                             </li>
@@ -335,26 +415,44 @@ def review_dashboard(request):
     # Get status choices for filter
     status_choices = get_status_choices()
 
+    # Process pending reviews for template
+    pending_reviews_data = []
+    for review in pending_reviews:
+        pending_reviews_data.append({
+            'title': review.submission.title,
+            'primary_investigator': review.submission.primary_investigator.userprofile.full_name,
+            'study_type': review.submission.study_type,
+            'deadline': review.deadline,
+            'status': review.get_status_display(),
+            'days_remaining': review.days_remaining,
+            'id': review.id
+        })
+
+    # Add pending_reviews to context for initial page load
     context = {
+        'pending_reviews': pending_reviews_data,
         'completed_reviews': completed_reviews,
         'study_types': study_types,
         'status_choices': status_choices
     }
-    # Fetch submissions needing review for OSAR coordinators
     
+    # Fetch submissions needing review for OSAR coordinators
     if request.user.groups.filter(name='OSAR Coordinator').exists():
         submissions_needing_review = Submission.objects.filter(
             status='submitted'
-                ).exclude(
-                    review_requests__isnull=False
-                ).select_related('primary_investigator__userprofile')
+        ).exclude(
+            review_requests__isnull=False
+        ).select_related(
+            'primary_investigator__userprofile',
+            'study_type'
+        )
 
         context['submissions_needing_review'] = submissions_needing_review
+    print(context)
 
     return render(request, 'review/dashboard.html', context)
 
 
-    return render(request, 'review/dashboard.html', context)
 
 
 @login_required
@@ -371,6 +469,8 @@ def create_review_request(request, submission_id):
             review_request = form.save(commit=False)
             review_request.submission = submission
             review_request.requested_by = request.user
+            review_request.status = 'under_review'
+            
             review_request.submission_version = submission.version
             review_request.save()
             form.save_m2m()
