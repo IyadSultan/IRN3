@@ -29,13 +29,64 @@ from .forms import (
 )
 from forms_builder.models import DynamicForm
 from messaging.models import Message, MessageAttachment
-from users.models import SystemSettings
+from users.models import SystemSettings, UserProfile
 from django import forms
 import logging
 
 logger = logging.getLogger(__name__)
 
 from django.db.models import Q
+from django.db import transaction
+from django.contrib.auth.models import User
+from django.urls import reverse
+
+def get_system_user():
+    """Get or create the system user for automated messages."""
+    try:
+        with transaction.atomic():
+            # First try to get existing system user
+            try:
+                system_user = User.objects.get(username='system')
+            except User.DoesNotExist:
+                # Create new system user if doesn't exist
+                system_user = User.objects.create(
+                    username='system',
+                    email=SystemSettings.get_system_email(),
+                    first_name='System',
+                    last_name='User',
+                    is_active=True
+                )
+            
+            # Try to get or create UserProfile
+            try:
+                profile = UserProfile.objects.get(user=system_user)
+            except UserProfile.DoesNotExist:
+                profile = UserProfile.objects.create(
+                    user=system_user,
+                    full_name='System User',
+                    phone_number='',
+                    department='',
+                    position='System'
+                )
+            
+            return system_user
+            
+    except Exception as e:
+        logger.error(f"Error in get_system_user: {str(e)}")
+        logger.error("Error details:", exc_info=True)
+        
+        # Final fallback - just get or create the user without profile
+        try:
+            system_user = User.objects.get(username='system')
+        except User.DoesNotExist:
+            system_user = User.objects.create(
+                username='system',
+                email='aidi@khcc.jo',
+                first_name='System',
+                last_name='User',
+                is_active=True
+            )
+        return system_user
 
 @login_required
 def dashboard(request):
@@ -504,9 +555,12 @@ def submission_review(request, submission_id):
                         if not buffer:
                             raise ValueError("Failed to generate PDF for submission")
 
+                        # Get system user for automated messages
+                        system_user = get_system_user()
+
                         # Send confirmation to PI
                         pi_message = Message.objects.create(
-                            sender=get_system_user(),
+                            sender=system_user,  # Using the system user here
                             subject=f'Submission {submission.temporary_id} - Version 1 Confirmation',
                             body=f"""
 Dear {submission.primary_investigator.userprofile.full_name},

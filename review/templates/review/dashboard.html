@@ -149,36 +149,49 @@ $(document).ready(function() {
         processing: true,
         serverSide: true,
         ajax: {
-            url: '{% url "review:review_dashboard" %}',
+            url: window.location.href,
+            type: 'GET',
             data: function(d) {
                 d.status = $('#status').val();
                 d.study_type = $('#study_type').val();
                 d.date_from = $('#date_from').val();
                 d.date_to = $('#date_to').val();
+            },
+            error: function (xhr, error, thrown) {
+                console.error('DataTables error:', error);
+                console.error('Details:', thrown);
+                console.error('Response:', xhr.responseText);
             }
         },
         columns: [
             { data: 'title' },
             { data: 'investigator' },
             { data: 'study_type' },
-            { data: 'deadline' },
+            { 
+                data: 'deadline',
+                render: function(data) {
+                    return moment(data).format('MMM D, YYYY');
+                }
+            },
             { 
                 data: 'status',
-                render: function(data, type, row) {
+                render: function(data) {
                     return '<span class="status-badge status-' + data.toLowerCase() + '">' + data + '</span>';
                 }
             },
             { 
                 data: 'days_remaining',
-                render: function(data, type, row) {
+                render: function(data) {
                     let className = data <= 7 ? 'days-danger' : 
                                   data <= 14 ? 'days-warning' : 'days-safe';
-                    return '<span class="days-remaining ' + className + '">' + data + '</span>';
+                    return '<span class="days-remaining ' + className + '">' + 
+                           data + ' days</span>';
                 }
             },
             { 
                 data: 'actions',
-                orderable: false
+                orderable: false,
+                searchable: false
             }
         ],
         order: [[3, 'asc']],
@@ -214,7 +227,7 @@ $(document).ready(function() {
             date_from: $('#date_from').val(),
             date_to: $('#date_to').val()
         });
-        window.location.href = '{% url "review:review_dashboard" %}?' + params.toString();
+        window.location.href = window.location.href + '?' + params.toString();
     });
 });
 </script>

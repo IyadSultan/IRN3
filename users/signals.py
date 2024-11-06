@@ -7,7 +7,12 @@ from .models import UserProfile
 
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
-    if created and instance.username == 'system':
+    # Skip profile creation for system user
+    if instance.username == 'system':
+        return
+        
+    if created:
         UserProfile.objects.create(
-            user=instance
+            user=instance,
+            full_name=f"{instance.first_name} {instance.last_name}".strip() or instance.username
         )

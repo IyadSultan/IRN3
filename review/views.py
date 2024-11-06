@@ -229,72 +229,119 @@ def view_review(request, review_id):
         return redirect('review:review_dashboard')
 
 
+from django.http import JsonResponse
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db.models import F, Case, When, Value, IntegerField
+from django.urls import reverse
+from django.utils import timezone
+
 @login_required
 def review_dashboard(request):
-    """
-    Enhanced dashboard showing role-specific views including OSAR coordinator's submissions.
-    """
-    user = request.user
-    context = {}
-
-    # Check if user is OSAR coordinator
-    is_osar_coordinator = user.groups.filter(name='OSAR Coordinator').exists()
-    
-    if is_osar_coordinator:
-        # Get new submissions that need initial review
-        new_submissions = Submission.objects.filter(
-            status='submitted'
+    """Enhanced dashboard showing role-specific views including OSAR coordinator's submissions."""
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        # Handle AJAX request for DataTables
+        # Get filter parameters
+        status = request.GET.get('status')
+        study_type = request.GET.get('study_type')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        
+        # Base query for pending reviews
+        pending_reviews = ReviewRequest.objects.filter(
+            requested_to=request.user,
+            status__in=['pending', 'accepted']
         ).select_related(
-            'primary_investigator__userprofile',
-            'study_type'
-        ).order_by('-date_submitted')
-
-        # Get submissions already forwarded by this coordinator
-        forwarded_submissions = Submission.objects.filter(
-            status='under_review',
-            review_requests__requested_by=user
-        ).distinct().select_related(
-            'primary_investigator__userprofile',
-            'study_type'
+            'submission__study_type',
+            'submission__primary_investigator__userprofile'
+        ).annotate(
+            days_remaining=Case(
+                When(deadline__gt=timezone.now().date(),
+                     then=F('deadline') - timezone.now().date()),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
         )
 
-        context.update({
-            'new_submissions': new_submissions,
-            'forwarded_submissions': forwarded_submissions,
-            'is_osar_coordinator': True
+        # Apply filters
+        if status:
+            pending_reviews = pending_reviews.filter(status=status)
+        if study_type:
+            pending_reviews = pending_reviews.filter(submission__study_type_id=study_type)
+        if date_from:
+            pending_reviews = pending_reviews.filter(deadline__gte=date_from)
+        if date_to:
+            pending_reviews = pending_reviews.filter(deadline__lte=date_to)
+
+        # Prepare data for DataTables
+        data = []
+        for review in pending_reviews:
+            data.append({
+                'title': review.submission.title,
+                'investigator': review.submission.primary_investigator.userprofile.full_name,
+                'study_type': review.submission.study_type.name,
+                'deadline': review.deadline.strftime('%Y-%m-%d'),
+                'status': review.get_status_display(),
+                'days_remaining': review.days_remaining,
+                'actions': f"""
+                    <div class="btn-group">
+                        <a href="{reverse('review:submit_review', args=[review.id])}" 
+                           class="btn btn-sm btn-primary">
+                            <i class="fas fa-edit"></i> Review
+                        </a>
+                        <button type="button" 
+                                class="btn btn-sm btn-secondary dropdown-toggle"
+                                data-bs-toggle="dropdown">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item" 
+                                   href="{reverse('review:request_extension', args=[review.id])}">
+                                    <i class="fas fa-clock"></i> Request Extension
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" 
+                                   href="{reverse('review:decline_review', args=[review.id])}">
+                                    <i class="fas fa-times"></i> Decline Review
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                """
+            })
+
+        # Return JSON response
+        return JsonResponse({
+            'draw': int(request.GET.get('draw', 1)),
+            'recordsTotal': pending_reviews.count(),
+            'recordsFiltered': pending_reviews.count(),
+            'data': data
         })
 
-    # Get pending reviews for all users
-    pending_reviews = ReviewRequest.objects.filter(
-        requested_to=user,
-        status__in=['pending', 'accepted']
-    ).select_related(
-        'submission__study_type',
-        'requested_by__userprofile',
-        'submission__primary_investigator__userprofile'
-    ).annotate(
-        days_until_deadline=Case(
-            When(deadline__gt=timezone.now().date(),
-                 then=F('deadline') - timezone.now().date()),
-            default=Value(0),
-            output_field=IntegerField(),
-        )
-    )
-
+    # Handle regular GET request
     # Get completed reviews
     completed_reviews = Review.objects.filter(
-        reviewer=user
+        reviewer=request.user
     ).select_related(
         'submission__study_type',
         'submission__primary_investigator__userprofile'
-    )
+    ).order_by('-date_submitted')
 
-    context.update({
-        'pending_reviews': pending_reviews,
-        'completed_reviews': completed_reviews
-    })
+    # Get all study types for filter
+    study_types = StudyType.objects.all()
     
+    # Get status choices for filter
+    status_choices = get_status_choices()
+
+    context = {
+        'completed_reviews': completed_reviews,
+        'study_types': study_types,
+        'status_choices': status_choices
+    }
+
     return render(request, 'review/dashboard.html', context)
+
 
 @login_required
 @permission_required('review.can_create_review_request', raise_exception=True)

@@ -173,17 +173,14 @@ class SystemSettings(models.Model):
         verbose_name_plural = 'System Settings'
 
     def save(self, *args, **kwargs):
-        # Clear cache when settings are updated
         cache.delete('system_settings')
         super().save(*args, **kwargs)
-        
-    @classmethod
-    def get_system_email(cls):
-        # Try to get from cache first
-        settings = cache.get('system_settings')
-        if not settings:
-            settings = cls.objects.first()
-            if not settings:
-                settings = cls.objects.create()
-            cache.set('system_settings', settings)
-        return settings.system_email
+
+    @staticmethod
+    def get_system_email():
+        """Get the system email from settings or return default."""
+        try:
+            settings = SystemSettings.objects.first()
+            return settings.system_email if settings else 'aidi@khcc.jo'
+        except Exception:
+            return 'aidi@khcc.jo'
