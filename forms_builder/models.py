@@ -29,9 +29,12 @@ class StudyType(models.Model):
 
 class DynamicForm(models.Model):
     name = models.CharField(max_length=255)
-    version = models.CharField(max_length=50)
+    version = models.PositiveIntegerField(default=1)
     date_created = models.DateTimeField(auto_now_add=True)
-    requested_per_investigator = models.BooleanField(default=False)
+    requested_per_investigator = models.BooleanField(
+        default=False,
+        help_text="If checked, one form will be required per investigator"
+    )
     study_types = models.ManyToManyField(StudyType, related_name='forms')
     json_input = models.TextField(blank=True, null=True)
     order = models.PositiveIntegerField(
@@ -64,7 +67,7 @@ class DynamicForm(models.Model):
     class Meta:
         verbose_name = 'Dynamic Form'
         verbose_name_plural = 'Dynamic Forms'
-        ordering = ['order']  # Added this line to set default ordering
+        ordering = ['order', 'name']  # Added this line to set default ordering
 
 class FormField(models.Model):
     form = models.ForeignKey(DynamicForm, related_name='fields', on_delete=models.CASCADE)

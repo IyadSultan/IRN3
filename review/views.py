@@ -359,31 +359,75 @@ def review_dashboard(request):
 @login_required
 @permission_required('review.can_create_review_request', raise_exception=True)
 def create_review_request(request, submission_id):
+    """
+    Create a new review request for a submission.
+    """
     submission = get_object_or_404(Submission, pk=submission_id)
     
+    # Check if submission is in a reviewable state
     if submission.status not in ['submitted', 'under_revision']:
         messages.error(request, 'This submission is not in a reviewable state.')
-        return redirect('submission:detail', submission_id)
-        
+        return redirect('submission:detail', submission_id=submission_id)
+    
+    # Check if user has permission to create review requests for this submission
+    if not request.user.groups.filter(name='OSAR Coordinator').exists():
+        messages.error(request, "You don't have permission to create review requests.")
+        return redirect('review:review_dashboard')
+
     if request.method == 'POST':
         form = ReviewRequestForm(request.POST)
         if form.is_valid():
-            review_request = form.save(commit=False)
-            review_request.submission = submission
-            review_request.requested_by = request.user
-            review_request.submission_version = submission.version
-            review_request.save()
-            form.save_m2m()
-            
-            messages.success(request, 'Review request created successfully.')
-            return redirect('review:dashboard')
+            try:
+                with transaction.atomic():
+                    review_request = form.save(commit=False)
+                    review_request.submission = submission
+                    review_request.requested_by = request.user
+                    review_request.submission_version = submission.version
+                    review_request.save()
+                    
+                    # Save many-to-many relationships
+                    form.save_m2m()
+                    
+                    # Create notification for the reviewer
+                    Message.objects.create(
+                        sender=request.user,
+                        subject=f'New Review Request - {submission.title}',
+                        body=f"""
+Dear {review_request.requested_to.userprofile.full_name},
+
+You have been requested to review the submission "{submission.title}".
+
+Deadline: {review_request.deadline.strftime('%Y-%m-%d')}
+
+Message from requester:
+{review_request.message if review_request.message else 'No additional message provided.'}
+
+Please log in to the system to begin your review.
+
+Best regards,
+{request.user.userprofile.full_name}
+                        """.strip(),
+                        study_name=submission.title,
+                        related_submission=submission
+                    ).recipients.add(review_request.requested_to)
+                    
+                    messages.success(request, 'Review request created successfully.')
+                    return redirect('review:review_dashboard')
+                    
+            except Exception as e:
+                messages.error(request, f'Error creating review request: {str(e)}')
     else:
-        form = ReviewRequestForm()
-    
-    return render(request, 'review/create_request.html', {
+        # Initialize form with default values
+        initial_data = {
+            'deadline': timezone.now().date() + timezone.timedelta(days=14),  # Default 14 days deadline
+        }
+        form = ReviewRequestForm(initial=initial_data)
+
+    context = {
         'form': form,
-        'submission': submission
-    })
+        'submission': submission,
+    }
+    return render(request, 'review/create_review_request.html', context)
 
 # review/views.py
 
