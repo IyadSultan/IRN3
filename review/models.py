@@ -6,30 +6,11 @@ from datetime import datetime
 from django.core.cache import cache
 from django.utils import timezone
 from django.apps import apps
+from iRN.constants import get_status_choices
 
-def get_status_choices():
-    """Get status choices for review requests."""
-    DEFAULT_CHOICES = [
-        ('submitted', 'Submitted'),
-        ('under_review', 'Under Review'),
-        ('pending', 'Pending'),
-        ('accepted', 'Accepted'),
-        ('declined', 'Declined'),
-        ('completed', 'Completed'),
-        ('overdue', 'Overdue'),
-        ('reviews_completed', 'Reviews Completed'),
-    ]
-    
-    try:
-        choices = cache.get('review_status_choices')
-        if not choices:
-            StatusChoice = apps.get_model('review', 'StatusChoice')
-            choices = list(StatusChoice.objects.filter(is_active=True).values_list('code', 'label'))
-            if choices:
-                cache.set('review_status_choices', choices)
-        return choices or DEFAULT_CHOICES
-    except Exception:
-        return DEFAULT_CHOICES
+######################
+# Status Choice
+######################
 
 class StatusChoice(models.Model):
     """Model to store custom status choices."""
@@ -50,7 +31,9 @@ class StatusChoice(models.Model):
         super().save(*args, **kwargs)
         cache.delete('review_status_choices')
 
-
+######################
+# Review Request
+######################
 
 class ReviewRequest(models.Model):
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE,  related_name='review_requests' )
@@ -118,7 +101,12 @@ class ReviewRequest(models.Model):
     def __str__(self):
         return f"Review Request for {self.submission} (Version {self.submission_version})"
 
+######################
+# Review
+######################
+
 class Review(models.Model):
+    review_id = models.AutoField(primary_key=True)
     review_request = models.ForeignKey(ReviewRequest, on_delete=models.CASCADE)
     reviewer = models.ForeignKey(User, on_delete=models.CASCADE)
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
@@ -129,6 +117,10 @@ class Review(models.Model):
 
     def __str__(self):
         return f"Review by {self.reviewer} for {self.submission}"
+
+######################
+# Form Response
+######################
 
 class FormResponse(models.Model):
     review = models.ForeignKey(Review, on_delete=models.CASCADE)

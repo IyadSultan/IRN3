@@ -1,0 +1,34 @@
+{% extends 'users/base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h1>Review Versions for "{{ submission.title }}"</h1>
+    <div class="mb-3">
+        <a href="{% url 'review:review_dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Version</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for history in histories %}
+            <tr>
+                <td>{{ history.version }}</td>
+                <td>{{ history.get_status_display }}</td>
+                <td>{{ history.date }}</td>
+                <td>
+                    <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id history.version %}" class="btn btn-sm btn-secondary">Download PDF</a>
+                    {% if not forloop.last %}
+                    <a href="{% url 'submission:compare_versions' submission.temporary_id history.version submission.version %}" class="btn btn-sm btn-primary">Compare with Latest</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %} 

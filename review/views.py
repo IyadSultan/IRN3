@@ -3,26 +3,125 @@ from datetime import timedelta, datetime
 from io import BytesIO
 import json
 from django.db.models.functions import TruncDate, Now
-from django.db.models import ExpressionWrapper, F, DurationField, Q, Count, Case, When, Value, IntegerField
+from django.db.models import ExpressionWrapper, F, DurationField
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.paginator import Paginator
 from django.db import transaction
+from django.db.models import Q, F, Count, Case, When, Value, IntegerField, ExpressionWrapper
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from .utils.notifications import send_review_request_notification
+from django.views.decorators.http import require_http_methods
 from .forms import ReviewRequestForm, ConflictOfInterestForm
 from .models import ReviewRequest, Review, FormResponse, get_status_choices
 from .utils.pdf_generator import generate_review_dashboard_pdf
 from forms_builder.models import DynamicForm, StudyType
 from messaging.models import Message
-from submission.models import Submission
+from submission.models import Submission  # Updated model name
 from users.utils import get_system_user
+from django.core.exceptions import PermissionDenied
+from django import forms
+from django.http import JsonResponse
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db.models import F, Case, When, Value, IntegerField
+from django.urls import reverse
+from django.utils import timezone
 
-# Rest of your view functions...
+######################
+# Review Dashboard
+######################
+
+@login_required
+def review_dashboard(request):
+    """Display review dashboard with pending and completed reviews."""
+    context = {}
+    
+    # Get submissions needing review (for OSAR Coordinators)
+    if request.user.groups.filter(name='OSAR Coordinator').exists():
+        submissions_needing_review = Submission.objects.filter(
+            status='submitted'
+        ).exclude(
+            review_requests__isnull=False
+        ).select_related(
+            'primary_investigator__userprofile',
+            'study_type'
+        )
+        context['submissions_needing_review'] = submissions_needing_review
+
+    # Get pending reviews where user is the reviewer
+    pending_reviews = ReviewRequest.objects.select_related(
+        'submission__primary_investigator__userprofile',
+        'submission__study_type',
+        'requested_by',
+        'requested_to'
+    ).filter(
+        requested_to=request.user,
+        status__in=['pending', 'overdue', 'extended']
+    ).order_by('-created_at')
+    context['pending_reviews'] = pending_reviews
+
+    # Get completed reviews
+    completed_reviews = ReviewRequest.objects.select_related(
+        'submission__primary_investigator__userprofile',
+        'submission__study_type',
+        'requested_by',
+        'requested_to'
+    ).filter(
+        requested_to=request.user,
+        status='completed'
+    ).order_by('-updated_at')
+    context['completed_reviews'] = completed_reviews
+    
+    return render(request, 'review/dashboard.html', context)
+
+######################
+# Create Review Request
+######################
+
+@login_required
+# @permission_required('review.can_create_review_request', raise_exception=True)
+def create_review_request(request, submission_id):
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    if request.method == 'POST':
+        form = ReviewRequestForm(
+            request.POST, 
+            study_type=submission.study_type
+        )
+        if form.is_valid():
+            review_request = form.save(commit=False)
+            review_request.submission = submission
+            review_request.requested_by = request.user
+            review_request.status = 'under_review'
+            
+            review_request.submission_version = submission.version
+            review_request.save()
+            form.save_m2m()
+            
+            # Pass the review_request object instead of request
+            send_review_request_notification(review_request)
+            messages.success(request, 'Review request created successfully.')
+            return redirect('review:review_dashboard')
+    else:
+        initial_data = {
+            'deadline': timezone.now().date() + timezone.timedelta(days=14),
+        }
+        form = ReviewRequestForm(
+            initial=initial_data,
+            study_type=submission.study_type
+        )
+
+    context = {
+        'form': form,
+        'submission': submission,
+    }
+    return render(request, 'review/create_review_request.html', context)
+
+######################
 
 @login_required
 def decline_review(request, review_id):
@@ -35,7 +134,7 @@ def decline_review(request, review_id):
         return redirect('review:review_dashboard')
 
     # Check if review can be declined
-    if review_request.status not in ['pending', 'accepted']:
+    if review_request.status in ['completed', 'declined']:
         messages.error(request, "This review can no longer be declined.")
         return redirect('review:review_dashboard')
 
@@ -45,7 +144,8 @@ def decline_review(request, review_id):
                 reason = request.POST.get('reason')
                 
                 if not reason:
-                    raise ValueError("Please provide a reason for declining the review.")
+                    messages.error(request, "Please provide a reason for declining the review.")
+                    return redirect('review:decline_review', review_id=review_id)
 
                 # Update review request status
                 review_request.status = 'declined'
@@ -59,19 +159,12 @@ def decline_review(request, review_id):
                 message = Message.objects.create(
                     sender=system_user,
                     subject=f'Review Request Declined - {review_request.submission.title}',
-                    body=f"""
-Dear {review_request.requested_by.userprofile.full_name},
-
-The review request for "{review_request.submission.title}" has been declined by {request.user.userprofile.full_name}.
-
-Reason provided:
-{reason}
-
-Please assign a different reviewer.
-
-Best regards,
-AIDI System
-                    """.strip(),
+                    body=render_to_string('review/decline_notification_email.txt', {
+                        'requested_by': review_request.requested_by.userprofile.full_name,
+                        'submission_title': review_request.submission.title,
+                        'decliner': request.user.userprofile.full_name,
+                        'reason': reason,
+                    }),
                     study_name=review_request.submission.title,
                     related_submission=review_request.submission
                 )
@@ -84,8 +177,6 @@ AIDI System
                 messages.success(request, "Review request declined successfully.")
                 return redirect('review:review_dashboard')
                 
-        except ValueError as e:
-            messages.error(request, str(e))
         except Exception as e:
             messages.error(request, f"Error declining review: {str(e)}")
     
@@ -94,6 +185,9 @@ AIDI System
     }
     return render(request, 'review/decline_review.html', context)
 
+######################
+# Request Extension
+######################
 
 @login_required
 def request_extension(request, review_id):
@@ -177,13 +271,323 @@ Please review this request and respond accordingly.
     }
     return render(request, 'review/request_extension.html', context)
 
+######################
+# Submit Review
+#  path('review/<int:review_id>/submit/', views.submit_review, name='submit_review'),
+######################
+
+
+class ReviewSubmissionError(Exception):
+    """Custom exception for review submission errors"""
+    pass
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def submit_review(request, review_request_id):
+    """Handle submission of a review with improved error handling and validation."""
+    review_request = get_object_or_404(
+        ReviewRequest.objects.select_related(
+            'submission',
+            'requested_by__userprofile',
+            'submission__primary_investigator'
+        ),
+        pk=review_request_id
+    )
+
+    if not can_submit_review(request.user, review_request):
+        raise PermissionDenied("You don't have permission to submit this review.")
+
+    if request.method == "GET":
+        return handle_review_form_display(request, review_request)
+
+    try:
+        with transaction.atomic():
+            return handle_review_submission(request, review_request)
+    except ReviewSubmissionError as e:
+        messages.error(request, str(e))
+        return handle_review_form_display(request, review_request)
+    except Exception as e:
+        messages.error(request, f"An unexpected error occurred: {str(e)}")
+        return handle_review_form_display(request, review_request)
+
+def can_submit_review(user, review_request):
+    """Check if user can submit the review."""
+    return (
+        user == review_request.requested_to and
+        review_request.status in ['pending', 'overdue', 'extended']
+    )
+
+def handle_review_form_display(request, review_request):
+    """Handle GET request to display review forms."""
+    forms_data = []
+    
+    # Get all forms associated with this review request
+    for form_template in review_request.selected_forms.all():
+        # Get existing form data if any
+        current_data = {}
+        form_responses = FormResponse.objects.filter(
+            review__review_request=review_request,
+            form=form_template
+        ).first()
+        
+        if form_responses:
+            # Load existing response data
+            try:
+                current_data = form_responses.response_data
+            except json.JSONDecodeError:
+                current_data = {}
+        
+        # Generate Django form class from the template
+        DynamicFormClass = generate_django_form(form_template)
+        
+        # Create form instance with any existing data
+        form_instance = DynamicFormClass(
+            initial=current_data,
+            prefix=f'form_{form_template.id}'
+        )
+        
+        forms_data.append({
+            'template': form_template,
+            'form': form_instance
+        })
+
+    context = {
+        'review_request': review_request,
+        'forms_data': forms_data,
+        'submission': review_request.submission,
+    }
+    return render(request, 'review/submit_review.html', context)
+
+def generate_django_form(form_template):
+    """Generate a Django form class from a DynamicForm template."""
+    form_fields = {}
+    
+    for field in form_template.fields.all():
+        field_class = get_field_class(field.field_type)
+        field_kwargs = {
+            'label': field.displayed_name,
+            'required': field.required,
+            'help_text': field.help_text,
+            'initial': field.default_value,
+        }
+        
+        # Handle choices for select, radio, checkbox fields
+        if field.field_type in ['checkbox', 'radio', 'select', 'choice']:
+            choices = [(choice.strip(), choice.strip()) 
+                      for choice in field.choices.split(',') 
+                      if choice.strip()] if field.choices else []
+            field_kwargs['choices'] = choices
+            
+        if field.max_length:
+            field_kwargs['max_length'] = field.max_length
+            
+        if field.field_type == 'textarea':
+            field_kwargs['widget'] = forms.Textarea(attrs={'rows': field.rows})
+            
+        form_fields[field.name] = field_class(**field_kwargs)
+    
+    return type(
+        f'DynamicForm_{form_template.id}',
+        (forms.Form,),
+        form_fields
+    )
+
+def get_field_class(field_type):
+    """Map form_builder field types to Django form field classes."""
+    field_map = {
+        'text': forms.CharField,
+        'email': forms.EmailField,
+        'tel': forms.CharField,
+        'number': forms.IntegerField,
+        'date': forms.DateField,
+        'textarea': forms.CharField,
+        'checkbox': forms.MultipleChoiceField,
+        'radio': forms.ChoiceField,
+        'select': forms.ChoiceField,
+        'choice': forms.MultipleChoiceField,
+        'table': forms.CharField,  # You might want to create a custom field for tables
+    }
+    return field_map.get(field_type, forms.CharField)
+
+def handle_review_submission(request, review_request):
+    """Handle POST request to submit review forms."""
+    action = request.POST.get('action', '')
+    forms_data = []
+    is_valid = True
+    
+    # Process each form
+    for form_template in review_request.selected_forms.all():
+        DynamicFormClass = generate_django_form(form_template)
+        form_instance = DynamicFormClass(
+            request.POST,
+            prefix=f'form_{form_template.id}'
+        )
+        
+        forms_data.append({
+            'template': form_template,
+            'form': form_instance
+        })
+        
+        if not form_instance.is_valid():
+            is_valid = False
+
+    if not is_valid:
+        messages.error(request, "Please correct the errors in the form.")
+        context = {
+            'review_request': review_request,
+            'forms_data': forms_data,
+            'submission': review_request.submission,
+        }
+        return render(request, 'review/submit_review.html', context)
+
+    try:
+        # Create or get review
+        review, created = Review.objects.get_or_create(
+            review_request=review_request,
+            defaults={
+                'reviewer': request.user,
+                'submission': review_request.submission,
+                'submission_version': review_request.submission_version
+            }
+        )
+
+        # Save form responses
+        for form_data in forms_data:
+            form_template = form_data['template']
+            form_instance = form_data['form']
+            
+            # Convert form data to JSON-serializable format
+            response_data = {}
+            for field_name, field in form_instance.fields.items():
+                if isinstance(field, forms.MultipleChoiceField):
+                    value = request.POST.getlist(f'form_{form_template.id}-{field_name}')
+                else:
+                    value = form_instance.cleaned_data.get(field_name)
+                response_data[field_name] = value
+
+            # Save or update form response
+            FormResponse.objects.update_or_create(
+                review=review,
+                form=form_template,
+                defaults={
+                    'response_data': response_data
+                }
+            )
+
+        # Handle additional comments
+        comments = request.POST.get('comments', '').strip()
+        if comments:
+            review.comments = comments
+            
+        # Handle action (save draft or submit)
+        if action == 'submit':
+            review.is_completed = True
+            review.completed_at = timezone.now()
+            review_request.status = 'completed'
+            review_request.save()
+            messages.success(request, "Review submitted successfully.")
+        else:  # save_draft
+            messages.success(request, "Review saved as draft.")
+            
+        review.save()
+        
+        return redirect('review:review_dashboard')
+
+    except Exception as e:
+        raise ReviewSubmissionError(f"Error saving review: {str(e)}")
+
+def validate_forms(request, review_request):
+    """Validate all submitted forms."""
+    form_responses = []
+    
+    for dynamic_form in review_request.selected_forms.all():
+        form = FormForForm(
+            dynamic_form,
+            request.POST,
+            prefix=f'form_{dynamic_form.id}'
+        )
+        if not form.is_valid():
+            raise ReviewSubmissionError("Please complete all required fields.")
+        form_responses.append((dynamic_form, form))
+    
+    return form_responses
+
+def create_review(request, review_request):
+    """Create a new review record."""
+    return Review.objects.create(
+        review_request=review_request,
+        reviewer=request.user,
+        submission=review_request.submission,
+        submission_version=review_request.submission_version,
+        comments=request.POST.get('comments', '')
+    )
+
+def save_form_responses(review, form_responses):
+    """Save all form responses."""
+    FormResponse.objects.bulk_create([
+        FormResponse(
+            review=review,
+            form=dynamic_form,
+            response_data=form.cleaned_data
+        )
+        for dynamic_form, form in form_responses
+    ])
+
+def send_notifications(request, review, review_request):
+    """Send notifications to relevant parties."""
+    system_user = get_system_user()
+    message = create_notification_message(request, review, review_request, system_user)
+    
+    message.recipients.add(review_request.requested_by)
+    
+    if (review_request.submission.primary_investigator != 
+        review_request.requested_by):
+        message.cc.add(review_request.submission.primary_investigator)
+
+def create_notification_message(request, review, review_request, system_user):
+    """Create notification message."""
+    return Message.objects.create(
+        sender=system_user,
+        subject=f'Review Completed - {review_request.submission.title}',
+        body=generate_notification_body(request, review, review_request),
+        study_name=review_request.submission.title,
+        related_submission=review_request.submission
+    )
+
+def generate_notification_body(request, review, review_request):
+    """Generate notification message body."""
+    return f"""
+Dear {review_request.requested_by.userprofile.full_name},
+
+The review for "{review_request.submission.title}" has been completed by {request.user.userprofile.full_name}.
+
+You can view the review details here:
+{request.build_absolute_uri(reverse('review:view_review', args=[review.id]))}
+
+Best regards,
+AIDI System
+    """.strip()
+
+def check_all_reviews_completed(submission):
+    """Check if all required reviews for a submission are completed."""
+    pending_reviews = ReviewRequest.objects.filter(
+        submission=submission,
+        status__in=['pending', 'overdue', 'extended']
+    ).exists()
+    
+    return not pending_reviews
+
+######################
+# View Review
+######################
+
 @login_required
 def view_review(request, review_id):
     """
     View a specific review and its form responses.
     """
     # Try to get the review first
-    review = get_object_or_404(Review, pk=review_id)
+    review = get_object_or_404(Review, review_id=review_id)
     
     # Check permissions
     if not (request.user == review.reviewer or 
@@ -229,398 +633,12 @@ def view_review(request, review_id):
         return redirect('review:review_dashboard')
 
 
-from django.http import JsonResponse
-from django.core.serializers.json import DjangoJSONEncoder
-from django.db.models import F, Case, When, Value, IntegerField
-from django.urls import reverse
-from django.utils import timezone
-
-
-# @login_required
-# def review_dashboard(request):
-#     """Display review dashboard with pending and completed reviews."""
-#     # Get pending review requests
-#     pending_reviews = ReviewRequest.objects.filter(
-#         requested_to=request.user,
-#         status__in=['pending', 'under_review'],
-#         is_active=True,
-#         message=''
-#     ).select_related(
-#         'submission__study_type',
-#         'submission__primary_investigator__userprofile',
-#         'submission__primary_investigator'
-#     ).annotate(
-#         title=F('submission__title'),
-#         study_type=F('submission__study_type__name'),
-#         days_remaining=Case(
-#             When(deadline__gte=timezone.now().date(),
-#                  then=(F('deadline') - timezone.now().date()) / 1),
-#             default=Value(0),
-#             output_field=IntegerField(),
-#         )
-#     ).order_by('deadline')
-    
-
-#     # Get completed review requests 
-#     completed_reviews = ReviewRequest.objects.filter(
-#         requested_to=request.user,
-#         status__in=['pending', 'under_review'],
-#         is_active=True
-#     ).exclude(
-#         message=''
-#     ).select_related(
-#         'submission__study_type',
-#         'submission__primary_investigator__userprofile'
-#     ).order_by('-updated_at')
-
-#     # Get submissions needing review
-#     # submissions_needing_review = Submission.objects.filter(
-#     #     status='under_review'
-#     # ).select_related(
-#     #     'study_type',
-#     #     'primary_investigator__userprofile'
-#     # )
-#     # Fetch submissions needing review for OSAR coordinators
-#     context = {
-#         'pending_reviews': pending_reviews,
-#         'completed_reviews': completed_reviews,
-#         'submissions_needing_review': submissions_needing_review,
-#         'study_types': study_types,
-#         'status_choices': status_choices
-#     }
-#     if request.user.groups.filter(name='OSAR Coordinator').exists():
-#         submissions_needing_review = Submission.objects.filter(
-#             status='submitted'
-#                 ).exclude(
-#                     review_requests__isnull=False
-#                 ).select_related('primary_investigator__userprofile')
-
-#         context['submissions_needing_review'] = submissions_needing_review
-
-#     # Get study types and status choices for filters
-#     study_types = StudyType.objects.all()
-#     status_choices = get_status_choices()
-
-#     context = {
-#         'pending_reviews': pending_reviews,
-#         'completed_reviews': completed_reviews,
-#         'submissions_needing_review': submissions_needing_review,
-#         'study_types': study_types,
-#         'status_choices': status_choices
-#     }
-#     print(pending_reviews)
-#     return render(request, 'review/dashboard.html', context)
 
 
 
-
-
-
-@login_required
-def review_dashboard(request):
-    from django.db.models.functions import TruncDate, Now
-    from django.db.models import ExpressionWrapper, F, DurationField
-    """Enhanced dashboard showing role-specific views including OSAR coordinator's submissions."""
-    # Base query for pending reviews
-    pending_reviews = ReviewRequest.objects.filter(
-        requested_to=request.user,
-        status__in=['pending', 'under_review'],
-        is_active=True
-    ).select_related(
-        'submission__study_type',
-        'submission__primary_investigator__userprofile'
-    ).annotate(
-        days_remaining=ExpressionWrapper(
-            F('deadline') - TruncDate(Now()),
-            output_field=DurationField()
-        )
-    )
-    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-        # Handle AJAX request for DataTables
-        # Get filter parameters
-        status = request.GET.get('status')
-        study_type = request.GET.get('study_type')
-        date_from = request.GET.get('date_from')
-        date_to = request.GET.get('date_to')
-        
-        # Apply filters
-        if status:
-            pending_reviews = pending_reviews.filter(status=status)
-        if study_type:
-            pending_reviews = pending_reviews.filter(submission__study_type_id=study_type)
-        if date_from:
-            pending_reviews = pending_reviews.filter(deadline__gte=date_from)
-        if date_to:
-            pending_reviews = pending_reviews.filter(deadline__lte=date_to)
-
-        # Prepare data for DataTables
-        data = []
-        for review in pending_reviews:
-            data.append({
-                'title': review.submission.title,
-                'investigator': review.submission.primary_investigator.userprofile.full_name,
-                'study_type': review.submission.study_type.name if review.submission.study_type else '',
-                'deadline': review.deadline.strftime('%Y-%m-%d'),
-                'status': review.get_status_display(),
-                'days_remaining': review.days_remaining,
-                'actions': f"""
-                    <div class="btn-group">
-                        <a href="{reverse('review:submit_review', args=[review.id])}" 
-                            class="btn btn-sm btn-primary">
-                            <i class="fas fa-edit"></i> Review
-                        </a>
-                        <button type="button" 
-                                class="btn btn-sm btn-secondary dropdown-toggle"
-                                data-bs-toggle="dropdown">
-                            <i class="fas fa-ellipsis-v"></i>
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li>
-                                <a class="dropdown-item" 
-                                    href="{reverse('review:request_extension', args=[review.id])}">
-                                    <i class="fas fa-clock"></i> Request Extension
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" 
-                                    href="{reverse('review:decline_review', args=[review.id])}">
-                                    <i class="fas fa-times"></i> Decline Review
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                """
-            })
-
-        # Return JSON response
-        return JsonResponse({
-            'draw': int(request.GET.get('draw', 1)),
-            'recordsTotal': pending_reviews.count(),
-            'recordsFiltered': pending_reviews.count(),
-            'data': data
-        })
-
-    # Handle regular GET request
-    # Get completed reviews
-    completed_reviews = Review.objects.filter(
-        reviewer=request.user
-    ).select_related(
-        'submission__study_type',
-        'submission__primary_investigator__userprofile'
-    ).order_by('-date_submitted')
-
-    # Get all study types for filter
-    study_types = StudyType.objects.all()
-    
-    # Get status choices for filter
-    status_choices = get_status_choices()
-
-    # Process pending reviews for template
-    pending_reviews_data = []
-    for review in pending_reviews:
-        pending_reviews_data.append({
-            'title': review.submission.title,
-            'primary_investigator': review.submission.primary_investigator.userprofile.full_name,
-            'study_type': review.submission.study_type,
-            'deadline': review.deadline,
-            'status': review.get_status_display(),
-            'days_remaining': review.days_remaining,
-            'id': review.id
-        })
-
-    # Add pending_reviews to context for initial page load
-    context = {
-        'pending_reviews': pending_reviews_data,
-        'completed_reviews': completed_reviews,
-        'study_types': study_types,
-        'status_choices': status_choices
-    }
-    
-    # Fetch submissions needing review for OSAR coordinators
-    if request.user.groups.filter(name='OSAR Coordinator').exists():
-        submissions_needing_review = Submission.objects.filter(
-            status='submitted'
-        ).exclude(
-            review_requests__isnull=False
-        ).select_related(
-            'primary_investigator__userprofile',
-            'study_type'
-        )
-
-        context['submissions_needing_review'] = submissions_needing_review
-    print(context)
-
-    return render(request, 'review/dashboard.html', context)
-
-
-
-
-@login_required
-@permission_required('review.can_create_review_request', raise_exception=True)
-def create_review_request(request, submission_id):
-    submission = get_object_or_404(Submission, pk=submission_id)
-    
-    if request.method == 'POST':
-        form = ReviewRequestForm(
-            request.POST, 
-            study_type=submission.study_type
-        )
-        if form.is_valid():
-            review_request = form.save(commit=False)
-            review_request.submission = submission
-            review_request.requested_by = request.user
-            review_request.status = 'under_review'
-            
-            review_request.submission_version = submission.version
-            review_request.save()
-            form.save_m2m()
-            
-            # Pass the review_request object instead of request
-            send_review_request_notification(review_request)
-            messages.success(request, 'Review request created successfully.')
-            return redirect('review:review_dashboard')
-    else:
-        initial_data = {
-            'deadline': timezone.now().date() + timezone.timedelta(days=14),
-        }
-        form = ReviewRequestForm(
-            initial=initial_data,
-            study_type=submission.study_type
-        )
-
-    context = {
-        'form': form,
-        'submission': submission,
-    }
-    return render(request, 'review/create_review_request.html', context)
-
-
-
-
-@login_required
-def submit_review(request, review_request_id):
-    """Handle submission of a review."""
-    review_request = get_object_or_404(ReviewRequest, pk=review_request_id)
-
-    # Check permissions
-    if request.user != review_request.requested_to:
-        return HttpResponseForbidden("You don't have permission to submit this review.")
-    
-    if review_request.status not in ['pending', 'accepted']:
-        messages.error(request, "This review can no longer be submitted.")
-        return redirect('review:review_dashboard')
-
-    try:
-        # Handle review submission
-        if request.method == 'POST':
-            with transaction.atomic():
-                # Validate all forms
-                forms_valid = True
-                form_responses = []
-                
-                for dynamic_form in review_request.selected_forms.all():
-                    form = FormForForm(
-                        dynamic_form, 
-                        request.POST, 
-                        prefix=f'form_{dynamic_form.id}'
-                    )
-                    if form.is_valid():
-                        form_responses.append((dynamic_form, form))
-                    else:
-                        forms_valid = False
-                        break
-
-                if not forms_valid:
-                    raise ValueError("Please complete all required fields in the forms.")
-
-                # Create review record
-                review = Review.objects.create(
-                    review_request=review_request,
-                    reviewer=request.user,
-                    submission=review_request.submission,
-                    submission_version=review_request.submission_version,
-                    comments=request.POST.get('comments', '')
-                )
-
-                # Save form responses
-                for dynamic_form, form in form_responses:
-                    FormResponse.objects.create(
-                        review=review,
-                        form=dynamic_form,
-                        response_data=form.cleaned_data
-                    )
-
-                # Update review request status
-                review_request.status = 'completed'
-                review_request.save()
-
-                # Send notification to requester and PI
-                system_user = get_system_user()
-                
-                message = Message.objects.create(
-                    sender=system_user,
-                    subject=f'Review Completed - {review_request.submission.title}',
-                    body=f"""
-Dear {review_request.requested_by.userprofile.full_name},
-
-The review for "{review_request.submission.title}" has been completed by {request.user.userprofile.full_name}.
-
-You can view the review details here:
-{request.build_absolute_uri(reverse('review:view_review', args=[review.id]))}
-
-Best regards,
-AIDI System
-                    """.strip(),
-                    study_name=review_request.submission.title,
-                    related_submission=review_request.submission
-                )
-
-                # Add recipients
-                message.recipients.add(review_request.requested_by)
-                
-                # CC the PI if different from requester
-                if (review_request.submission.primary_investigator != 
-                    review_request.requested_by):
-                    message.cc.add(review_request.submission.primary_investigator)
-
-                # Check if all required reviews are completed
-                all_reviews_completed = check_all_reviews_completed(
-                    review_request.submission
-                )
-
-                if all_reviews_completed:
-                    # Update submission status
-                    update_submission_after_reviews(
-                        review_request.submission, 
-                        request
-                    )
-
-                messages.success(request, "Review submitted successfully.")
-                return redirect('review:review_dashboard')
-
-    except ValueError as e:
-        messages.error(request, str(e))
-    except Exception as e:
-        messages.error(request, f"Error submitting review: {str(e)}")
-
-    # Render form for GET or if there were errors
-    context = {
-        'review_request': review_request,
-        'forms': [
-            FormForForm(form, prefix=f'form_{form.id}')
-            for form in review_request.selected_forms.all()
-        ]
-    }
-    return render(request, 'review/submit_review.html', context)
-
-def check_all_reviews_completed(submission):
-    """Check if all required reviews for a submission are completed."""
-    pending_reviews = ReviewRequest.objects.filter(
-        submission=submission,
-        status__in=['pending', 'accepted']
-    ).exists()
-    
-    return not pending_reviews
+######################
+# Update Submission
+######################
 
 def update_submission_after_reviews(submission, request):
     """Update submission status after all reviews are completed."""
@@ -681,7 +699,9 @@ Completed: {review.date_submitted.strftime('%Y-%m-%d %H:%M')}
     
     return "\n\n".join(summary)
 
-# review/views.py
+######################
+# Review Summary
+######################
 
 @login_required
 def review_summary(request, submission_id):
@@ -713,6 +733,10 @@ def review_summary(request, submission_id):
         'can_make_decision': request.user.groups.filter(name='IRB Coordinator').exists()
     }
     return render(request, 'review/review_summary.html', context)
+
+######################
+# Process Decision
+######################
 
 @login_required
 def process_irb_decision(request, submission_id):
@@ -807,6 +831,10 @@ AIDI System
     }
     return render(request, 'review/process_decision.html', context)
 
+######################
+# Generate IRB Number
+######################
+
 def generate_irb_number(submission):
     """Generate a unique IRB number for approved submissions."""
     year = timezone.now().year
@@ -821,14 +849,9 @@ def generate_irb_number(submission):
 
 
 
-# submission/views.py
-
-
-
-
-
-
-# review/views.py
+######################
+# Forward Review
+######################
 
 @login_required
 def forward_review(request, review_request_id):
@@ -928,6 +951,10 @@ Best regards,
     }
     return render(request, 'review/forward_review.html', context)
 
+######################
+# Get Available Reviewers
+######################
+
 def get_available_reviewers(user, submission):
     """Get available reviewers based on user's role."""
     if user.groups.filter(name='OSAR Coordinator').exists():
@@ -963,3 +990,18 @@ def get_available_reviewers(user, submission):
         ).select_related('userprofile')
     
     return User.objects.none()
+
+######################
+# Submission Versions
+######################
+
+def submission_versions(request, submission_id):
+    submission = get_object_or_404(Submission, pk=submission_id)
+    histories = submission.version_histories.order_by('-version')
+    
+    return render(request, 'review/submission_versions.html', {
+        'submission': submission,
+        'histories': histories,
+    })
+
+
