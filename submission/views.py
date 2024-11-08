@@ -568,7 +568,7 @@ Dear {submission.primary_investigator.userprofile.full_name},
 Your submission (ID: {submission.temporary_id}) has been successfully submitted.
 Please find the attached PDF for your records.
 
-Your submission will be reviewed by the OSAR coordinator who will direct it to the appropriate review bodies.
+Your submission will be reviewed by the OSAR who will direct it to the appropriate review bodies.
 
 Best regards,
 AIDI System
@@ -583,9 +583,9 @@ AIDI System
                         attachment = MessageAttachment(message=pi_message)
                         attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
 
-                        # Notify OSAR coordinator
+                        # Notify OSAR
                         osar_coordinators = User.objects.filter(
-                            groups__name='OSAR Coordinator'
+                            groups__name='OSAR'
                         )
                         
                         osar_notification = Message.objects.create(
@@ -619,7 +619,7 @@ AIDI System
                         # submission.version = 2  # Next version will be 2
                         # submission.save()
 
-                        messages.success(request, 'Submission has been finalized and sent to OSAR coordinator.')
+                        messages.success(request, 'Submission has been finalized and sent to OSAR.')
                         return redirect('submission:dashboard')
 
                 except Exception as e:

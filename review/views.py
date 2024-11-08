@@ -49,8 +49,16 @@ class ReviewDashboardView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
-        # Get submissions needing review (for OSAR Coordinators)
-        if user.groups.filter(name='OSAR Coordinator').exists():
+        # Add group membership checks to context
+        context.update({
+            'is_osar_member': user.groups.filter(name='OSAR').exists(),
+            'is_irb_member': user.groups.filter(name='IRB').exists(),
+            'is_rc_member': user.groups.filter(name='RC').exists(),
+            'is_aahrpp_member': user.groups.filter(name='AAHRPP').exists(),
+        })
+
+        # Get submissions needing review (for OSAR members)
+        if context['is_osar_member']:
             submissions_needing_review = Submission.objects.filter(
                 status='submitted'
             # ).exclude(

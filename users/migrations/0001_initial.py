@@ -128,7 +128,7 @@ class Migration(migrations.Migration):
                                 "Research Assistant/Coordinator",
                             ),
                             ("OSAR head", "OSAR head"),
-                            ("OSAR coordinator", "OSAR coordinator"),
+                            ("OSAR", "OSAR"),
                             ("IRB chair", "IRB chair"),
                             ("RC coordinator", "RC coordinator"),
                             ("IRB member", "IRB member"),

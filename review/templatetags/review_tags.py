@@ -18,7 +18,7 @@ def get_user_name(user_id):
 def get_reviewer_role(user):
     """Get primary role of a reviewer."""
     role_hierarchy = [
-        'OSAR Coordinator',
+        'OSAR',
         'IRB Head',
         'Research Council Head',
         'AHARPP Head',

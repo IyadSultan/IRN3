@@ -1,6 +1,7 @@
 # submission/utils/helpers.py
 
 def has_edit_permission(user, submission):
+
     """Check if user has permission to edit the submission."""
     if user == submission.primary_investigator:
         return True
@@ -12,6 +13,12 @@ def has_edit_permission(user, submission):
     # Check if user is a research assistant with edit permission
     if submission.research_assistants.filter(user=user, can_edit=True).exists():
         return True
+    
+    # Check if user is the one who requested the review
+    if submission.review_requests.filter(requested_by=user).first() or\
+    submission.review_requests.filter(requested_to=user).first():
+        return True
+
         
     return False
 

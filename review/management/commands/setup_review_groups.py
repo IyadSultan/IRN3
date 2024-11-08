@@ -6,7 +6,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         required_groups = [
-            'OSAR Coordinator',
+            'OSAR',
             'IRB Chair',
             'RC Chair',
             'AHARRP Head'

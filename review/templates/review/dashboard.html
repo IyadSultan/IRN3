@@ -1,177 +1,309 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block content %}
-<div class="container">
-    <h2>Review Dashboard</h2>
+{% block extra_css %}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.3/css/buttons.bootstrap4.min.css">
+{% endblock %}
 
-    {% if user.groups.all.0.name == 'OSAR Coordinator' %}
+{% block content %}
+
+<div class="container">
+    <h2 class="mb-4">Review Dashboard</h2>
+
+    {# OSAR Member Dashboard #}
+    {% if is_osar_member %}
     <div class="card mb-4">
         <div class="card-header">
-            <h3>Submissions Needing Review</h3>
+            <h3 class="card-title mb-0">Submissions Needing Review</h3>
         </div>
         <div class="card-body">
             {% if submissions_needing_review %}
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Title</th>
-                            <th>Primary Investigator</th>
-                            <th>Study Type</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for submission in submissions_needing_review %}
-                        <tr>
-                            <td>{{ submission.title }}</td>
-                            <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
-                            <td>{{ submission.study_type }}</td>
-                            <td>
-                                <a href="{% url 'review:create_review_request' submission.pk %}" 
-                                   class="btn btn-primary btn-sm">
-                                    Create Review Request
-                                </a>
-                                <a href="{% url 'review:review_summary' submission.pk %}" 
-                                    class="btn btn-info btn-sm">
-                                    History
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table id="submissionsNeedingReviewTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Primary Investigator</th>
+                                <th>Study Type</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for submission in submissions_needing_review %}
+                            <tr>
+                                <td>{{ submission.title }}</td>
+                                <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ submission.study_type }}</td>
+                                <td>
+                                    <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-info btn-sm">History</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             {% else %}
-                <p>No submissions currently need review.</p>
+                <p class="mb-0">No submissions currently need review.</p>
             {% endif %}
         </div>
     </div>
     {% endif %}
 
-    <!-- Pending Reviews Section -->
+    {# IRB Member Dashboard #}
+    {% if is_irb_member %}
     <div class="card mb-4">
         <div class="card-header">
-            <h3>Pending Reviews</h3>
+            <h3 class="card-title mb-0">Pending IRB Decisions</h3>
+        </div>
+        <div class="card-body">
+            {% if pending_irb_decisions %}
+                <div class="table-responsive">
+                    <table id="pendingIRBDecisionsTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Primary Investigator</th>
+                                <th>Reviews Completed</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for submission in pending_irb_decisions %}
+                            <tr>
+                                <td>{{ submission.title }}</td>
+                                <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ submission.completed_reviews_count }}/{{ submission.total_reviews_count }}</td>
+                                <td>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-info btn-sm">View Reviews</a>
+                                    <a href="{% url 'review:process_decision' submission.pk %}" class="btn btn-primary btn-sm">Make Decision</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="mb-0">No submissions pending IRB decision.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# RC Member Dashboard #}
+    {% if is_rc_member %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title mb-0">My Department's Submissions</h3>
+        </div>
+        <div class="card-body">
+            {% if department_submissions %}
+                <div class="table-responsive">
+                    <table id="departmentSubmissionsTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Primary Investigator</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for submission in department_submissions %}
+                            <tr>
+                                <td>{{ submission.title }}</td>
+                                <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ submission.status }}</td>
+                                <td>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-info btn-sm">View Details</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="mb-0">No submissions in your department.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# AAHRPP Member Dashboard #}
+    {% if is_aahrpp_member %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title mb-0">AAHRPP Review Queue</h3>
+        </div>
+        <div class="card-body">
+            {% if aahrpp_submissions %}
+                <div class="table-responsive">
+                    <table id="aahrppSubmissionsTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Primary Investigator</th>
+                                <th>Submission Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for submission in aahrpp_submissions %}
+                            <tr>
+                                <td>{{ submission.title }}</td>
+                                <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ submission.created_at|date:"M d, Y" }}</td>
+                                <td>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-info btn-sm">Review</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="mb-0">No submissions requiring AAHRPP review.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# Common Section for All Users - Pending Reviews #}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title mb-0">My Pending Reviews</h3>
         </div>
         <div class="card-body">
             {% if pending_reviews %}
-                <table class="table" id="pendingReviewsTable">
-                    <thead>
-                        <tr>
-                            <th>Title</th>
-                            <th>Primary Investigator</th>
-                            <th>Requested By</th>
-                            <th>Deadline</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for review in pending_reviews %}
-                        <tr>
-                            <td>{{ review.submission.title }}</td>
-                            <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
-                            <td>{{ review.requested_by.userprofile.full_name }}</td>
-                            <td>{{ review.deadline }}</td>
-                            <td>{{ review.status }}</td>
-                            <td>
-                                <a href="{% url 'review:submit_review' review.id %}" 
-                                   class="btn btn-primary btn-sm">Submit Review</a>
-                                <a href="{% url 'review:decline_review' review.id %}"
-                                   class="btn btn-danger btn-sm">Decline Review</a>
-                              
-                                <a href="{% url 'review:request_extension' review.id %}"
-                                   class="btn btn-warning btn-sm">Request Extension</a>
-                            
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table id="pendingReviewsTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Primary Investigator</th>
+                                <th>Requested By</th>
+                                <th>Deadline</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for review in pending_reviews %}
+                            <tr>
+                                <td>{{ review.submission.title }}</td>
+                                <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ review.requested_by.userprofile.full_name }}</td>
+                                <td>{{ review.deadline }}</td>
+                                <td>{{ review.status }}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        <a href="{% url 'review:submit_review' review.id %}" class="btn btn-primary btn-sm">Submit Review</a>
+                                        <a href="{% url 'review:decline_review' review.id %}" class="btn btn-danger btn-sm">Decline</a>
+                                        <a href="{% url 'review:request_extension' review.id %}" class="btn btn-warning btn-sm">Request Extension</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             {% else %}
-                <p>No pending reviews.</p>
+                <p class="mb-0">No pending reviews.</p>
             {% endif %}
         </div>
     </div>
 
-    <!-- Completed Reviews Section -->
+    {# Common Section for All Users - Completed Reviews #}
     <div class="card">
         <div class="card-header">
-            <h3>Completed Reviews</h3>
+            <h3 class="card-title mb-0">My Completed Reviews</h3>
         </div>
         <div class="card-body">
             {% if completed_reviews %}
-                <table class="table" id="completedReviewsTable">
-                    <thead>
-                        <tr>
-                            <th>Title</th>
-                            <th>Primary Investigator</th>
-                            <th>Requested By</th>
-                            <th>Completion Date</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for review in completed_reviews %}
-                        <tr>
-                            <td>{{ review.submission.title }}</td>
-                            <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
-                            <td>{{ review.requested_by.userprofile.full_name }}</td>
-                            <td>{{ review.updated_at }}</td>
-                            <td>
-                                <a href="{% url 'review:view_review' review.id %}" 
-                                   class="btn btn-info btn-sm">View Review</a>
-                                <a href="{% url 'review:download_review_pdf' review.id %}" 
-                                   class="btn btn-primary btn-sm">
-                                    <i class="fas fa-file-pdf"></i> PDF
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table id="completedReviewsTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Primary Investigator</th>
+                                <th>Requested By</th>
+                                <th>Completion Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for review in completed_reviews %}
+                            <tr>
+                                <td>{{ review.submission.title }}</td>
+                                <td>{{ review.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ review.requested_by.userprofile.full_name }}</td>
+                                <td>{{ review.updated_at }}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        <a href="{% url 'review:view_review' review.id %}" class="btn btn-info btn-sm">View Review</a>
+                                        <a href="{% url 'review:download_review_pdf' review.id %}" class="btn btn-primary btn-sm">PDF</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             {% else %}
-                <p>No completed reviews.</p>
+                <p class="mb-0">No completed reviews.</p>
             {% endif %}
         </div>
     </div>
 </div>
 
+{% endblock %}
+
 {% block page_specific_js %}
+<script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.2.3/js/dataTables.buttons.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.2.3/js/buttons.bootstrap4.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Initialize DataTable for pending reviews
-    var table = $('#pendingReviewsTable').DataTable({
-        processing: true,
-        serverSide: false, // Changed to false since we're loading all data at once
-        pageLength: 10,
-        dom: 'Bfrtip',
-        buttons: [
-            'copy', 'excel', 'csv'
-        ]
-    });
+    // Initialize DataTables for all tables
+    const tableConfigs = {
+        submissionsNeedingReview: {
+            order: [[0, 'asc']]
+        },
+        pendingIRBDecisions: {
+            order: [[2, 'desc']]
+        },
+        departmentSubmissions: {
+            order: [[2, 'asc']]
+        },
+        aahrppSubmissions: {
+            order: [[2, 'desc']]
+        },
+        pendingReviews: {
+            dom: 'Bfrtip',
+            buttons: ['copy', 'excel', 'csv'],
+            order: [[3, 'asc']]
+        },
+        completedReviews: {
+            dom: 'Bfrtip',
+            buttons: ['copy', 'excel', 'csv'],
+            order: [[3, 'desc']]
+        }
+    };
 
-    // Initialize completed reviews table
-    $('#completedReviewsTable').DataTable({
-        pageLength: 10,
-        order: [[2, 'desc']]
+    // Initialize all tables with their specific configurations
+    Object.keys(tableConfigs).forEach(tableId => {
+        const table = $(`#${tableId}Table`);
+        if (table.length) {
+            table.DataTable({
+                processing: true,
+                serverSide: false,
+                pageLength: 10,
+                ...tableConfigs[tableId]
+            });
+        }
     });
-
-    // Filter handling
-    $('#applyFilters').click(function() {
-        table.ajax.reload();
-    });
-
-    $('#resetFilters').click(function() {
-        $('#filterForm')[0].reset();
-        table.ajax.reload();
-    });
-
-    // PDF Export
-   
 });
 </script>
-{% endblock %}
 {% endblock %}

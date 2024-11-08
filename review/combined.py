@@ -844,7 +844,7 @@ from django.utils import timezone
 
 @login_required
 def review_dashboard(request):
-    """Enhanced dashboard showing role-specific views including OSAR coordinator's submissions."""
+    """Enhanced dashboard showing role-specific views including OSAR's submissions."""
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
         # Handle AJAX request for DataTables
         # Get filter parameters
@@ -946,9 +946,9 @@ def review_dashboard(request):
         'study_types': study_types,
         'status_choices': status_choices
     }
-    # Fetch submissions needing review for OSAR coordinators
+    # Fetch submissions needing review for OSARs
     
-    if request.user.groups.filter(name='OSAR Coordinator').exists():
+    if request.user.groups.filter(name='OSAR').exists():
         submissions_needing_review = Submission.objects.filter(
             status='submitted'
                 ).exclude(
@@ -1340,7 +1340,7 @@ def forward_review(request, review_request_id):
     
     # Check permissions
     if not (request.user.groups.filter(name__in=[
-        'OSAR Coordinator', 'IRB Head', 'Research Council Head', 'AHARPP Head'
+        'OSAR', 'IRB Head', 'Research Council Head', 'AHARPP Head'
     ]).exists() or review_request.can_forward):
         messages.error(request, "You don't have permission to forward review requests.")
         return redirect('review:review_dashboard')
@@ -1433,7 +1433,7 @@ Best regards,
 
 def get_available_reviewers(user, submission):
     """Get available reviewers based on user's role."""
-    if user.groups.filter(name='OSAR Coordinator').exists():
+    if user.groups.filter(name='OSAR').exists():
         # OSAR can forward to heads of different committees
         return User.objects.filter(
             groups__name__in=['IRB Head', 'Research Council Head', 'AHARPP Head']
