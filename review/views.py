@@ -183,15 +183,21 @@ class DeclineReviewView(LoginRequiredMixin, View):
 class RequestExtensionView(LoginRequiredMixin, FormView):
     template_name = 'review/request_extension.html'
 
+    def get_review_request(self, review_request_id, user):
+        review_request = get_object_or_404(ReviewRequest, pk=review_request_id)
+        if user != review_request.requested_to or review_request.status not in ['pending', 'overdue', 'extended']:
+            messages.error(self.request, "You don't have permission to request an extension for this review.")
+            return None
+        return review_request
+
     def dispatch(self, request, *args, **kwargs):
-        self.review_request = get_object_or_404(ReviewRequest, pk=kwargs['review_id'])
-        if not self.has_permission(request.user, self.review_request):
-            messages.error(request, "You don't have permission to request an extension for this review.")
+        self.review_request = self.get_review_request(kwargs['review_request_id'], request.user)
+        if not self.review_request:
             return redirect('review:review_dashboard')
         return super().dispatch(request, *args, **kwargs)
 
-    def has_permission(self, user, review_request):
-        return user == review_request.requested_to and review_request.status == 'pending'
+    def get(self, request, *args, **kwargs):
+        return render(request, self.template_name, {'review_request': self.review_request})
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

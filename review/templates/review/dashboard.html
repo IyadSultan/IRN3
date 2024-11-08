@@ -56,7 +56,7 @@
                         <tr>
                             <th>Title</th>
                             <th>Primary Investigator</th>
-                            <th>Study Type</th>
+                            <th>Requested By</th>
                             <th>Deadline</th>
                             <th>Status</th>
                             <th>Actions</th>
@@ -67,14 +67,18 @@
                         <tr>
                             <td>{{ review.submission.title }}</td>
                             <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
-                            <td>{{ review.submission.study_type }}</td>
-                            <td>{{ review.review_request.deadline }}</td>
-                            <td>{{ review.get_status_display }}</td>
+                            <td>{{ review.requested_by.userprofile.full_name }}</td>
+                            <td>{{ review.deadline }}</td>
+                            <td>{{ review.status }}</td>
                             <td>
                                 <a href="{% url 'review:submit_review' review.id %}" 
                                    class="btn btn-primary btn-sm">Submit Review</a>
                                 <a href="{% url 'review:decline_review' review.id %}"
                                    class="btn btn-danger btn-sm">Decline Review</a>
+                              
+                                <a href="{% url 'review:request_extension' review.id %}"
+                                   class="btn btn-warning btn-sm">Request Extension</a>
+                            
                             </td>
                         </tr>
                         {% endfor %}
