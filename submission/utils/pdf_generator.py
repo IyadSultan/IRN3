@@ -133,11 +133,11 @@ class PDFGenerator:
         self.write_wrapped_text(f"Primary Investigator: {self.submission.primary_investigator.get_full_name()}")
         
         # Co-Investigators with their roles
-        coinvestigators = CoInvestigator.objects.filter(submission=self.submission)
-        if coinvestigators:
+        co_investigators = self.submission.coinvestigators.all()
+        if co_investigators:
             self.y -= self.line_height/2
             self.write_wrapped_text("Co-Investigators:")
-            for ci in coinvestigators:
+            for ci in co_investigators:
                 # Get all roles for this co-investigator
                 roles = ", ".join([role.name for role in ci.roles.all()])
                 
@@ -160,7 +160,7 @@ class PDFGenerator:
                 self.write_wrapped_text(co_inv_info, x_offset=20)
 
         # Research Assistants with their permissions
-        research_assistants = self.submission.researchassistant_set.all()
+        research_assistants = self.submission.research_assistants.all()
         if research_assistants:
             self.y -= self.line_height/2
             self.write_wrapped_text("Research Assistants:")

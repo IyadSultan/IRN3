@@ -444,32 +444,45 @@ class ReviewSummaryView(LoginRequiredMixin, TemplateView):
     template_name = 'review/review_summary.html'
 
     def dispatch(self, request, *args, **kwargs):
-        self.submission = get_object_or_404(Submission, pk=kwargs['submission_id'])
+        self.submission = get_object_or_404(
+            Submission.objects.prefetch_related('version_histories'),
+            pk=kwargs['submission_id']
+        )
         if not self.has_permission(request.user, self.submission):
             messages.error(request, "You don't have permission to view this review summary.")
             return redirect('submission:dashboard')
         return super().dispatch(request, *args, **kwargs)
 
     def has_permission(self, user, submission):
-        return user == submission.primary_investigator or \
-               user.groups.filter(name='IRB Coordinator').exists() or \
-               submission.review_requests.filter(requested_by=user).exists()
+        # Check if user is requested_by or requested_to on any review request
+        is_requested_by = submission.review_requests.filter(requested_by=user).exists()
+        is_requested_to = submission.review_requests.filter(requested_to=user).exists()
+        return is_requested_by or is_requested_to
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        reviews = Review.objects.filter(
+        review_requests = ReviewRequest.objects.filter(
             submission=self.submission
         ).select_related(
-            'reviewer__userprofile',
-            'review_request'
+            'requested_to__userprofile',
+            'requested_by__userprofile'
         ).prefetch_related(
-            'formresponse_set__form'
-        ).order_by('date_submitted')
+            'review_set',
+            'review_set__formresponse_set__form'
+        )
+
+        # Get version histories ordered by version number
+        version_histories = self.submission.version_histories.all().order_by('-version')
+
+        # Check if user can download PDFs
+        can_download_pdf = True
 
         context.update({
             'submission': self.submission,
-            'reviews': reviews,
-            'can_make_decision': self.request.user.groups.filter(name='IRB Coordinator').exists()
+            'review_requests': review_requests,
+            'version_histories': version_histories,
+            'can_make_decision': self.request.user.groups.filter(name='IRB Coordinator').exists(),
+            'can_download_pdf': can_download_pdf
         })
         return context
 

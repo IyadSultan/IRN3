@@ -77,7 +77,11 @@ from django.contrib.auth.models import User
 from users.models import Role  # Add this import
 
 class CoInvestigator(models.Model):
-    submission = models.ForeignKey('Submission', on_delete=models.CASCADE)
+    submission = models.ForeignKey(
+        'Submission', 
+        related_name='coinvestigators',  # Add this related_name
+        on_delete=models.CASCADE
+    )
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     roles = models.ManyToManyField(Role, related_name='coinvestigators')
     can_edit = models.BooleanField(default=False)
@@ -96,7 +100,11 @@ from django.db import models
 from django.contrib.auth.models import User
 
 class ResearchAssistant(models.Model):
-    submission = models.ForeignKey('Submission', on_delete=models.CASCADE)
+    submission = models.ForeignKey(
+        'Submission',
+        related_name='research_assistants',  # Add this related_name
+        on_delete=models.CASCADE
+    )
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     can_edit = models.BooleanField(default=False)
     can_submit = models.BooleanField(default=False)
