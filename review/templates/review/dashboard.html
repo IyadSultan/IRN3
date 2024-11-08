@@ -156,16 +156,7 @@ $(document).ready(function() {
     });
 
     // PDF Export
-    $('#exportPDF').click(function() {
-        let params = new URLSearchParams({
-            export: 'pdf',
-            status: $('#status').val(),
-            study_type: $('#study_type').val(),
-            date_from: $('#date_from').val(),
-            date_to: $('#date_to').val()
-        });
-        window.location.href = window.location.href + '?' + params.toString();
-    });
+   
 });
 </script>
 {% endblock %}

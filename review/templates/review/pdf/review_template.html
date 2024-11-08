@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .section {
+            margin: 15px 0;
+        }
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .field {
+            margin: 5px 0;
+        }
+        .field-label {
+            font-weight: bold;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 9px;
+            text-align: center;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">Review Report</div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Submission Information</div>
+        <div class="field">
+            <span class="field-label">Title:</span> {{ review.review_request.submission.title }}
+        </div>
+        <div class="field">
+            <span class="field-label">Primary Investigator:</span> {{ review.review_request.submission.primary_investigator.userprofile.full_name }}
+        </div>
+        <div class="field">
+            <span class="field-label">Study Type:</span> {{ review.review_request.submission.study_type }}
+        </div>
+        <div class="field">
+            <span class="field-label">IRB Number:</span> {{ review.review_request.submission.irb_number|default:"Not provided" }}
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Review Details</div>
+        <div class="field">
+            <span class="field-label">Reviewer:</span> {{ review.reviewer.userprofile.full_name }}
+        </div>
+        <div class="field">
+            <span class="field-label">Status:</span> {{ review.is_completed|yesno:"Completed,In Progress" }}
+        </div>
+        <div class="field">
+            <span class="field-label">Date Submitted:</span> {{ review.date_submitted|date:"Y-m-d H:i"|default:"Not submitted" }}
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Form Responses</div>
+        {% for form_response in review.formresponse_set.all %}
+            <div class="field">
+                <div class="field-label">{{ form_response.form.name }}</div>
+                {% for field_name, value in form_response.response_data.items %}
+                    <div style="margin-left: 20px;">
+                        <strong>{{ field_name }}:</strong>
+                        {% if value|length > 0 %}
+                            {% if value|first|stringformat:"s"|first == "[" %}
+                                {{ value|join:", " }}
+                            {% else %}
+                                {{ value }}
+                            {% endif %}
+                        {% else %}
+                            No response
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+
+    {% if review.comments %}
+    <div class="section">
+        <div class="section-title">Additional Comments</div>
+        <div>{{ review.comments|linebreaks }}</div>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        iRN is a property of the Artificial Intelligence and Data Innovation (AIDI) office 
+        in collaboration with the Office of Scientific Affairs (OSAR) office @ King Hussein 
+        Cancer Center, Amman - Jordan. Keep this document confidential.
+    </div>
+</body>
+</html> 

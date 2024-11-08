@@ -45,6 +45,27 @@
 
 {% block content %}
 <div class="container mt-4">
+    <!-- Header Section -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <h2 class="text-primary mb-2">{{ submission.title }}</h2>
+                    <div class="text-muted">
+                        <strong>Primary Investigator:</strong> 
+                        {{ submission.primary_investigator.get_full_name }}
+                    </div>
+                    <div class="mt-2">
+                        <span class="badge bg-info">Version {{ submission.version }}</span>
+                    </div>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Review Header -->
     <div class="card mb-4">
         <div class="card-header">
@@ -67,14 +88,11 @@
             <div class="metadata">
                 <div class="row">
                     <div class="col-md-6">
+                        
                         <div class="metadata-item">
-                            <strong>Submission:</strong> {{ submission.title }}
-                        </div>
-                        <div class="metadata-item">
-                            <strong>Version:</strong> {{ review.submission_version }}
-                        </div>
-                        <div class="metadata-item">
-                            <strong>Reviewer:</strong> {{ review.reviewer.userprofile.full_name }}
+                            
+                                <strong>Reviewed by: {{ review.reviewer.get_full_name }}</small><br>
+                                                          
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -89,6 +107,9 @@
                         </div>
                         <div class="metadata-item">
                             <strong>Requested By:</strong> {{ review_request.requested_by.userprofile.full_name }}
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Requested on:</strong> {{ review_request.created_at|date:"F d, Y" }}
                         </div>
                     </div>
                 </div>
