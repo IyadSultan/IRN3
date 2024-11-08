@@ -68,7 +68,7 @@
                             <td>{{ review.submission.title }}</td>
                             <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
                             <td>{{ review.submission.study_type }}</td>
-                            <td>{{ review.deadline }}</td>
+                            <td>{{ review.review_request.deadline }}</td>
                             <td>{{ review.get_status_display }}</td>
                             <td>
                                 <a href="{% url 'review:submit_review' review.id %}" 
@@ -96,7 +96,7 @@
                         <tr>
                             <th>Title</th>
                             <th>Primary Investigator</th>
-                            <th>Study Type</th>
+                            <th>Requested By</th>
                             <th>Completion Date</th>
                             <th>Actions</th>
                         </tr>
@@ -106,11 +106,15 @@
                         <tr>
                             <td>{{ review.submission.title }}</td>
                             <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
-                            <td>{{ review.submission.study_type }}</td>
+                            <td>{{ review.requested_by.userprofile.full_name }}</td>
                             <td>{{ review.updated_at }}</td>
                             <td>
                                 <a href="{% url 'review:view_review' review.id %}" 
                                    class="btn btn-info btn-sm">View Review</a>
+                                <a href="{% url 'review:download_review_pdf' review.id %}" 
+                                   class="btn btn-primary btn-sm">
+                                    <i class="fas fa-file-pdf"></i> PDF
+                                </a>
                             </td>
                         </tr>
                         {% endfor %}
