@@ -28,7 +28,7 @@
                             <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
                             <td>{{ submission.study_type }}</td>
                             <td>
-                                <a href="{% url 'review:create_review_request' submission.id %}" 
+                                <a href="{% url 'review:create_review_request' submission.pk %}" 
                                    class="btn btn-primary btn-sm">
                                     Create Review Request
                                 </a>

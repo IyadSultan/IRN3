@@ -206,3 +206,13 @@ CACHES = {
 }
 
 DATATABLES_PAGE_LENGTH = 10
+
+# # System user settings
+# SYSTEM_EMAIL = 'aidi@khcc.jo'
+# SYSTEM_NAME = 'AIDI System'
+# SYSTEM_USERNAME = 'system'
+# You can now use these settings anywhere in your application by importing from users.settings. For example:
+
+# from users.settings import get_system_email, get_system_name
+# system_email = get_system_email()
+# system_name = get_system_name()

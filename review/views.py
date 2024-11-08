@@ -4,6 +4,7 @@
 
 from datetime import timedelta
 import json
+import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
@@ -20,6 +21,9 @@ from django import forms
 from django.http import HttpResponse
 from django.utils.text import slugify
 from datetime import datetime
+from django.core.files.base import ContentFile
+from messaging.models import Message, MessageAttachment
+from users.utils import get_system_user
 
 from .forms import ReviewRequestForm
 from .models import ReviewRequest, Review, FormResponse
@@ -29,6 +33,8 @@ from messaging.models import Message
 from submission.models import Submission
 from users.utils import get_system_user
 from .utils.pdf_generator import generate_review_pdf
+from submission.utils.pdf_generator import PDFGenerator, generate_submission_pdf
+
 
 
 ######################
@@ -114,7 +120,7 @@ class CreateReviewRequestView(LoginRequiredMixin, FormView):
         review_request = form.save(commit=False)
         review_request.submission = self.submission
         review_request.requested_by = self.request.user
-        review_request.status = 'under_review'
+        review_request.status = 'pending'
         review_request.submission_version = self.submission.version
         review_request.save()
         form.save_m2m()
@@ -169,8 +175,6 @@ class DeclineReviewView(LoginRequiredMixin, View):
                     related_submission=review_request.submission
                 )
                 message.recipients.add(review_request.requested_by)
-                if review_request.submission.primary_investigator != review_request.requested_by:
-                    message.cc.add(review_request.submission.primary_investigator)
 
                 messages.success(request, "Review request declined successfully.")
                 return redirect('review:review_dashboard')
@@ -334,6 +338,57 @@ class SubmitReviewView(LoginRequiredMixin, View):
                     review.completed_at = timezone.now()
                     self.review_request.status = 'completed'
                     self.review_request.save()
+
+                    # Generate PDF
+                    pdf_buffer = generate_review_pdf(review, self.review_request.submission, review.formresponse_set.all())
+                    
+                    if pdf_buffer:
+                        # Create notification message with PDF attachment
+                        submission_title = self.review_request.submission.title
+                        reviewer_name = request.user.get_full_name()
+                        
+                        message = Message.objects.create(
+                            sender=get_system_user(),
+                            subject=f'Review Completed - {submission_title}',
+                            body=f"""
+Dear {self.review_request.requested_by.userprofile.full_name},
+
+A review has been completed for This submission.
+
+Submission: {submission_title}
+Reviewer: {reviewer_name}
+Date Completed: {timezone.now().strftime('%Y-%m-%d %H:%M')}
+
+Please find the detailed review report attached to this message.
+
+Best regards,
+iRN System
+                            """.strip(),
+                            study_name=submission_title,
+                            related_submission=self.review_request.submission
+                        )
+                        
+                        # Add recipients
+                        message.recipients.add(self.review_request.requested_by)
+                        
+                        # Add CC recipients
+                        message.cc.add(self.review_request.requested_to)  # Add reviewer to CC
+                        
+                      
+                        # Create PDF attachment
+                        submission_title_slug = slugify(submission_title)
+                        reviewer_name_slug = slugify(reviewer_name)
+                        date_str = timezone.now().strftime('%Y_%m_%d')
+                        filename = f"review_{submission_title_slug}_{reviewer_name_slug}_{date_str}.pdf"
+                        
+                        MessageAttachment.objects.create(
+                            message=message,
+                            file=ContentFile(pdf_buffer.getvalue(), name=filename),
+                            filename=filename
+                        )
+                        
+                        pdf_buffer.close()
+                    
                     messages.success(request, "Review submitted successfully.")
                 else:
                     messages.success(request, "Review saved as draft.")
