@@ -47,7 +47,7 @@ class StatusChoice(models.Model):
 
 class Submission(models.Model):
     temporary_id = models.AutoField(primary_key=True)
-    irb_number = models.CharField(max_length=20, blank=True, null=True)
+    irb_number = models.CharField(max_length=20, blank=True, null=True, unique=True)
     title = models.CharField(max_length=255)
     primary_investigator = models.ForeignKey(
         User, related_name='primary_investigations', on_delete=models.CASCADE

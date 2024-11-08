@@ -625,3 +625,118 @@ class UserAutocompleteView(View):
         ]
         
         return JsonResponse(results, safe=False)
+
+
+######################
+# Assign IRB Number
+# URL: path('submission/<int:submission_id>/assign-irb/', AssignIRBNumberView.as_view(), name='assign_irb'),
+######################
+
+class AssignIRBNumberView(LoginRequiredMixin, View):
+    template_name = 'review/assign_irb_number.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.groups.filter(name='IRB').exists():
+            messages.error(request, "You don't have permission to assign IRB numbers.")
+            return redirect('review:review_dashboard')
+        
+        self.submission = get_object_or_404(Submission, pk=kwargs['submission_id'])
+        if self.submission.irb_number:
+            messages.warning(request, "This submission already has an IRB number.")
+            return redirect('review:review_summary', submission_id=self.submission.id)
+            
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        context = {
+            'submission': self.submission,
+            'suggested_irb': self._generate_irb_number()
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request, *args, **kwargs):
+        irb_number = request.POST.get('irb_number', '').strip()
+        
+        if not irb_number:
+            messages.error(request, "IRB number is required.")
+            return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
+
+        # Check uniqueness
+        if Submission.objects.filter(irb_number=irb_number).exists():
+            messages.error(request, "This IRB number is already in use. Please try another.")
+            return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
+
+        try:
+            with transaction.atomic():
+                self.submission.irb_number = irb_number
+                self.submission.save()
+
+                # Get all users who need to be notified
+                users_to_notify = set([self.submission.primary_investigator])
+                
+                # Add research assistants with submit privilege
+                users_to_notify.update(
+                    self.submission.research_assistants.filter(
+                        can_submit=True
+                    ).values_list('user', flat=True)
+                )
+                
+                # Add co-investigators with submit privilege
+                users_to_notify.update(
+                    self.submission.coinvestigators.filter(
+                        can_submit=True
+                    ).values_list('user', flat=True)
+                )
+
+                # Send notification to each user
+                system_user = get_system_user()
+                message_content = f"""
+                An IRB number has been assigned to the submission "{self.submission.title}".
+                IRB Number: {irb_number}
+                """
+
+                for user in users_to_notify:
+                    print("Debug - System User:", system_user)
+                    print("Debug - Users to notify:", users_to_notify)
+                    print("Debug - Message fields available:", [field.name for field in Message._meta.get_fields()])
+                    print("Debug - Message content:", message_content)
+                    try:
+                        print(f"Debug - Creating message for user: {user}")
+                        message = Message.objects.create(
+                            sender=system_user,
+                            body=message_content,
+                            subject=f"IRB Number Assigned - {self.submission.title}",
+                            related_submission=self.submission
+                        )
+                        message.recipients.set([user])  # Use set() method for many-to-many relationship
+                        print(f"Debug - Message created successfully: {message}")
+                    except Exception as e:
+                        print(f"Debug - Message creation error: {str(e)}")
+                        print(f"Debug - Error type: {type(e)}")
+                        raise  # Re-raise the exception to trigger the outer error handling
+
+                messages.success(request, f"IRB number {irb_number} has been assigned successfully.")
+                return redirect('review:review_summary', submission_id=self.submission.temporary_id)
+
+        except Exception as e:
+            messages.error(request, f"Error assigning IRB number: {str(e)}")
+            return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
+
+    def _generate_irb_number(self):
+        """Generate a suggested IRB number format: YYYY-XXX"""
+        year = timezone.now().year
+        
+        # Get the highest number for this year
+        latest_irb = Submission.objects.filter(
+            irb_number__startswith=f"{year}-"
+        ).order_by('-irb_number').first()
+
+        if latest_irb and latest_irb.irb_number:
+            try:
+                number = int(latest_irb.irb_number.split('-')[1]) + 1
+            except (IndexError, ValueError):
+                number = 1
+        else:
+            number = 1
+
+        return f"{year}-{number:03d}"
