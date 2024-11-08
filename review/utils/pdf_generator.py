@@ -13,112 +13,151 @@ from reportlab.platypus import (
     TableStyle, PageBreak
 )
 from io import BytesIO
+import logging
+from reportlab.lib.utils import simpleSplit
+from django.utils import timezone
 
-def generate_review_dashboard_pdf(pending_reviews, completed_reviews, user, as_buffer=False):
-    """
-    Generate PDF for review dashboard using ReportLab
-    
-    Args:
-        pending_reviews: QuerySet of pending reviews
-        completed_reviews: QuerySet of completed reviews
-        user: The user requesting the PDF
-        as_buffer: If True, return BytesIO buffer instead of HttpResponse
-    """
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=letter,
-        rightMargin=72,
-        leftMargin=72,
-        topMargin=72,
-        bottomMargin=72
-    )
+logger = logging.getLogger(__name__)
 
-    # Styles
-    styles = getSampleStyleSheet()
-    title_style = styles['Heading1']
-    subtitle_style = styles['Heading2']
-    normal_style = styles['Normal']
-    
-    # Custom table style
-    table_style = TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 14),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 12),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey])
-    ])
+class ReviewPDFGenerator:
+    def __init__(self, buffer, review, submission, form_responses):
+        """Initialize the PDF generator with basic settings"""
+        self.buffer = buffer
+        self.review = review
+        self.submission = submission
+        self.form_responses = form_responses
+        self.canvas = canvas.Canvas(buffer, pagesize=letter)
+        self.y = 750  # Starting y position
+        self.line_height = 20
+        self.page_width = letter[0]
+        self.left_margin = 100
+        self.right_margin = 500
+        self.min_y = 100  # Minimum y position before new page
 
-    # Build document content
-    elements = []
+    def add_header(self):
+        """Add header to the current page"""
+        self.canvas.setFont("Helvetica-Bold", 16)
+        self.canvas.drawString(self.left_margin, self.y, "Intelligent Research Navigator (iRN) Review Report")
+        self.y -= self.line_height * 1.5
+        
+        self.canvas.setFont("Helvetica-Bold", 14)
+        self.canvas.drawString(self.left_margin, self.y, f"Review for: {self.submission.title}")
+        self.y -= self.line_height * 1.5
+        
+        self.canvas.setFont("Helvetica", 10)
+        self.canvas.drawString(self.left_margin, self.y, f"Date of printing: {timezone.now().strftime('%Y-%m-%d %H:%M')}")
+        self.y -= self.line_height
+        self.canvas.drawString(self.left_margin, self.y, f"Reviewer: {self.review.reviewer.get_full_name()}")
+        self.y -= self.line_height * 2
 
-    # Title
-    elements.append(Paragraph('Review Dashboard', title_style))
-    elements.append(Spacer(1, 20))
-    elements.append(Paragraph(f'Generated for: {user.userprofile.full_name}', subtitle_style))
-    elements.append(Spacer(1, 20))
+    def add_footer(self):
+        """Add footer to the current page"""
+        footer_text = (
+            "iRN is a property of the Artificial Intelligence and Data Innovation (AIDI) office "
+            "in collaboration with the Office of Scientific Affairs (OSAR) office @ King Hussein "
+            "Cancer Center, Amman - Jordan. Keep this document confidential."
+        )
+        
+        self.canvas.setFont("Helvetica", 8)
+        text_object = self.canvas.beginText()
+        text_object.setTextOrigin(self.left_margin, 50)
+        
+        wrapped_text = simpleSplit(footer_text, "Helvetica", 8, self.right_margin - self.left_margin)
+        for line in wrapped_text:
+            text_object.textLine(line)
+        
+        self.canvas.drawText(text_object)
 
-    # Pending Reviews Section
-    elements.append(Paragraph('Pending Reviews', subtitle_style))
-    elements.append(Spacer(1, 12))
+    def check_page_break(self):
+        """Check if we need a new page and create one if necessary"""
+        if self.y < self.min_y:
+            self.add_footer()
+            self.canvas.showPage()
+            self.y = 750
+            self.add_header()
+            return True
+        return False
 
-    # Pending Reviews Table
-    pending_data = [['Title', 'Primary Investigator', 'Study Type', 'Deadline', 'Status', 'Days Remaining']]
-    for review in pending_reviews:
-        pending_data.append([
-            review.submission.title,
-            review.submission.primary_investigator.userprofile.full_name,
-            review.submission.study_type.name,
-            review.deadline.strftime('%Y-%m-%d'),
-            review.get_status_display(),
-            str(review.days_until_deadline)
-        ])
-    
-    pending_table = Table(pending_data)
-    pending_table.setStyle(table_style)
-    elements.append(pending_table)
-    elements.append(Spacer(1, 30))
+    def write_wrapped_text(self, text, x_offset=0, bold=False):
+        """Write text with word wrapping"""
+        if bold:
+            self.canvas.setFont("Helvetica-Bold", 10)
+        else:
+            self.canvas.setFont("Helvetica", 10)
+            
+        wrapped_text = simpleSplit(str(text), "Helvetica", 10, self.right_margin - (self.left_margin + x_offset))
+        for line in wrapped_text:
+            self.check_page_break()
+            self.canvas.drawString(self.left_margin + x_offset, self.y, line)
+            self.y -= self.line_height
 
-    # Add page break before completed reviews
-    elements.append(PageBreak())
+    def add_section_header(self, text):
+        """Add a section header"""
+        self.check_page_break()
+        self.y -= self.line_height
+        self.canvas.setFont("Helvetica-Bold", 12)
+        self.canvas.drawString(self.left_margin, self.y, text)
+        self.y -= self.line_height
 
-    # Completed Reviews Section
-    elements.append(Paragraph('Completed Reviews', subtitle_style))
-    elements.append(Spacer(1, 12))
+    def add_review_info(self):
+        """Add basic review information"""
+        self.add_section_header("Review Information")
+        
+        review_info = [
+            f"Submission ID: {self.submission.temporary_id}",
+            f"Submission Version: {self.review.submission_version}",
+            f"Review Status: {self.review.review_request.get_status_display()}",
+            f"Date Submitted: {self.review.date_submitted.strftime('%Y-%m-%d') if self.review.date_submitted else 'Not submitted'}",
+            f"Reviewer: {self.review.reviewer.get_full_name()}",
+            f"Requested By: {self.review.review_request.requested_by.get_full_name()}"
+        ]
 
-    # Completed Reviews Table
-    completed_data = [['Title', 'Primary Investigator', 'Study Type', 'Submitted On']]
-    for review in completed_reviews:
-        completed_data.append([
-            review.submission.title,
-            review.submission.primary_investigator.userprofile.full_name,
-            review.submission.study_type.name,
-            review.date_submitted.strftime('%Y-%m-%d')
-        ])
-    
-    completed_table = Table(completed_data)
-    completed_table.setStyle(table_style)
-    elements.append(completed_table)
+        for info in review_info:
+            self.write_wrapped_text(info)
 
-    # Build PDF
-    doc.build(elements)
+    def add_form_responses(self):
+        """Add form responses"""
+        for response in self.form_responses:
+            self.add_section_header(f"Form: {response.form.name}")
+            
+            for field_name, field_value in response.response_data.items():
+                self.write_wrapped_text(f"{field_name}:", bold=True)
+                self.write_wrapped_text(str(field_value), x_offset=20)
+                self.y -= self.line_height/2
 
-    if as_buffer:
+    def add_comments(self):
+        """Add reviewer comments"""
+        if self.review.comments:
+            self.add_section_header("Additional Comments")
+            self.write_wrapped_text(self.review.comments)
+
+    def generate(self):
+        """Generate the complete PDF"""
+        try:
+            self.add_header()
+            self.add_review_info()
+            self.add_form_responses()
+            self.add_comments()
+            self.add_footer()
+            self.canvas.save()
+        except Exception as e:
+            logger.error(f"Error generating review PDF: {str(e)}")
+            logger.error("PDF generation error details:", exc_info=True)
+            raise
+
+def generate_review_pdf(review, submission, form_responses):
+    """Generate PDF for a review"""
+    try:
+        logger.info(f"Generating PDF for review of submission {submission.temporary_id}")
+        
+        buffer = BytesIO()
+        pdf_generator = ReviewPDFGenerator(buffer, review, submission, form_responses)
+        pdf_generator.generate()
+        
+        buffer.seek(0)
         return buffer
-
-    # Create response
-    buffer.seek(0)
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = 'attachment; filename="review_dashboard.pdf"'
-    response.write(buffer.getvalue())
-    buffer.close()
-
-    return response
+            
+    except Exception as e:
+        logger.error(f"Error generating review PDF: {str(e)}")
+        logger.error("PDF generation error details:", exc_info=True)
+        return None

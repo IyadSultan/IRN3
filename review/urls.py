@@ -9,6 +9,7 @@ from .views import (
     ReviewSummaryView,
     ProcessIRBDecisionView,
     SubmissionVersionsView,
+    download_review_pdf,
 )
 from submission.views import user_autocomplete
 
@@ -25,5 +26,6 @@ urlpatterns = [
     path('submission/<int:submission_id>/decision/', ProcessIRBDecisionView.as_view(), name='process_decision'),
     path('user-autocomplete/', user_autocomplete, name='user-autocomplete'),
     path('submission/<int:submission_id>/versions/', SubmissionVersionsView.as_view(), name='submission_versions'),
+    path('review/<int:review_request_id>/pdf/', download_review_pdf, name='download_review_pdf'),
 
 ]

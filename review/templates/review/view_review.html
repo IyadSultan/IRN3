@@ -173,9 +173,9 @@
                         <i class="fas fa-file-pdf"></i> Download Submission Version
                     </a>
                     {% endif %}
-                    <button onclick="window.print()" class="btn btn-primary">
-                        <i class="fas fa-print"></i> Print Review
-                    </button>
+                    <a href="{% url 'review:download_review_pdf' review.review_request.id %}" class="btn btn-primary">
+                        <i class="fas fa-file-pdf"></i> Download Review PDF
+                    </a>
                 </div>
             </div>
         </div>

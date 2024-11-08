@@ -17,6 +17,9 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView, FormView
 from django import forms
+from django.http import HttpResponse
+from django.utils.text import slugify
+from datetime import datetime
 
 from .forms import ReviewRequestForm
 from .models import ReviewRequest, Review, FormResponse
@@ -25,6 +28,7 @@ from forms_builder.models import DynamicForm
 from messaging.models import Message
 from submission.models import Submission
 from users.utils import get_system_user
+from .utils.pdf_generator import generate_review_pdf
 
 
 ######################
@@ -559,3 +563,34 @@ class SubmissionVersionsView(LoginRequiredMixin, TemplateView):
             'submission': submission,
             'histories': histories,
         })
+
+def download_review_pdf(request, review_request_id):
+    review_request = get_object_or_404(ReviewRequest, id=review_request_id)
+    review = get_object_or_404(
+        Review.objects.select_related(
+            'review_request',
+            'reviewer__userprofile',
+            'submission',
+            'submission__primary_investigator'
+        ),
+        review_request=review_request
+    )
+    
+    submission = review.submission
+    form_responses = review.formresponse_set.all()
+    
+    # Create snake_case filename
+    submission_title = slugify(submission.title).replace('-', '_')
+    reviewer_name = slugify(review.reviewer.get_full_name()).replace('-', '_')
+    date_str = datetime.now().strftime('%Y_%m_%d')
+    
+    filename = f"{submission_title}_{reviewer_name}_{date_str}.pdf"
+    
+    buffer = generate_review_pdf(review, submission, form_responses)
+    
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response.write(buffer.getvalue())
+    buffer.close()
+    
+    return response
