@@ -28,11 +28,12 @@ class ReviewRequestForm(forms.ModelForm):
 
     class Meta:
         model = ReviewRequest
-        fields = ['requested_to', 'deadline', 'message', 'selected_forms']
+        fields = ['requested_to', 'deadline', 'message', 'selected_forms', 'can_forward']
         widgets = {
             'deadline': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'message': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
-            'selected_forms': forms.SelectMultiple(attrs={'class': 'form-control'})
+            'selected_forms': forms.SelectMultiple(attrs={'class': 'form-control'}),
+            'can_forward': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
     def __init__(self, *args, study_type=None, **kwargs):

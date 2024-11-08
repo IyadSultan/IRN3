@@ -92,6 +92,16 @@ class ReviewRequest(models.Model):
     def days_until_deadline(self):
         return (self.deadline - timezone.now().date()).days
 
+    @property
+    def has_forwarded_requests(self):
+        """Check if this review request has any child requests (has been forwarded)"""
+        return self.child_requests.exists()
+
+    @property
+    def forward_count(self):
+        """Return the number of times this request has been forwarded"""
+        return self.child_requests.count()
+
     def save(self, *args, **kwargs):
         # Ensure submission_version is an integer
         if isinstance(self.submission_version, datetime):

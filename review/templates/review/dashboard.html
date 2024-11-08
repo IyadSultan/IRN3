@@ -5,6 +5,18 @@
 {% block extra_css %}
 <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
 <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.3/css/buttons.bootstrap4.min.css">
+<style>
+    .btn-green {
+        background-color: #28a745;
+        border-color: #28a745;
+        color: #fff;
+    }
+    .btn-green:hover {
+        background-color: #218838;
+        border-color: #1e7e34;
+        color: #fff;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -97,7 +109,7 @@
                                 </td>
                                 <td>
                                     <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
-                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-info btn-sm">History</a>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -106,6 +118,75 @@
                 </div>
             {% else %}
                 <p class="mb-0">No submissions currently need review.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# Forwarded Reviews Dashboard #}
+    {% if forwarded_reviews %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title mb-0">Forwarded Reviews</h3>
+        </div>
+        <div class="card-body">
+            {% if forwarded_reviews %}
+                <div class="table-responsive">
+                    <table id="forwardedReviewsTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Submission Date</th>
+                                <th>Primary Investigator</th>
+                                <th>Study Type</th>
+                                <th>Requested by</th>
+                                <th>Days</th>
+                                <th>✅</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for review in forwarded_reviews %}
+                            <tr>
+                                <td>{{ review.submission.title }}</td>
+                                <td>{{ review.submission.date_submitted|date:"Y-m-d" }}</td>
+                                <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ review.submission.study_type }}</td>
+                                <td>
+                                    <strong>
+                                        <a href="{% url 'messaging:compose' %}?recipient={{ review.requested_by.id }}&submission={{ review.submission.id }}" 
+                                           class="text-primary text-decoration-none">
+                                            {{ review.requested_by.get_full_name }}
+                                        </a>
+                                    </strong>
+                                </td>
+                                <td>
+                                    {% with days=review.created_at|timesince_in_days %}
+                                        {{ days }}
+                                    {% endwith %}
+                                </td>
+                                <td>
+                                    {% if review.status == 'completed' %}
+                                        <span class="text-success">✅</span>
+                                    {% elif review.status == 'declined' %}
+                                        <span class="text-danger">❌</span>
+                                    {% elif review.status == 'pending' %}
+                                        <span class="text-warning">⏳</span>
+                                    {% else %}
+                                        <span class="text-secondary">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'review:create_review_request' review.submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
+                                    <a href="{% url 'review:review_summary' review.submission.pk %}" class="btn btn-success btn-sm">Details</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="mb-0">No forwarded reviews.</p>
             {% endif %}
         </div>
     </div>
@@ -195,7 +276,7 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-info btn-sm">View Reviews</a>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
                                     <a href="{% url 'review:process_decision' submission.pk %}" class="btn btn-primary btn-sm">Make Decision</a>
                                 </td>
                             </tr>
@@ -294,7 +375,7 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-info btn-sm">View Details</a>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -392,7 +473,8 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-info btn-sm">Review</a>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
+                                    <a href="{% url 'review:review' submission.pk %}" class="btn btn-primary btn-sm">Review</a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -438,6 +520,7 @@
                                         <a href="{% url 'review:submit_review' review.id %}" class="btn btn-primary btn-sm">Submit Review</a>
                                         <a href="{% url 'review:decline_review' review.id %}" class="btn btn-danger btn-sm">Decline</a>
                                         <a href="{% url 'review:request_extension' review.id %}" class="btn btn-warning btn-sm">Request Extension</a>
+                                        <a href="{% url 'review:review_summary' review.submission.pk %}" class="btn btn-success btn-sm">Details</a>
                                     </div>
                                 </td>
                             </tr>
@@ -480,6 +563,7 @@
                                     <div class="btn-group">
                                         <a href="{% url 'review:view_review' review.id %}" class="btn btn-info btn-sm">View Review</a>
                                         <a href="{% url 'review:download_review_pdf' review.id %}" class="btn btn-primary btn-sm">PDF</a>
+                                        <a href="{% url 'review:review_summary' review.submission.pk %}" class="btn btn-success btn-sm">Details</a>
                                     </div>
                                 </td>
                             </tr>
@@ -506,6 +590,11 @@ $(document).ready(function() {
     // Initialize DataTables for all tables
     const tableConfigs = {
         submissionsNeedingReview: {
+            order: [[1, 'desc']]
+        },
+        forwardedReviews: {
+            dom: 'Bfrtip',
+            buttons: ['copy', 'excel', 'csv'],
             order: [[1, 'desc']]
         },
         pendingIRBDecisions: {

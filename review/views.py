@@ -71,6 +71,18 @@ class ReviewDashboardView(LoginRequiredMixin, TemplateView):
             )
             context['submissions_needing_review'] = submissions_needing_review
 
+        # Get reviews that can be forwarded
+        forwarded_reviews = ReviewRequest.objects.filter(
+            requested_to=self.request.user,
+            can_forward=True,
+        ).select_related(
+            'submission__primary_investigator__userprofile',
+            'submission__study_type',
+            'requested_by',
+            'requested_to'
+        )
+        context['forwarded_reviews'] = forwarded_reviews
+
         # Get pending reviews where user is the reviewer
         pending_reviews = ReviewRequest.objects.select_related(
             'submission__primary_investigator__userprofile',
@@ -94,7 +106,8 @@ class ReviewDashboardView(LoginRequiredMixin, TemplateView):
             status='completed'
         ).order_by('-updated_at')
         context['completed_reviews'] = completed_reviews
-
+        
+        print(forwarded_reviews)
         return context
 
 
@@ -455,19 +468,22 @@ class ReviewSummaryView(LoginRequiredMixin, TemplateView):
 
     def dispatch(self, request, *args, **kwargs):
         self.submission = get_object_or_404(
-            Submission.objects.prefetch_related('version_histories'),
+            Submission.objects.prefetch_related('version_histories', 'review_requests'),
             pk=kwargs['submission_id']
         )
         if not self.has_permission(request.user, self.submission):
             messages.error(request, "You don't have permission to view this review summary.")
-            return redirect('submission:dashboard')
+            return redirect('review:review_dashboard')
         return super().dispatch(request, *args, **kwargs)
 
     def has_permission(self, user, submission):
-        # Check if user is requested_by or requested_to on any review request
+        # Check if user is primary investigator, requested_by, or requested_to on any review request
+        is_pi = user == submission.primary_investigator
         is_requested_by = submission.review_requests.filter(requested_by=user).exists()
         is_requested_to = submission.review_requests.filter(requested_to=user).exists()
-        return is_requested_by or is_requested_to
+        is_irb_member = user.groups.filter(name='IRB').exists()
+        
+        return any([is_pi, is_requested_by, is_requested_to, is_irb_member])
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

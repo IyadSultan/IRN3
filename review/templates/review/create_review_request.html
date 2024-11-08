@@ -37,6 +37,13 @@
         </small>
     </div>
 
+    <div class="form-check mb-3">
+        {{ form.can_forward }}
+        <label class="form-check-label" for="{{ form.can_forward.id_for_label }}">
+            Allow reviewer to forward this request to others
+        </label>
+    </div>
+
     <button type="submit" class="btn btn-primary">Send Review Request</button>
 </form>
 {% endblock %}
