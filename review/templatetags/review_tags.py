@@ -2,6 +2,8 @@
 
 from django import template
 from django.contrib.auth.models import User
+from django.utils import timezone
+from datetime import datetime
 
 register = template.Library()
 
@@ -31,3 +33,15 @@ def get_reviewer_role(user):
         if user.groups.filter(name=role).exists():
             return role
     return 'Unknown Role'
+
+@register.filter
+def timesince_in_days(value):
+    if not value:
+        return 0
+    
+    if isinstance(value, str):
+        value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+    
+    now = timezone.now()
+    diff = now - value
+    return diff.days

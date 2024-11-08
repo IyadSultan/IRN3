@@ -8,6 +8,8 @@ from .models import Message, MessageReadStatus, Comment, MessageAttachment
 from .forms import MessageForm, SearchForm
 from submission.models import Submission
 from django.db.models import Count
+from django.views.generic import CreateView
+from django.contrib.auth.mixins import LoginRequiredMixin
 
 
 User = get_user_model()
@@ -225,3 +227,33 @@ def submission_autocomplete(request):
         })
 
     return JsonResponse({'results': results}, safe=False)
+
+class ComposeMessageView(LoginRequiredMixin, CreateView):
+    template_name = 'messaging/compose_message.html'
+    form_class = MessageForm
+    
+    def get_initial(self):
+        initial = super().get_initial()
+        
+        # Get URL parameters
+        recipient_id = self.request.GET.get('recipient')
+        submission_id = self.request.GET.get('submission')
+        
+        if recipient_id:
+            try:
+                recipient = User.objects.get(id=recipient_id)
+                initial['recipients'] = [{
+                    'id': recipient.id,
+                    'text': recipient.get_full_name() or recipient.email
+                }]
+            except User.DoesNotExist:
+                pass
+                
+        if submission_id:
+            try:
+                submission = Submission.objects.get(id=submission_id)
+                initial['related_submission'] = submission
+            except Submission.DoesNotExist:
+                pass
+                
+        return initial
