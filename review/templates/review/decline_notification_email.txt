@@ -1,0 +1,13 @@
+Dear {{ requested_by }},
+
+The review request for "{{ submission_title }}" has been declined by {{ decliner }}.
+
+Reason provided:
+{{ reason }}
+
+You will need to assign a different reviewer for this submission.  You can do that by going to the review_dashboard.
+
+Alternatively, you can assign the same reviewer after contacting him/her.
+
+Best regards,
+iRN System 

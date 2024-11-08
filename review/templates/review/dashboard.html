@@ -73,6 +73,8 @@
                             <td>
                                 <a href="{% url 'review:submit_review' review.id %}" 
                                    class="btn btn-primary btn-sm">Submit Review</a>
+                                <a href="{% url 'review:decline_review' review.id %}"
+                                   class="btn btn-danger btn-sm">Decline Review</a>
                             </td>
                         </tr>
                         {% endfor %}

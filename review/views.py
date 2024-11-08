@@ -53,8 +53,8 @@ class ReviewDashboardView(LoginRequiredMixin, TemplateView):
         if user.groups.filter(name='OSAR Coordinator').exists():
             submissions_needing_review = Submission.objects.filter(
                 status='submitted'
-            ).exclude(
-                review_requests__isnull=False
+            # ).exclude(
+            #     review_requests__isnull=False
             ).select_related(
                 'primary_investigator__userprofile',
                 'study_type'
@@ -132,44 +132,43 @@ class CreateReviewRequestView(LoginRequiredMixin, FormView):
 
 ######################
 # Decline Review
-# URL: path('review/<int:review_id>/decline/', DeclineReviewView.as_view(), name='decline_review'),
+# URL: path('review/<int:review_request_id>/decline/', DeclineReviewView.as_view(), name='decline_review'),
 ######################
 
 class DeclineReviewView(LoginRequiredMixin, View):
     template_name = 'review/decline_review.html'
 
-    def get(self, request, review_id):
-        review_request = self.get_review_request(review_id, request.user)
-        if not review_request:
+    def dispatch(self, request, *args, **kwargs):
+        self.review_request = self.get_review_request(kwargs['review_request_id'], request.user)
+        if not self.review_request:
             return redirect('review:review_dashboard')
-        return render(request, self.template_name, {'review_request': review_request})
+        return super().dispatch(request, *args, **kwargs)
 
-    def post(self, request, review_id):
-        review_request = self.get_review_request(review_id, request.user)
-        if not review_request:
-            return redirect('review:review_dashboard')
+    def get(self, request, *args, **kwargs):
+        return render(request, self.template_name, {'review_request': self.review_request})
 
+    def post(self, request, *args, **kwargs):
         reason = request.POST.get('reason')
         if not reason:
             messages.error(request, "Please provide a reason for declining the review.")
-            return redirect('review:decline_review', review_id=review_id)
+            return redirect('review:decline_review', review_request_id=self.review_request.id)
 
         try:
             with transaction.atomic():
-                review_request.status = 'declined'
-                review_request.conflict_of_interest_declared = True
-                review_request.conflict_of_interest_details = reason
-                review_request.save()
+                self.review_request.status = 'declined'
+                self.review_request.conflict_of_interest_declared = True
+                self.review_request.conflict_of_interest_details = reason
+                self.review_request.save()
 
-                send_review_decline_notification(review_request, request.user, reason)
+                send_review_decline_notification(self.review_request, request.user, reason)
                 messages.success(request, "Review request declined successfully.")
                 return redirect('review:review_dashboard')
         except Exception as e:
             messages.error(request, f"Error declining review: {str(e)}")
-            return redirect('review:decline_review', review_id=review_id)
+            return redirect('review:decline_review', review_request_id=self.review_request.id)
 
-    def get_review_request(self, review_id, user):
-        review_request = get_object_or_404(ReviewRequest, pk=review_id)
+    def get_review_request(self, review_request_id, user):
+        review_request = get_object_or_404(ReviewRequest, pk=review_request_id)
         if user != review_request.requested_to or review_request.status in ['completed', 'declined']:
             messages.error(self.request, "You don't have permission to decline this review.")
             return None
