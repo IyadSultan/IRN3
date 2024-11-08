@@ -8,7 +8,7 @@
 
     <div class="form-group">
         {{ form.requested_to.label_tag }}
-        {{ form.requested_to }}
+        <select name="requested_to" id="id_requested_to" class="form-control select2"></select>
         {{ form.requested_to.errors }}
         <small class="form-text text-muted">{{ form.requested_to.help_text }}</small>
     </div>
@@ -31,9 +31,59 @@
         {{ form.selected_forms.label_tag }}
         {{ form.selected_forms }}
         {{ form.selected_forms.errors }}
-        <small class="form-text text-muted">{{ form.selected_forms.help_text }}</small>
+        <small class="form-text text-muted">
+            Available forms for {{ submission.study_type.name }}. 
+            Select all applicable review forms.
+        </small>
     </div>
 
     <button type="submit" class="btn btn-primary">Send Review Request</button>
 </form>
+{% endblock %}
+
+{% block page_specific_js %}
+<script>
+    $(document).ready(function() {
+        $('#id_requested_to').select2({
+            theme: 'bootstrap4',
+            ajax: {
+                url: '{% url "submission:user-autocomplete" %}',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        term: params.term,
+                        submission_id: '{{ submission.id }}',
+                        user_type: 'reviewer'
+                    };
+                },
+                processResults: function (data) {
+                    return {
+                        results: data.map(function(item) {
+                            return {
+                                id: item.id,
+                                text: item.label
+                            };
+                        })
+                    };
+                },
+                cache: true
+            },
+            minimumInputLength: 2,
+            placeholder: 'Search for reviewer...',
+            allowClear: true,
+            width: '100%'
+        });
+
+        // Handle initial value if it exists
+        {% if form.requested_to.initial %}
+            var initialUser = {
+                id: '{{ form.requested_to.initial.id }}',
+                text: '{{ form.requested_to.initial.get_full_name|escapejs }}'
+            };
+            var initialOption = new Option(initialUser.text, initialUser.id, true, true);
+            $('#id_requested_to').append(initialOption).trigger('change');
+        {% endif %}
+    });
+</script>
 {% endblock %}

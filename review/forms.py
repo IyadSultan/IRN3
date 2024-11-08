@@ -17,7 +17,7 @@ from dal import autocomplete
 
 class ReviewRequestForm(forms.ModelForm):
     requested_to = forms.ModelChoiceField(
-        queryset=User.objects.none(),
+        queryset=User.objects.filter(is_active=True),
         widget=forms.Select(attrs={
             'class': 'form-select',
             'data-placeholder': 'Select a reviewer...',
@@ -32,51 +32,33 @@ class ReviewRequestForm(forms.ModelForm):
         widgets = {
             'deadline': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'message': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+            'selected_forms': forms.SelectMultiple(attrs={'class': 'form-control'})
         }
 
     def __init__(self, *args, study_type=None, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Get relevant reviewer groups
-        reviewer_groups = set(['IRB', 'CR', 'AHARPP'])
-        
-        if study_type:
-            reviewer_groups = set()
-            try:
-                if getattr(study_type, 'requires_irb', True):
-                    reviewer_groups.add('IRB')
-                if getattr(study_type, 'requires_research_council', True):
-                    reviewer_groups.add('CR')
-                if getattr(study_type, 'requires_aharpp', True):
-                    reviewer_groups.add('AHARPP')
-            except AttributeError:
-                # If attributes don't exist, include all reviewer groups
-                reviewer_groups = set(['IRB Member', 'Research Council Member', 'AHARPP Reviewer'])
-        
-        # Filter reviewers based on group membership
-        reviewers = User.objects.filter(
-            groups__name__in=reviewer_groups,
+        # Set up reviewer field to show full name
+        self.fields['requested_to'].queryset = User.objects.filter(
             is_active=True
-        ).distinct().select_related(
-            'userprofile'
-        ).order_by(
-            'userprofile__full_name'
-        )
+        ).select_related('userprofile').order_by('userprofile__full_name')
         
-        # Update the queryset for requested_to field
-        self.fields['requested_to'].queryset = reviewers
-        
-        # Add user full names to the display
         self.fields['requested_to'].label_from_instance = lambda user: (
-            f"{user.get_full_name() or user.username} "
-            f"({', '.join(user.groups.values_list('name', flat=True))})"
+            f"{user.get_full_name() or user.username}"
         )
 
-        # Get all available forms
-        form_queryset = DynamicForm.objects.all().order_by('name')
+        # Filter forms for Evaluation study type
+        form_queryset = DynamicForm.objects.filter(
+            study_types__name='Evaluation'
+        ).order_by('order', 'name')
+            
         self.fields['selected_forms'].queryset = form_queryset
+        self.fields['selected_forms'].widget.attrs.update({
+            'class': 'form-control',
+            'size': min(10, form_queryset.count()),  # Show up to 10 items
+            'multiple': 'multiple'  # Enable multiple selection
+        })
 
-        
 class ConflictOfInterestForm(forms.Form):
     conflict_of_interest = forms.ChoiceField(
         choices=[('no', 'No'), ('yes', 'Yes')],

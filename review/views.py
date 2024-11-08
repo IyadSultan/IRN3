@@ -34,6 +34,8 @@ from submission.models import Submission
 from users.utils import get_system_user
 from .utils.pdf_generator import generate_review_pdf
 from submission.utils.pdf_generator import PDFGenerator, generate_submission_pdf
+from django.http import JsonResponse
+from django.contrib.auth import get_user_model
 
 
 
@@ -578,3 +580,32 @@ def download_review_pdf(request, review_request_id):
     buffer.close()
     
     return response
+
+class UserAutocompleteView(View):
+    def get(self, request):
+        term = request.GET.get('term', '')
+        user_type = request.GET.get('user_type', '')
+        
+        if len(term) < 2:
+            return JsonResponse([], safe=False)
+            
+        User = get_user_model()
+        users = User.objects.filter(
+            Q(first_name__icontains=term) | 
+            Q(last_name__icontains=term) |
+            Q(email__icontains=term)
+        )
+        
+        # Add any additional filtering for reviewers here
+        if user_type == 'reviewer':
+            users = users.filter(groups__name='Reviewers')
+            
+        results = [
+            {
+                'id': user.id,
+                'label': f"{user.get_full_name()} ({user.email})"
+            }
+            for user in users[:10]  # Limit to 10 results
+        ]
+        
+        return JsonResponse(results, safe=False)
