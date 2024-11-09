@@ -4,46 +4,50 @@
 <div class="container mt-4">
     <div class="card">
         <div class="card-header">
-            <h2>Version Comparison</h2>
-            <h4>{{ submission.title }}</h4>
-            <p>Comparing Version {{ version1 }} with Version {{ version2 }}</p>
+            <h2>Version Changes</h2>
+            <h4 class="text-muted">{{ submission.title }}</h4>
+            <p>Changes from Version {{ previous_version }} to Version {{ version }}</p>
         </div>
         <div class="card-body">
             {% if comparison_data %}
                 {% for form_data in comparison_data %}
-                    <h5 class="mt-4">{{ form_data.form_name }}</h5>
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Field</th>
-                                <th>Version {{ version1 }}</th>
-                                <th>Version {{ version2 }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for change in form_data.changes %}
-                                <tr>
-                                    <td>{{ change.field }}</td>
-                                    <td {% if change.old_value != change.new_value %}class="bg-light-yellow"{% endif %}>
-                                        {{ change.old_value }}
-                                    </td>
-                                    <td {% if change.old_value != change.new_value %}class="bg-light-yellow"{% endif %}>
-                                        {{ change.new_value }}
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                    <div class="mb-4">
+                        <h5 class="border-bottom pb-2">{{ form_data.form_name }}</h5>
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 30%">Field</th>
+                                        <th style="width: 35%">Previous Value (v{{ previous_version }})</th>
+                                        <th style="width: 35%">Current Value (v{{ version }})</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for change in form_data.changes %}
+                                        <tr>
+                                            <td class="fw-bold">{{ change.field }}</td>
+                                            <td class="bg-light-yellow">
+                                                {{ change.previous_value }}
+                                            </td>
+                                            <td class="bg-light-green">
+                                                {{ change.current_value }}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 {% endfor %}
             {% else %}
                 <div class="alert alert-info">
-                    No differences found between these versions.
+                    <i class="fas fa-info-circle"></i> No changes found between these versions.
                 </div>
             {% endif %}
 
             <div class="mt-4">
-                <a href="{% url 'submission:submission_review' submission.temporary_id %}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Review
+                <a href="{% url 'submission:version_history' submission.temporary_id %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Version History
                 </a>
             </div>
         </div>
@@ -53,6 +57,9 @@
 <style>
     .bg-light-yellow {
         background-color: #fff3cd;
+    }
+    .bg-light-green {
+        background-color: #d4edda;
     }
 </style>
 {% endblock %}

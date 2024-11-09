@@ -447,9 +447,10 @@ def submission_form(request, submission_id, form_id):
     return render(request, 'submission/dynamic_form.html', context)
 
 
+# submission/views.py
+
 @login_required
 def submission_review(request, submission_id):
-    """Review submission before final submission."""
     submission = get_object_or_404(Submission, temporary_id=submission_id)
     
     if submission.is_locked and not has_edit_permission(request.user, submission):
@@ -494,37 +495,10 @@ def submission_review(request, submission_id):
 
     documents = submission.documents.all()
     doc_form = DocumentForm()
-
     if request.method == 'POST':
         action = request.POST.get('action')
         
-        if action == 'analyze_submission':
-            try:
-                cache_key = f'gpt_analysis_{submission.temporary_id}_{submission.version}'
-                analysis = cache.get(cache_key)
-                
-                if not analysis:
-                    analyzer = ResearchAnalyzer(submission, submission.version)
-                    analysis = analyzer.analyze_submission()
-                    
-                    if analysis and not analysis.startswith("Error"):
-                        cache.set(cache_key, analysis, 3600)
-                    
-                context = {
-                    'submission': submission,
-                    'missing_documents': missing_documents,
-                    'validation_errors': validation_errors,
-                    'documents': documents,
-                    'doc_form': doc_form,
-                    'gpt_analysis': analysis
-                }
-                return render(request, 'submission/submission_review.html', context)
-                
-            except Exception as e:
-                logger.error(f"Error in GPT analysis: {str(e)}")
-                messages.error(request, "Error generating analysis. Please try again later.")
-
-        elif action == 'submit_final':
+        if action == 'submit_final':
             if missing_documents or validation_errors:
                 messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
             else:
@@ -534,20 +508,19 @@ def submission_review(request, submission_id):
                         submission.is_locked = True
                         submission.status = 'submitted'
                         submission.date_submitted = timezone.now()
-                        submission.save()
                         
-                        # Create version history entry
+                        # Create version history entry BEFORE incrementing version
                         VersionHistory.objects.create(
                             submission=submission,
-                            version=1,
+                            version=submission.version,
                             status=submission.status,
                             date=timezone.now()
                         )
 
-                        # Generate PDF
+                        # Generate PDF once and store in buffer
                         buffer = generate_submission_pdf(
                             submission=submission,
-                            version=1,
+                            version=submission.version,
                             user=request.user,
                             as_buffer=True
                         )
@@ -557,11 +530,14 @@ def submission_review(request, submission_id):
 
                         # Get system user for automated messages
                         system_user = get_system_user()
+                        
+                        # Create PDF filename
+                        pdf_filename = f"submission_{submission.temporary_id}_v{submission.version}.pdf"
 
-                        # Send confirmation to PI
+                        # Send confirmation to PI with PDF attachment
                         pi_message = Message.objects.create(
-                            sender=system_user,  # Using the system user here
-                            subject=f'Submission {submission.temporary_id} - Version 1 Confirmation',
+                            sender=system_user,
+                            subject=f'Submission {submission.temporary_id} - Version {submission.version} Confirmation',
                             body=f"""
 Dear {submission.primary_investigator.userprofile.full_name},
 
@@ -573,23 +549,18 @@ Your submission will be reviewed by the OSAR who will direct it to the appropria
 Best regards,
 AIDI System
                             """.strip(),
-                            study_name=submission.title,
                             related_submission=submission
                         )
                         pi_message.recipients.add(submission.primary_investigator)
                         
                         # Attach PDF to PI message
-                        pdf_filename = f"submission_{submission.temporary_id}_v1.pdf"
-                        attachment = MessageAttachment(message=pi_message)
-                        attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
+                        pi_attachment = MessageAttachment(message=pi_message)
+                        pi_attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
 
-                        # Notify OSAR
-                        osar_coordinators = User.objects.filter(
-                            groups__name='OSAR'
-                        )
-                        
+                        # Notify OSAR with PDF attachment
+                        osar_coordinators = User.objects.filter(groups__name='OSAR')
                         osar_notification = Message.objects.create(
-                            sender=get_system_user(),
+                            sender=system_user,
                             subject=f'New Submission For Review - {submission.title}',
                             body=f"""
 A new research submission requires your initial review and forwarding.
@@ -601,23 +572,26 @@ Submission Details:
 - Study Type: {submission.study_type.name}
 - Submitted: {timezone.now().strftime('%Y-%m-%d %H:%M')}
 
-Please review and forward this submission to the appropriate review bodies.
+Please review the attached PDF and forward this submission to the appropriate review bodies.
 
 Access the submission here: {request.build_absolute_uri(reverse('review:review_dashboard'))}
 
 Best regards,
 AIDI System
                             """.strip(),
-                            study_name=submission.title,
                             related_submission=submission
                         )
                         
                         for coordinator in osar_coordinators:
                             osar_notification.recipients.add(coordinator)
+                            
+                        # Attach PDF to OSAR message
+                        osar_attachment = MessageAttachment(message=osar_notification)
+                        osar_attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
 
-                        # Prepare for future revisions
-                        # submission.version = 2  # Next version will be 2
-                        # submission.save()
+                        # Increment version AFTER everything else is done
+                        submission.version += 1
+                        submission.save()
 
                         messages.success(request, 'Submission has been finalized and sent to OSAR.')
                         return redirect('submission:dashboard')
@@ -689,69 +663,96 @@ def document_delete(request, submission_id, document_id):
 def version_history(request, submission_id):
     """View version history of a submission."""
     submission = get_object_or_404(Submission, pk=submission_id)
-    histories = submission.version_histories.order_by('-version')
+    if not has_edit_permission(request.user, submission):
+        messages.error(request, "You do not have permission to view this submission.")
+        return redirect('submission:dashboard')
+        
+    # Get all versions from version history, ordered by version number descending
+    histories = VersionHistory.objects.filter(
+        submission=submission
+    ).order_by('-version')
+    
     return render(request, 'submission/version_history.html', {
         'submission': submission,
         'histories': histories,
     })
 
 @login_required
-def compare_versions(request, submission_id, version1, version2):
-    """Compare two versions of a submission."""
+def compare_version(request, submission_id, version):
+    """Compare a version with its previous version."""
     submission = get_object_or_404(Submission, pk=submission_id)
     if not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to view this submission.")
         return redirect('submission:dashboard')
 
+    # Can't compare version 1 as it has no previous version
+    if version <= 1:
+        messages.error(request, "Version 1 cannot be compared as it has no previous version.")
+        return redirect('submission:version_history', submission_id=submission_id)
+
+    previous_version = version - 1
     comparison_data = []
     
-    for form in submission.study_type.forms.all():
-        entries_v1 = FormDataEntry.objects.filter(
+    # Get all forms associated with this submission's study type
+    forms = submission.study_type.forms.all()
+    
+    for form in forms:
+        # Get entries for both versions
+        entries_previous = FormDataEntry.objects.filter(
             submission=submission,
             form=form,
-            version=version1
+            version=previous_version
         ).select_related('form')
         
-        entries_v2 = FormDataEntry.objects.filter(
+        entries_current = FormDataEntry.objects.filter(
             submission=submission,
             form=form,
-            version=version2
+            version=version
         ).select_related('form')
 
-        data_v1 = {entry.field_name: entry.value for entry in entries_v1}
-        data_v2 = {entry.field_name: entry.value for entry in entries_v2}
+        # Convert entries to dictionaries for easier comparison
+        data_previous = {entry.field_name: entry.value for entry in entries_previous}
+        data_current = {entry.field_name: entry.value for entry in entries_current}
 
+        # Get field display names from form definition
         field_definitions = {
             field.name: field.displayed_name 
             for field in form.fields.all()
         }
 
+        # Compare fields
         form_changes = []
-        all_fields = set(data_v1.keys()) | set(data_v2.keys())
+        all_fields = sorted(set(data_previous.keys()) | set(data_current.keys()))
         
         for field in all_fields:
             displayed_name = field_definitions.get(field, field)
-            value1 = data_v1.get(field, 'Not provided')
-            value2 = data_v2.get(field, 'Not provided')
+            value_previous = data_previous.get(field, 'Not provided')
+            value_current = data_current.get(field, 'Not provided')
 
-            if isinstance(value1, str) and value1.startswith('['):
-                try:
-                    value1 = ', '.join(json.loads(value1))
-                except json.JSONDecodeError:
-                    pass
-            if isinstance(value2, str) and value2.startswith('['):
-                try:
-                    value2 = ', '.join(json.loads(value2))
-                except json.JSONDecodeError:
-                    pass
+            # Handle JSON array values (e.g., checkbox selections)
+            try:
+                if isinstance(value_previous, str) and value_previous.startswith('['):
+                    value_previous_display = ', '.join(json.loads(value_previous))
+                else:
+                    value_previous_display = value_previous
+                    
+                if isinstance(value_current, str) and value_current.startswith('['):
+                    value_current_display = ', '.join(json.loads(value_current))
+                else:
+                    value_current_display = value_current
+            except json.JSONDecodeError:
+                value_previous_display = value_previous
+                value_current_display = value_current
 
-            if value1 != value2:
+            # Only add to changes if values are different
+            if value_previous != value_current:
                 form_changes.append({
                     'field': displayed_name,
-                    'old_value': value1,
-                    'new_value': value2
+                    'previous_value': value_previous_display,
+                    'current_value': value_current_display
                 })
 
+        # Only add form to comparison data if it has changes
         if form_changes:
             comparison_data.append({
                 'form_name': form.name,
@@ -760,8 +761,8 @@ def compare_versions(request, submission_id, version1, version2):
 
     return render(request, 'submission/compare_versions.html', {
         'submission': submission,
-        'version1': version1,
-        'version2': version2,
+        'version': version,
+        'previous_version': previous_version,
         'comparison_data': comparison_data,
     })
 
@@ -777,7 +778,8 @@ def download_submission_pdf(request, submission_id, version=None):
         # If version is not specified, use version 1 for new submissions
         if version is None:
             # If submission.version is 2, it means we just submitted version 1
-            version = submission.version - 1 if submission.version > 1 else 1
+            version = submission.version 
+            print(f"Version is {version}")
             
         logger.info(f"Generating PDF for submission {submission_id} version {version}")
 

@@ -68,9 +68,10 @@ class Submission(models.Model):
         return f"{self.title} (ID: {self.temporary_id}, Version: {self.version})"
 
     def increment_version(self):
-        self.version += 1
-        self.save()
         VersionHistory.objects.create(submission=self, version=self.version, status=self.status, date=timezone.now())
+        self.version += 1
+        
+        
 
 from django.db import models
 from django.contrib.auth.models import User
@@ -167,7 +168,7 @@ class VersionHistory(models.Model):
         return f"Submission {self.submission.temporary_id} - Version {self.version}"
     
 
-    from django.db import models
+from django.db import models
 from django.core.cache import cache
 
 class SystemSettings(models.Model):

@@ -20,8 +20,7 @@ urlpatterns = [
     path('update-coinvestigator-order/<int:submission_id>/', views.update_coinvestigator_order, name='update_coinvestigator_order'),
     path('document-delete/<int:submission_id>/<int:document_id>/', views.document_delete, name='document_delete'),
     path('version-history/<int:submission_id>/', views.version_history, name='version_history'),
-    path('compare-versions/<int:submission_id>/<int:version1>/<int:version2>/', views.compare_versions, name='compare_versions'),
     path('<int:submission_id>/', views.submission_detail, name='submission_detail'),
     path('<int:submission_id>/version/<int:version_number>/', views.view_version, name='view_version'),
-    path('<int:submission_id>/compare/<int:version1_number>/<int:version2_number>/', views.compare_versions, name='compare_versions'),
+    path('compare-version/<int:submission_id>/<int:version>/', views.compare_version, name='compare_version'),
 ]

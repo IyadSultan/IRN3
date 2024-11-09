@@ -1,31 +1,61 @@
 {% extends 'users/base.html' %}
 {% block content %}
 <div class="container mt-4">
-    <h1>Version History for "{{ submission.title }}"</h1>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Version</th>
-                <th>Status</th>
-                <th>Date</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for history in histories %}
-            <tr>
-                <td>{{ history.version }}</td>
-                <td>{{ history.get_status_display }}</td>
-                <td>{{ history.date }}</td>
-                <td>
-                    <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id history.version %}" class="btn btn-sm btn-secondary">Download PDF</a>
-                    {% if not forloop.last %}
-                    <a href="{% url 'submission:compare_versions' submission.temporary_id history.version submission.version %}" class="btn btn-sm btn-primary">Compare with Latest</a>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="card">
+        <div class="card-header">
+            <h2>Version History</h2>
+            <h4 class="text-muted">{{ submission.title }}</h4>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Version</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for history in histories %}
+                        <tr>
+                            <td>{{ history.version }}</td>
+                            <td>
+                                <span class="badge bg-{{ history.status|lower }}">
+                                    {{ history.get_status_display }}
+                                </span>
+                            </td>
+                            <td>{{ history.date|date:"M d, Y H:i" }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id history.version %}" 
+                                       class="btn btn-sm btn-secondary" 
+                                       title="Download PDF">
+                                        <i class="fas fa-file-pdf"></i> Download
+                                    </a>
+                                    
+                                    {% if history.version > 1 %}
+                                    <a href="{% url 'submission:compare_version' submission.temporary_id history.version %}" 
+                                       class="btn btn-sm btn-primary" 
+                                       title="Compare with Previous Version">
+                                        <i class="fas fa-code-compare"></i> Compare Changes
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-4">
+                <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

@@ -27,7 +27,7 @@
                     <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
                     CV
                 </li>
-                {% if profile.role == 'KHCC investigator' %}
+                
                 <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
                     <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
                     QRC Certificate
@@ -36,7 +36,7 @@
                     <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
                     CTC Certificate
                 </li>
-                {% endif %}
+                
             </ul>
             {% endwith %}
         </div>
