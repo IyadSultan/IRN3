@@ -3,13 +3,42 @@
 
 {% block title %}Compose Message{% endblock %}
 
+{% block page_specific_css %}
+<style>
+    /* Select2 Bootstrap 5 Compatibility */
+    .select2-container--default .select2-selection--multiple,
+    .select2-container--default .select2-selection--single {
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+    
+    .select2-container {
+        width: 100% !important;
+    }
+
+    /* Fix for double cancel button */
+    .btn-cancel-mobile {
+        display: none;
+    }
+
+    @media (max-width: 768px) {
+        .btn-cancel-desktop {
+            display: none;
+        }
+        .btn-cancel-mobile {
+            display: inline-block;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
+<div class="container-fluid mt-4">
     <div class="row">
         <div class="col-md-8 offset-md-2">
             <div class="card">
                 <div class="card-header">
-                    <h2>
+                    <h2 class="card-title h5 mb-0">
                         {% if is_reply %}Reply
                         {% elif is_reply_all %}Reply All
                         {% elif is_forward %}Forward
@@ -18,36 +47,56 @@
                     </h2>
                 </div>
                 <div class="card-body">
-                    <form method="post" enctype="multipart/form-data" novalidate>
+                    <form method="post" enctype="multipart/form-data" id="compose-form" novalidate>
                         {% csrf_token %}
                         
                         {# Subject Field #}
                         {{ form.subject|as_crispy_field }}
 
+                        {# Recipients Fields #}
+                        <div class="mb-3">
+                            <label for="id_recipients" class="form-label required">To</label>
+                            {{ form.recipients }}
+                            <div class="invalid-feedback" id="recipients-error" style="display: none;">
+                                Please select at least one recipient.
+                            </div>
+                        </div>
+
+                        {# CC and BCC Fields #}
+                        <div class="mb-3">
+                            <label for="id_cc" class="form-label">CC</label>
+                            {{ form.cc }}
+                        </div>
+                        <div class="mb-3">
+                            <label for="id_bcc" class="form-label">BCC</label>
+                            {{ form.bcc }}
+                        </div>
+
                         {# Related Study Field #}
                         {{ form.related_submission|as_crispy_field }}
                         <small class="text-muted d-block mt-1 mb-3">Search by study title or IRB number</small>
-
-                        {# Recipients Fields #}
-                        {{ form.recipients|as_crispy_field }}
-                        {{ form.cc|as_crispy_field }}
-                        {{ form.bcc|as_crispy_field }}
 
                         {# Message Body #}
                         {{ form.body|as_crispy_field }}
 
                         {# Attachments #}
-                        {{ form.attachment|as_crispy_field }}
-                        <small class="text-muted d-block mt-1 mb-3">Select a file to attach</small>
+                        <div class="mb-3">
+                            <label for="id_attachment" class="form-label">Attachment</label>
+                            {{ form.attachment }}
+                            <small class="text-muted d-block mt-1" id="file-name-display">Select a file to attach</small>
+                        </div>
 
                         {# Submit Buttons #}
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                            <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary me-md-2">
+                            <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary me-md-2 btn-cancel-desktop">
                                 <i class="fas fa-times"></i> Cancel
                             </a>
-                            <button type="submit" class="btn btn-primary">Send</button>
-                            <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary" id="send-button">
+                                <i class="fas fa-paper-plane"></i> Send
                             </button>
+                            <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary btn-cancel-mobile">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
                         </div>
                     </form>
                 </div>
@@ -59,18 +108,19 @@
 
 {% block page_specific_js %}
 <script>
-    $(document).ready(function() {
-        // Initialize Select2 for recipients, cc, and bcc fields
-        $('#id_recipients, #id_cc, #id_bcc').select2({
-            theme: 'bootstrap4',
+$(document).ready(function() {
+    // Initialize Select2 for recipients fields
+    function initializeSelect2(element, url, placeholder) {
+        return $(element).select2({
+            theme: 'bootstrap5',
             ajax: {
-                url: '{% url "messaging:user_autocomplete" %}',
+                url: url,
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {
                     return {
                         term: params.term,
-                        page: params.page
+                        page: params.page || 1
                     };
                 },
                 processResults: function (data) {
@@ -86,61 +136,101 @@
                 cache: true
             },
             minimumInputLength: 2,
-            placeholder: 'Search for users...',
+            placeholder: placeholder,
             allowClear: true,
             multiple: true,
             width: '100%'
         });
+    }
 
-        // Initialize Select2 for related submission field
-        $('#id_related_submission').select2({
-            theme: 'bootstrap4',
-            ajax: {
-                url: '{% url "messaging:submission_autocomplete" %}',
-                dataType: 'json',
-                delay: 250,
-                data: function (params) {
-                    return {
-                        term: params.term,
-                        page: params.page
-                    };
-                },
-                processResults: function (data) {
-                    return data;
-                },
-                cache: true
+    // Initialize recipients fields
+    const recipientsSelect = initializeSelect2('#id_recipients', '{% url "messaging:user_autocomplete" %}', 'Select recipients...');
+    const ccSelect = initializeSelect2('#id_cc', '{% url "messaging:user_autocomplete" %}', 'Select CC recipients...');
+    const bccSelect = initializeSelect2('#id_bcc', '{% url "messaging:user_autocomplete" %}', 'Select BCC recipients...');
+
+    // Initialize related submission field
+    $('#id_related_submission').select2({
+        theme: 'bootstrap5',
+        ajax: {
+            url: '{% url "messaging:submission_autocomplete" %}',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    term: params.term,
+                    page: params.page || 1
+                };
             },
-            minimumInputLength: 2,
-            placeholder: 'Search for a study...',
-            allowClear: true,
-            multiple: false,
-            width: '100%'
-        });
-
-        // Handle initial values if they exist
-        {% if form.recipients.initial %}
-            var initialRecipients = {{ form.recipients.initial|safe }};
-            initialRecipients.forEach(function(user) {
-                var option = new Option(user.text, user.id, true, true);
-                $('#id_recipients').append(option);
-            });
-            $('#id_recipients').trigger('change');
-        {% endif %}
-
-        {% if form.related_submission.initial %}
-            var initialSubmission = {
-                id: '{{ form.related_submission.initial.id }}',
-                text: '{{ form.related_submission.initial.title|escapejs }}'
-            };
-            var initialOption = new Option(initialSubmission.text, initialSubmission.id, true, true);
-            $('#id_related_submission').append(initialOption).trigger('change');
-        {% endif %}
-
-        // Optional: Show selected file name
-        $('#id_attachment').on('change', function() {
-            var fileName = $(this).val().split('\\').pop();
-            $(this).next('.text-muted').text(fileName || 'Select a file to attach');
-        });
+            processResults: function (data) {
+                return {
+                    results: data.map(function(item) {
+                        return {
+                            id: item.id,
+                            text: `${item.title} (${item.irb_number || 'No IRB'})`
+                        };
+                    })
+                };
+            },
+            cache: true
+        },
+        minimumInputLength: 2,
+        placeholder: 'Search for a study...',
+        allowClear: true,
+        width: '100%'
     });
+
+    // Handle initial values
+    {% if form.recipients.initial %}
+        var initialRecipients = {{ form.recipients.initial|safe }};
+        initialRecipients.forEach(function(user) {
+            var option = new Option(user.text, user.id, true, true);
+            $('#id_recipients').append(option);
+        });
+        $('#id_recipients').trigger('change');
+    {% endif %}
+
+    {% if form.related_submission.initial %}
+        var initialSubmission = {
+            id: '{{ form.related_submission.initial.id }}',
+            text: '{{ form.related_submission.initial.title|escapejs }}'
+        };
+        var option = new Option(initialSubmission.text, initialSubmission.id, true, true);
+        $('#id_related_submission').append(option).trigger('change');
+    {% endif %}
+
+    // File attachment handling
+    $('#id_attachment').on('change', function() {
+        var fileName = this.files[0]?.name || 'Select a file to attach';
+        $('#file-name-display').text(fileName);
+    });
+
+    // Form submission handling
+    $('#compose-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        // Clear previous error states
+        $('#recipients-error').hide();
+        $('.is-invalid').removeClass('is-invalid');
+        
+        // Validate recipients
+        const recipients = $('#id_recipients').val();
+        if (!recipients || recipients.length === 0) {
+            $('#id_recipients').next('.select2-container').find('.select2-selection').addClass('is-invalid');
+            $('#recipients-error').show();
+            return false;
+        }
+
+        // If validation passes, submit the form
+        this.submit();
+    });
+
+    // Clear invalid state when recipients are selected
+    $('#id_recipients').on('change', function() {
+        if ($(this).val()?.length > 0) {
+            $(this).next('.select2-container').find('.select2-selection').removeClass('is-invalid');
+            $('#recipients-error').hide();
+        }
+    });
+});
 </script>
 {% endblock %}

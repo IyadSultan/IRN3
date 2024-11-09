@@ -19,4 +19,7 @@ urlpatterns = [
     path('threads/', views.threads_inbox, name='threads_inbox'),
     path('user-autocomplete/', views.user_autocomplete, name='user_autocomplete'),
     path('submission-autocomplete/', views.submission_autocomplete, name='submission_autocomplete'),
+    path('dismiss-notification/', views.dismiss_notification, name='dismiss_notification'),
+    path('update-read-status/', views.update_read_status, name='update_read_status'),
+    path('archive-message/', views.archive_message, name='archive_message'),
 ]

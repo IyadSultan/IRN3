@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .message-meta {
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .message-meta div {
+            margin-bottom: 5px;
+        }
+        .message-body {
+            padding: 15px;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+        .btn-view {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .attachments {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 12px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>{{ message.subject }}</h2>
+    </div>
+
+    <div class="message-meta">
+        <div><strong>From:</strong> {{ sender.get_full_name|default:sender.email }}</div>
+        {% if message.recipients.all %}
+        <div><strong>To:</strong> {{ message.recipients.all|join:", " }}</div>
+        {% endif %}
+        {% if message.cc.all %}
+        <div><strong>CC:</strong> {{ message.cc.all|join:", " }}</div>
+        {% endif %}
+        {% if message.study_name %}
+        <div><strong>Study:</strong> {{ message.study_name }}</div>
+        {% endif %}
+    </div>
+
+    <div class="message-body">
+        {{ message.body|linebreaks }}
+    </div>
+
+    {% if message.attachments.all %}
+    <div class="attachments">
+        <h4>Attachments:</h4>
+        <ul>
+            {% for attachment in message.attachments.all %}
+            <li>{{ attachment.filename }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <a href="{{ view_url }}" class="btn-view">View Message in Platform</a>
+
+    <div class="footer">
+        <p>This is an automated message from your messaging system. Please do not reply to this email.</p>
+        <p>To respond to this message, please use the platform's messaging system.</p>
+    </div>
+</body>
+</html>

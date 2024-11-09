@@ -4,264 +4,217 @@
     {% load static %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="iRN System - Research Network Management System">
     <title>{% block title %}iRN System{% endblock %}</title>
 
-    <!-- CSS Dependencies -->
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
+
+    <!-- Core CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
-    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
-    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
 
+    <!-- Plugin CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
+
+    <!-- Base Styles -->
     <style>
         :root {
             --primary-color: #3498db;
             --secondary-color: #2c3e50;
             --background-color: #ecf0f1;
             --text-color: #34495e;
+            --sidebar-width: 200px; /* Reduced from 250px */
+            --navbar-height: 56px;
+            --shadow-sm: 0 2px 4px rgba(0,0,0,.1);
+            --shadow-md: 0 4px 6px rgba(0,0,0,.1);
+            --transition-default: all 0.3s ease;
         }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--background-color);
             color: var(--text-color);
+            min-height: 100vh;
         }
 
+        /* Navbar Styles */
         .navbar {
             background-color: var(--primary-color);
-            box-shadow: 0 2px 4px rgba(0,0,0,.1);
+            box-shadow: var(--shadow-sm);
+            height: var(--navbar-height);
+            padding: 0 1rem;
+            z-index: 1030;
         }
 
         .navbar-brand, .navbar-nav .nav-link {
             color: white !important;
         }
 
+        .navbar .dropdown-menu {
+            box-shadow: var(--shadow-md);
+            border: none;
+            margin-top: 0.5rem;
+        }
+
+        .navbar .dropdown-item {
+            padding: 0.5rem 1rem;
+            transition: var(--transition-default);
+        }
+
+        .navbar .dropdown-item:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+
+        .navbar .dropdown-item.text-danger:hover {
+            background-color: rgba(220, 53, 69, 0.1);
+        }
+
+        /* Sidebar Styles */
         .sidebar {
-            background-color: white;
-            box-shadow: 2px 0 5px rgba(0,0,0,.1);
-            height: calc(100vh - 56px);
             position: fixed;
-            top: 56px;
+            top: var(--navbar-height);
             left: 0;
-            width: 250px;
-            padding-top: 20px;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--navbar-height));
+            background-color: white;
+            box-shadow: var(--shadow-sm);
+            padding-top: 1rem;
+            z-index: 1020;
+            overflow-y: auto;
         }
 
         .sidebar .nav-link {
             color: var(--secondary-color);
-            padding: 10px 20px;
+            padding: 0.75rem 1rem; /* Reduced padding */
             border-left: 3px solid transparent;
+            transition: var(--transition-default);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem; /* Reduced gap */
+            font-size: 0.9rem; /* Slightly smaller font */
         }
 
-        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
             background-color: rgba(52, 152, 219, 0.1);
             border-left-color: var(--primary-color);
         }
 
+        .sidebar .nav-link i {
+            width: 1.25rem;
+            text-align: center;
+        }
+
+        /* Main Content Area */
         .main-content {
-            margin-left: 250px;
-            padding: 20px;
+            margin-left: var(--sidebar-width);
+            padding: 1.5rem;
+            min-height: calc(100vh - var(--navbar-height));
+            width: calc(100% - var(--sidebar-width)); /* Ensure content takes full width */
         }
 
+        /* Card Styles */
         .card {
-            box-shadow: 0 4px 6px rgba(0,0,0,.1);
+            box-shadow: var(--shadow-md);
             border: none;
-            border-radius: 8px;
+            border-radius: 0.5rem;
         }
 
-        /* Select2 Styles */
-        .select2-container {
-            width: 100% !important;
-            margin-bottom: 10px;
-        }
-        
-        .select2-selection--single {
-            height: 38px !important;
-            padding: 5px !important;
-            border: 1px solid #ced4da !important;
-            border-radius: 4px !important;
-        }
-        
-        .select2-selection__rendered {
-            line-height: 26px !important;
-            padding-left: 8px !important;
-        }
-        
-        .select2-selection__arrow {
-            height: 36px !important;
-        }
-        
-        .select2-selection--multiple {
-            border: 1px solid #ced4da !important;
-            min-height: 38px !important;
-        }
-        
-        .select2-search__field {
-            margin-top: 5px !important;
-        }
-        
-        .select2-container .select2-selection--single .select2-selection__clear {
-            margin-right: 25px;
-            color: #999;
-            font-size: 18px;
+        /* Form Controls */
+        .form-control:focus,
+        .btn:focus {
+            box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
         }
 
-        /* DataTables Custom Styles */
-        .dataTables_wrapper .dataTables_length select {
-            min-width: 60px;
-            padding: 4px;
+        /* Select2 Customization */
+        .select2-container .select2-selection--single,
+        .select2-container .select2-selection--multiple {
+            height: calc(1.5em + 0.75rem + 2px);
+            border: 1px solid #ced4da;
+            border-radius: 0.25rem;
         }
 
-        .dataTables_wrapper .dataTables_filter input {
-            margin-left: 5px;
-            padding: 4px;
+        .select2-container .select2-selection--single .select2-selection__rendered {
+            line-height: calc(1.5em + 0.75rem);
+            padding-left: 0.75rem;
         }
 
-        .dataTables_wrapper .dataTables_paginate .paginate_button {
-            padding: 0.3em 0.8em;
-            margin: 0 2px;
+        .select2-container .select2-selection--single .select2-selection__arrow {
+            height: calc(1.5em + 0.75rem);
         }
 
-        .dataTables_wrapper .dataTables_info {
-            padding-top: 10px;
-        }
-
-        /* Badge and Button Styles */
-        .badge {
-            padding: 0.4em 0.8em;
-            font-size: 0.85em;
-        }
-
-        .badge-warning { background-color: #ffc107; color: #000; }
-        .badge-info { background-color: #17a2b8; color: #fff; }
-        .badge-success { background-color: #28a745; color: #fff; }
-        .badge-primary { background-color: #007bff; color: #fff; }
-        .badge-secondary { background-color: #6c757d; color: #fff; }
-
-        .btn-sm {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.875rem;
-            line-height: 1.5;
-            border-radius: 0.2rem;
-        }
-
-        /* Dropdown Styles */
-        .dropdown-toggle::after {
-            display: inline-block;
-            margin-left: 0.255em;
-            vertical-align: 0.255em;
-            content: "";
-            border-top: 0.3em solid;
-            border-right: 0.3em solid transparent;
-            border-bottom: 0;
-            border-left: 0.3em solid transparent;
-        }
-
-        .dropdown-menu { margin-top: 0; }
-        
-        .dropdown-item:hover {
-            background-color: rgba(52, 152, 219, 0.1);
-        }
-        
-        .dropdown-item.text-danger:hover {
-            background-color: rgba(220, 53, 69, 0.1);
-        }
-
-        /* Popup Styles */
-        .custom-popup {
-            display: none;
+        /* Notification System */
+        .notification {
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 20px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
-            min-width: 300px;
-            max-width: 80%;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1050;
+            max-width: 350px;
+            opacity: 0;
+            transform: translateY(-100%);
+            transition: var(--transition-default);
         }
 
-        .popup-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
+        .notification.show {
+            opacity: 1;
+            transform: translateY(0);
         }
 
-        .popup-header {
+        .notification-content {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: var(--shadow-md);
+            margin-bottom: 0.5rem;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #eee;
+            gap: 0.75rem;
         }
 
-        .popup-close {
-            cursor: pointer;
-            font-size: 20px;
-            color: #666;
-        }
-
-        .popup-content {
-            margin-bottom: 15px;
-        }
-
-        .popup-footer {
-            text-align: right;
-        }
-
-        .popup-button {
-            padding: 8px 16px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        .popup-button:hover {
-            background: #0056b3;
-        }
-
-        /* Message Styles */
-        .message-error {
-            color: #721c24;
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            padding: 10px;
-            border-radius: 4px;
-        }
-
-        .message-success {
-            color: #155724;
+        .notification-success {
             background-color: #d4edda;
             border: 1px solid #c3e6cb;
-            padding: 10px;
-            border-radius: 4px;
+            color: #155724;
         }
 
-        .message-warning {
-            color: #856404;
+        .notification-error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .notification-warning {
             background-color: #fff3cd;
             border: 1px solid #ffeeba;
-            padding: 10px;
-            border-radius: 4px;
+            color: #856404;
         }
 
-        .message-info {
-            color: #004085;
+        .notification-info {
             background-color: #cce5ff;
             border: 1px solid #b8daff;
-            padding: 10px;
-            border-radius: 4px;
+            color: #004085;
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+            }
+
+            .navbar-toggler {
+                display: block;
+            }
         }
     </style>
 
@@ -271,206 +224,307 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">iRN System</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
-                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <button class="navbar-toggler d-lg-none" type="button" id="sidebarToggle">
                 <span class="navbar-toggler-icon"></span>
             </button>
+            
+            <a class="navbar-brand" href="/">iRN System</a>
+            
             <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
                 {% if user.is_authenticated %}
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item dropdown">
-                        <button class="nav-link dropdown-toggle btn btn-link" 
-                                id="navbarDropdown" 
-                                data-bs-toggle="dropdown" 
-                                aria-expanded="false"
-                                style="text-decoration: none; border: none; background: none; color: white;">
-                            <i class="fas fa-user me-1"></i>
-                            {{ user.get_full_name|default:user.username }}
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown">
-                            <li>
-                                <a class="dropdown-item" href="{% url 'users:profile' %}">
-                                    <i class="fas fa-tachometer-alt me-2"></i>Profile
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <form method="post" action="{% url 'users:logout' %}" class="d-inline w-100">
-                                    {% csrf_token %}
-                                    <button type="submit" class="dropdown-item text-danger">
-                                        <i class="fas fa-sign-out-alt me-2"></i>Logout
-                                    </button>
-                                </form>
-                            </li>
-                        </ul>
-                    </li>
-                </ul>
+                    <ul class="navbar-nav">
+                        <li class="nav-item dropdown">
+                            <button class="nav-link dropdown-toggle btn btn-link" 
+                                    id="userDropdown" 
+                                    data-bs-toggle="dropdown" 
+                                    aria-expanded="false">
+                                <i class="fas fa-user me-1"></i>
+                                {{ user.get_full_name|default:user.username }}
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'users:profile' %}">
+                                        <i class="fas fa-user-circle me-2"></i>Profile
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <form method="post" action="{% url 'users:logout' %}" class="d-inline w-100">
+                                        {% csrf_token %}
+                                        <button type="submit" class="dropdown-item text-danger">
+                                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                                        </button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
                 {% else %}
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'users:register' %}">
-                            <i class="fas fa-user-plus me-1"></i> Register
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'users:login' %}">
-                            <i class="fas fa-sign-in-alt me-1"></i> Login
-                        </a>
-                    </li>
-                </ul>
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'users:login' %}">
+                                <i class="fas fa-sign-in-alt me-1"></i>Login
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'users:register' %}">
+                                <i class="fas fa-user-plus me-1"></i>Register
+                            </a>
+                        </li>
+                    </ul>
                 {% endif %}
             </div>
         </div>
     </nav>
 
-    <!-- Main Content -->
+    <!-- Sidebar and Main Content Container -->
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->
-            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+            <nav class="sidebar" id="sidebar">
                 <div class="position-sticky">
                     <ul class="nav flex-column">
                         <li class="nav-item">
-                            <a class="nav-link active" href="{% url 'submission:dashboard' %}">
-                                <i class="fas fa-tachometer-alt"></i> Dashboard
+                            <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
+                               href="{% url 'submission:dashboard' %}">
+                                <i class="fas fa-tachometer-alt"></i>
+                                <span>Dashboard</span>
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'submission:start_submission' %}">
-                                <i class="fas fa-plus-circle"></i> Start New Submission
+                            <a class="nav-link {% if request.resolver_match.url_name == 'start_submission' %}active{% endif %}" 
+                               href="{% url 'submission:start_submission' %}">
+                                <i class="fas fa-plus-circle"></i>
+                                <span>Start New Submission</span>
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'review:review_dashboard' %}">
-                                <i class="fas fa-clipboard-check"></i> Review Dashboard
+                            <a class="nav-link {% if request.resolver_match.url_name == 'review_dashboard' %}active{% endif %}" 
+                               href="{% url 'review:review_dashboard' %}">
+                                <i class="fas fa-clipboard-check"></i>
+                                <span>Review Dashboard</span>
+                            </a>
+                        </li>
+                        
+                        <!-- Messaging Section -->
+                        <li class="nav-item mt-3">
+                            <div class="sidebar-heading px-3 py-2 text-muted small text-uppercase">
+                                Messaging
+                            </div>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'inbox' %}active{% endif %}" 
+                               href="{% url 'messaging:inbox' %}">
+                                <i class="fas fa-inbox"></i>
+                                <span>Inbox</span>
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'messaging:inbox' %}">
-                                <i class="fas fa-inbox"></i> Inbox
+                            <a class="nav-link {% if request.resolver_match.url_name == 'sent_messages' %}active{% endif %}" 
+                               href="{% url 'messaging:sent_messages' %}">
+                                <i class="fas fa-paper-plane"></i>
+                                <span>Sent Messages</span>
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'messaging:sent_messages' %}">
-                                <i class="fas fa-paper-plane"></i> Sent Messages
+                            <a class="nav-link {% if request.resolver_match.url_name == 'archived_messages' %}active{% endif %}" 
+                               href="{% url 'messaging:archived_messages' %}">
+                                <i class="fas fa-archive"></i>
+                                <span>Archived Messages</span>
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'messaging:archived_messages' %}">
-                                <i class="fas fa-archive"></i> Archived Messages
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'messaging:compose_message' %}">
-                                <i class="fas fa-pen"></i> Compose Message
+                            <a class="nav-link {% if request.resolver_match.url_name == 'compose_message' %}active{% endif %}" 
+                               href="{% url 'messaging:compose_message' %}">
+                                <i class="fas fa-pen"></i>
+                                <span>Compose Message</span>
                             </a>
                         </li>
                     </ul>
                 </div>
             </nav>
 
-            <!-- Content Area -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+            <!-- Main Content -->
+            <main class="main-content">
                 {% block content %}{% endblock %}
             </main>
         </div>
     </div>
 
-    <!-- Popup Overlay and Content -->
-    <div id="popupOverlay" class="popup-overlay"></div>
-    <div id="customPopup" class="custom-popup">
-        <div class="popup-header">
-            <h4>Notification</h4>
-            <span class="popup-close" onclick="closePopup()">&times;</span>
-        </div>
-        <div class="popup-content" id="popupContent">
-        </div>
-        <div class="popup-footer">
-            <button class="popup-button" onclick="closePopup()">OK</button>
-        </div>
-    </div>
+    <!-- Notification Container -->
+    <div id="notificationContainer" class="notification"></div>
 
-    <!-- JavaScript Dependencies -->
+    <!-- Core JavaScript -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Plugin JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
 
     <!-- Base JavaScript -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Enable all dropdowns
-            var dropdownElementList = [].slice.call(document.querySelectorAll('.dropdown-toggle'));
-            var dropdownList = dropdownElementList.map(function (dropdownToggleEl) {
-                return new bootstrap.Dropdown(dropdownToggleEl);
+            // Initialize Select2
+            $('.select2').select2({
+                theme: 'bootstrap-5'
             });
 
-            // Add hover effect for dropdown
-            $('.nav-item.dropdown').hover(
-                function() {
-                    $(this).find('.dropdown-toggle').dropdown('show');
-                },
-                function() {
-                    $(this).find('.dropdown-toggle').dropdown('hide');
-                }
-            );
+            // Sidebar Toggle for Mobile
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebar = document.getElementById('sidebar');
+            
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('show');
+                });
+            }
 
-            // Initialize popup for Django messages
-            const messages = [
+            // Close sidebar when clicking outside on mobile
+            document.addEventListener('click', function(event) {
+                if (window.innerWidth <= 768 && 
+                    !sidebar.contains(event.target) && 
+                    !sidebarToggle.contains(event.target) && 
+                    sidebar.classList.contains('show')) {
+                    sidebar.classList.remove('show');
+                }
+            });
+
+            // Notification System
+            function showNotification(message, type = 'info') {
+                // Don't show notifications on the inbox page
+                if (window.location.pathname.includes('/inbox/')) {
+                    return;
+                }
+
+                const container = document.getElementById('notificationContainer');
+                const notification = document.createElement('div');
+                notification.className = `notification-content notification-${type}`;
+                notification.innerHTML = `
+                    <i class="fas ${getNotificationIcon(type)}"></i>
+                    <div>${message}</div>
+                    <button type="button" class="btn-close ms-auto" onclick="closeNotification(this.parentElement)"></button>
+                `;
+                
+                container.appendChild(notification);
+                
+                // Show animation
+                setTimeout(() => {
+                    notification.closest('.notification').classList.add('show');
+                }, 100);
+
+                // Auto-dismiss after 5 seconds
+                setTimeout(() => {
+                    closeNotification(notification);
+                }, 5000);
+            }
+
+            function closeNotification(element) {
+                const notificationWrapper = element.closest('.notification');
+                notificationWrapper.classList.remove('show');
+                setTimeout(() => {
+                    element.remove();
+                }, 300);
+            }
+
+            function getNotificationIcon(type) {
+                switch (type) {
+                    case 'success':
+                        return 'fa-check-circle';
+                    case 'error':
+                        return 'fa-exclamation-circle';
+                    case 'warning':
+                        return 'fa-exclamation-triangle';
+                    default:
+                        return 'fa-info-circle';
+                }
+            }
+
+            // Handle Django Messages
+            const djangoMessages = [
                 {% for message in messages %}
                     {
-                        text: "{{ message }}",
-                        tags: "{{ message.tags }}"
+                        text: "{{ message|escapejs }}",
+                        tags: "{{ message.tags|default:'info'|escapejs }}"
                     },
                 {% endfor %}
             ];
-            
-            if (messages.length > 0) {
-                messages.forEach(function(message) {
-                    showPopup(message.text, message.tags || 'info');
+
+            if (djangoMessages.length > 0 && !window.location.pathname.includes('/inbox/')) {
+                djangoMessages.forEach(message => {
+                    showNotification(message.text, message.tags);
                 });
+            }
+
+            // Initialize all tooltips
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // Initialize all popovers
+            const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+            popoverTriggerList.map(function (popoverTriggerEl) {
+                return new bootstrap.Popover(popoverTriggerEl);
+            });
+
+            // Active link handling
+            const currentPath = window.location.pathname;
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('active');
+                }
+            });
+
+            // Handle dropdown hover
+            const dropdowns = document.querySelectorAll('.nav-item.dropdown');
+            dropdowns.forEach(dropdown => {
+                dropdown.addEventListener('mouseenter', function() {
+                    if (window.innerWidth >= 992) { // only on desktop
+                        const dropdownToggle = this.querySelector('.dropdown-toggle');
+                        const dropdownMenu = this.querySelector('.dropdown-menu');
+                        if (dropdownToggle && dropdownMenu) {
+                            dropdownMenu.classList.add('show');
+                        }
+                    }
+                });
+
+                dropdown.addEventListener('mouseleave', function() {
+                    if (window.innerWidth >= 992) { // only on desktop
+                        const dropdownMenu = this.querySelector('.dropdown-menu');
+                        if (dropdownMenu) {
+                            dropdownMenu.classList.remove('show');
+                        }
+                    }
+                });
+            });
+        });
+
+        // Global AJAX Setup
+        $.ajaxSetup({
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            error: function(xhr, textStatus, errorThrown) {
+                if (xhr.status === 403) {
+                    showNotification('Session expired. Please refresh the page and try again.', 'error');
+                } else {
+                    showNotification('An error occurred. Please try again.', 'error');
+                }
             }
         });
 
-        // Global popup functions
-        function showPopup(message, type = 'info') {
-            const popup = document.getElementById('customPopup');
-            const overlay = document.getElementById('popupOverlay');
-            const content = document.getElementById('popupContent');
-            
-            const messageElement = document.createElement('div');
-            messageElement.className = `message-${type}`;
-            messageElement.textContent = message;
-            
-            content.innerHTML = '';
-            content.appendChild(messageElement);
-            
-            popup.style.display = 'block';
-            overlay.style.display = 'block';
-            
-            document.addEventListener('keydown', handleEscapeKey);
+        // Utility Functions
+        function formatDateTime(date) {
+            return new Date(date).toLocaleString();
         }
-        
-        function closePopup() {
-            const popup = document.getElementById('customPopup');
-            const overlay = document.getElementById('popupOverlay');
-            popup.style.display = 'none';
-            overlay.style.display = 'none';
-            
-            document.removeEventListener('keydown', handleEscapeKey);
+
+        function formatDate(date) {
+            return new Date(date).toLocaleDateString();
         }
-        
-        function handleEscapeKey(e) {
-            if (e.key === 'Escape') {
-                closePopup();
-            }
+
+        function formatNumber(number) {
+            return new Intl.NumberFormat().format(number);
         }
-        
-        // Click outside to close popup
-        document.getElementById('popupOverlay').addEventListener('click', closePopup);
     </script>
 
     {% block page_specific_js %}{% endblock %}

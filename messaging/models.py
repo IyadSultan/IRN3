@@ -57,8 +57,27 @@ class Message(models.Model):
         blank=True,
         related_name='related_messages'
     )
-    
     objects = MessageManager()
+
+    def get_recipients_display(self):
+        """Returns a formatted string of recipient names."""
+        recipients = self.recipients.all()
+        if not recipients:
+            return "-"
+        
+        first_recipient = recipients.first()
+        first_name = first_recipient.get_full_name() or first_recipient.username
+        
+        if recipients.count() > 1:
+            return f"{first_name} +{recipients.count() - 1}"
+        return first_name
+
+    def get_all_recipients_display(self):
+        """Returns a comma-separated list of all recipient names."""
+        return ", ".join(
+            recipient.get_full_name() or recipient.username 
+            for recipient in self.recipients.all()
+        )
 
     def delete(self, *args, **kwargs):
         # Override delete method to archive instead
@@ -71,6 +90,14 @@ class Message(models.Model):
     def __str__(self):
         return self.subject
 
+class NotificationStatus(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    notification_key = models.CharField(max_length=255)
+    dismissed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'notification_key')
+        
 class MessageReadStatus(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     message = models.ForeignKey(Message, related_name='read_statuses', on_delete=models.CASCADE)

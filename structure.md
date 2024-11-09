@@ -36,8 +36,10 @@
 ┃ ┣ 📂 migrations
 ┃ ┣ 📂 templates
 ┃ ┃ ┣ 📜 inbox.html
+┃ ┃ ┣ 📜 sent_messages.html
 ┃ ┃ ┣ 📜 archived_messages.html
 ┃ ┃ ┣ 📜 compose_message.html
+┃ ┃ ┣ 📜 view_message.html
 ┃ ┣ 📜 models.py
 ┃ ┣ 📜 views.py
 ┃ ┗ 📜 urls.py
