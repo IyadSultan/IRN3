@@ -1,8 +1,12 @@
+# messaging/forms.py
+
 from django import forms
 from django.db.models import Q
 from django.contrib.auth.models import User
 from submission.models import Submission
 from .models import Message, MessageAttachment
+from django.forms.widgets import FileInput
+from .validators import validate_file_size, validate_file_extension
 
 class MessageForm(forms.ModelForm):
     recipients = forms.ModelMultipleChoiceField(
@@ -45,7 +49,11 @@ class MessageForm(forms.ModelForm):
     )
     attachment = forms.FileField(
         required=False,
-        widget=forms.FileInput(attrs={'class': 'form-control'})
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.pdf,.doc,.docx,.txt,.png,.jpg,.jpeg'
+        }),
+        validators=[validate_file_size, validate_file_extension]
     )
 
     class Meta:
@@ -55,35 +63,38 @@ class MessageForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         recipients = cleaned_data.get('recipients')
-        
+
         if not recipients:
             self.add_error('recipients', 'At least one recipient is required.')
-        
+
         return cleaned_data
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        
+
         if user:
             # Exclude current user from recipients
             excluded_user_queryset = User.objects.exclude(id=user.id).filter(is_active=True)
             self.fields['recipients'].queryset = excluded_user_queryset
             self.fields['cc'].queryset = excluded_user_queryset
             self.fields['bcc'].queryset = excluded_user_queryset
-            
-            # Update related_submission queryset
-            if user.is_authenticated:
-                accessible_submissions = Submission.objects.filter(
-                    Q(primary_investigator=user) |
-                    Q(coinvestigators__user=user) |  # Changed to access user through CoInvestigator
-                    Q(research_assistants__user=user)
-                ).distinct()
-                self.fields['related_submission'].queryset = accessible_submissions
+
+            # Include all submissions
+            self.fields['related_submission'].queryset = Submission.objects.all()
 
         for field in self.fields:
             if field not in ['recipients', 'cc', 'bcc', 'related_submission', 'attachment']:
                 self.fields[field].widget.attrs.update({'class': 'form-control'})
+
+    def clean_attachment(self):
+        attachment = self.cleaned_data.get('attachment')
+        if attachment:
+            # Check if file extension is allowed
+            ext = attachment.name.split('.')[-1].lower()
+            if ext not in MessageAttachment.ALLOWED_EXTENSIONS:
+                raise forms.ValidationError(f'Invalid file type. Allowed types are: {", ".join(MessageAttachment.ALLOWED_EXTENSIONS)}')
+        return attachment
 
 class SearchForm(forms.Form):
     q = forms.CharField(label='Search', max_length=100)

@@ -5,13 +5,13 @@
 
 {% block page_specific_css %}
 <style>
-    /* Select2 Bootstrap 5 Compatibility */
+    /* Adjusted styles for multiple file input */
     .select2-container--default .select2-selection--multiple,
     .select2-container--default .select2-selection--single {
         border: 1px solid #ced4da;
         border-radius: 0.25rem;
     }
-    
+
     .select2-container {
         width: 100% !important;
     }
@@ -49,7 +49,7 @@
                 <div class="card-body">
                     <form method="post" enctype="multipart/form-data" id="compose-form" novalidate>
                         {% csrf_token %}
-                        
+
                         {# Subject Field #}
                         {{ form.subject|as_crispy_field }}
 
@@ -83,7 +83,14 @@
                         <div class="mb-3">
                             <label for="id_attachment" class="form-label">Attachment</label>
                             {{ form.attachment }}
-                            <small class="text-muted d-block mt-1" id="file-name-display">Select a file to attach</small>
+                            {% if form.attachment.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.attachment.errors|join:", " }}
+                                </div>
+                            {% endif %}
+                            <small class="text-muted">
+                                Allowed file types: {{ form.attachment.field.widget.attrs.accept }}
+                            </small>
                         </div>
 
                         {# Submit Buttons #}
@@ -200,18 +207,19 @@ $(document).ready(function() {
 
     // File attachment handling
     $('#id_attachment').on('change', function() {
-        var fileName = this.files[0]?.name || 'Select a file to attach';
+        var files = this.files;
+        var fileName = files[0] ? files[0].name : 'Select a file to attach';
         $('#file-name-display').text(fileName);
     });
 
     // Form submission handling
     $('#compose-form').on('submit', function(e) {
         e.preventDefault();
-        
+
         // Clear previous error states
         $('#recipients-error').hide();
         $('.is-invalid').removeClass('is-invalid');
-        
+
         // Validate recipients
         const recipients = $('#id_recipients').val();
         if (!recipients || recipients.length === 0) {

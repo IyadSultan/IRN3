@@ -1,3 +1,5 @@
+# messaging/views.py
+
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
@@ -11,17 +13,36 @@ from submission.models import Submission
 from django.views.generic import CreateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 
-
 User = get_user_model()
+
+@register.filter
+def get_read_status(message, user):
+    """
+    Check if a message has been read by the user.
+    Usage: {{ message|get_read_status:request.user }}
+    """
+    try:
+        # If we used prefetch_related with to_attr
+        read_statuses = getattr(message, 'user_read_status', None)
+        if read_statuses is not None:
+            return read_statuses[0].is_read if read_statuses else False
+    except (AttributeError, IndexError):
+        pass
+
+    # Fallback to database query if not prefetched
+    return MessageReadStatus.objects.filter(
+        message=message,
+        user=user,
+        is_read=True
+    ).exists()
 
 @login_required
 def inbox(request):
-
     messages_list = Message.objects.filter(
-        recipients=request.user, 
+        recipients=request.user,
         is_archived=False
     ).order_by('-sent_at')
-    
+
     # Add read status to the queryset
     messages_list = messages_list.prefetch_related(
         Prefetch(
@@ -30,14 +51,14 @@ def inbox(request):
             to_attr='user_read_status'
         )
     )
-    
+
     # Check if notification has been dismissed
     notification_key = 'submission_2_confirmation'  # Use a unique key for each notification
     notification_dismissed = NotificationStatus.objects.filter(
         user=request.user,
         notification_key=notification_key
     ).exists()
-    
+
     context = {
         'messages': messages_list,
         'show_notification': not notification_dismissed
@@ -55,53 +76,6 @@ def dismiss_notification(request):
         return JsonResponse({'status': 'success'})
     return JsonResponse({'status': 'error'})
 
-    
-@login_required
-def sent_messages(request):
-    messages = Message.objects.filter(sender=request.user).order_by('-sent_at')
-    return render(request, 'messaging/sent_messages.html', {
-        'messages': messages,
-        'is_archived': False
-    })
-
-@login_required
-def view_message(request, message_id):
-    message = get_object_or_404(Message, id=message_id)
-    
-    # Update read status when viewing the message
-    read_status, created = MessageReadStatus.objects.get_or_create(
-        user=request.user,
-        message=message,
-        defaults={'is_read': True}
-    )
-    
-    if not read_status.is_read:
-        read_status.is_read = True
-        read_status.save()
-    
-    return render(request, 'messaging/view_message.html', {'message': message})
-
-@register.filter
-def get_read_status(message, user):
-    """
-    Check if a message has been read by the user.
-    Usage: {{ message|get_read_status:request.user }}
-    """
-    try:
-        # If we used prefetch_related with to_attr
-        read_statuses = getattr(message, 'user_read_status', None)
-        if read_statuses is not None:
-            return read_statuses[0].is_read if read_statuses else False
-    except (AttributeError, IndexError):
-        pass
-    
-    # Fallback to database query if not prefetched
-    return MessageReadStatus.objects.filter(
-        message=message,
-        user=user,
-        is_read=True
-    ).exists()
-
 @login_required
 def compose_message(request):
     if request.method == 'POST':
@@ -111,15 +85,15 @@ def compose_message(request):
                 message = form.save(commit=False)
                 message.sender = request.user
                 message.save()
-                
-                # Save many-to-many relationships after saving the message
                 form.save_m2m()
                 
-                print(f"Message created: {message.id}")  # Debug print
-                
-                # Check if read statuses were created
-                read_statuses = MessageReadStatus.objects.filter(message=message)
-                print(f"Read statuses created: {read_statuses.count()}")  # Debug print
+                # Handle file attachments
+                if 'attachment' in request.FILES:
+                    attachment = MessageAttachment.objects.create(
+                        message=message,
+                        file=request.FILES['attachment'],
+                        filename=request.FILES['attachment'].name
+                    )
                 
                 messages.success(request, 'Message sent successfully!')
                 return redirect('messaging:inbox')
@@ -134,6 +108,14 @@ def compose_message(request):
     
     return render(request, 'messaging/compose_message.html', {
         'form': form
+    })
+
+@login_required
+def sent_messages(request):
+    messages = Message.objects.filter(sender=request.user).order_by('-sent_at')
+    return render(request, 'messaging/sent_messages.html', {
+        'messages': messages,
+        'is_archived': False
     })
 
 @login_required
@@ -229,8 +211,6 @@ def search_messages(request):
     }
     return render(request, 'messaging/search_results.html', context)
 
-
-
 @login_required
 def archive_message(request):
     if request.method == 'POST':
@@ -294,7 +274,6 @@ def user_autocomplete(request):
         })
 
     return JsonResponse(results, safe=False)
-
 
 @login_required
 def submission_autocomplete(request):
@@ -365,3 +344,20 @@ def update_read_status(request):
         
         return JsonResponse({'status': 'success'})
     return JsonResponse({'status': 'error'}, status=400)
+
+@login_required
+def view_message(request, message_id):
+    message = get_object_or_404(Message, id=message_id)
+    
+    # Update read status when viewing the message
+    read_status, created = MessageReadStatus.objects.get_or_create(
+        user=request.user,
+        message=message,
+        defaults={'is_read': True}
+    )
+    
+    if not read_status.is_read:
+        read_status.is_read = True
+        read_status.save()
+    
+    return render(request, 'messaging/view_message.html', {'message': message})

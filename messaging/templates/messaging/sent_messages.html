@@ -185,7 +185,7 @@
                                 </a>
                             </td>
                             <td class="study-column">
-                                <span class="text-truncate">{{ message.study_name|default:"-" }}</span>
+                                <span class="text-truncate">{{ message.related_submission.title|default:"-" }}</span>
                             </td>
                             <td class="date-column" data-order="{{ message.sent_at|date:'Y-m-d H:i:s' }}">
                                 {{ message.sent_at|date:"M d, Y" }}

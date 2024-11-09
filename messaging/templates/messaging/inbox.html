@@ -192,7 +192,8 @@
                                         {% endif %}
                                     </a>
                                 </td>
-                                <td>{{ message.study_name|default:"-" }}</td>
+                                <td>{{ message.related_submission.title|default:"-" }}</td>
+
                                 <td data-order="{{ message.sent_at|date:'Y-m-d H:i:s' }}">
                                     {{ message.sent_at|date:"M d, Y" }}
                                     <br>

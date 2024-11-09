@@ -9,12 +9,8 @@ class MessagingConfig(AppConfig):
     name = 'messaging'
 
     def ready(self):
-        # Remove the line that tries to get_template('dummy.html')
-        # Instead, we'll just ensure the messaging_extras library is loaded
-        try:
-            Library.get_library('messaging_extras')
-        except Exception as e:
-            print(f"Error loading messaging_extras: {e}")
+        import messaging.signals  # Import signals when app is ready
+
 from django.core.checks import Warning, register
 from django.conf import settings
 
@@ -148,7 +144,21 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
             ).count()
             cache.set(cache_key, count, 300)  # Cache for 5 minutes
         return count
-from django import forms
+class MessageError(Exception):
+    """Base exception class for messaging app errors"""
+    pass
+
+class RecipientError(MessageError):
+    """Exception raised for errors related to message recipients"""
+    pass
+
+class AttachmentError(MessageError):
+    """Exception raised for errors related to message attachments"""
+    pass
+
+class ThreadError(MessageError):
+    """Exception raised for errors related to message threading"""
+    pass from django import forms
 from django.db.models import Q
 from django.contrib.auth.models import User
 from submission.models import Submission
@@ -352,18 +362,22 @@ class Comment(models.Model):
     
     def __str__(self):
         return f"Comment by {self.user.username} on {self.message.subject}"
-from django.db.models.signals import post_save
+# messaging/signals.py
+
+from django.db.models.signals import post_save, m2m_changed
 from django.dispatch import receiver
 from .models import Message, MessageReadStatus
 
-@receiver(post_save, sender='messaging.Message')
-def create_message_read_status(sender, instance, created, **kwargs):
-    if created:
-        from .models import MessageReadStatus
-        for recipient in instance.recipients.all():
-            MessageReadStatus.objects.create(user=recipient, message=instance)
-
-from celery import shared_task
+@receiver(m2m_changed, sender=Message.recipients.through)
+def create_message_read_status(sender, instance, action, pk_set, **kwargs):
+    """Create read status for all recipients when they are added to a message"""
+    if action == "post_add" and pk_set:
+        for user_id in pk_set:
+            MessageReadStatus.objects.get_or_create(
+                message=instance,
+                user_id=user_id,
+                defaults={'is_read': False}
+            )from celery import shared_task
 from django.core.mail import get_connection, EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
@@ -434,39 +448,6 @@ def handle_new_message(sender, instance, created, **kwargs):
     """Handle new message creation and send email notifications"""
     if created:
         send_message_email_task.delay(instance.id)
-# messaging/tests.py
-
-from django.test import TestCase
-from django.contrib.auth.models import User
-from .models import Message
-
-class MessageModelTest(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(username='testuser', password='12345')
-    
-    def test_message_creation(self):
-        message = Message.objects.create(
-            sender=self.user,
-            subject='Test Message',
-            body='This is a test message.'
-        )
-        self.assertEqual(message.subject, 'Test Message')
-
-from django.core.mail import send_mail
-from django.conf import settings
-
-def test_email_configuration():
-    try:
-        send_mail(
-            subject='Test Email Configuration',
-            message='This is a test email to verify the email configuration.',
-            from_email=settings.EMAIL_HOST_USER,
-            recipient_list=[settings.EMAIL_HOST_USER],
-            fail_silently=False,
-        )
-        return True, "Test email sent successfully"
-    except Exception as e:
-        return False, f"Error sending test email: {str(e)}"
 from django.urls import path
 from . import views
 
@@ -908,7 +889,9 @@ def update_read_status(request):
         
         return JsonResponse({'status': 'success'})
     return JsonResponse({'status': 'error'}, status=400)
-{% extends 'users/base.html' %}
+# messaging/__init__.py
+
+default_app_config = 'messaging.apps.MessagingConfig'{% extends 'users/base.html' %}
 {% load messaging_extras %}
 
 {% block title %}Archived Messages{% endblock %}

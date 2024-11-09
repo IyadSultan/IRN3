@@ -34,18 +34,7 @@
                     <td>{{ submission.title|default:"" }}</td>
                     <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
                     <td>
-                        <span class="badge 
-                            {% if submission.status == 'draft' %}
-                                badge-warning
-                            {% elif submission.status == 'submitted' %}
-                                badge-info
-                            {% elif submission.status == 'accepted' %}
-                                badge-success
-                            {% elif submission.status == 'revision_requested' or submission.status == 'under_revision' %}
-                                badge-primary
-                            {% else %}
-                                badge-secondary
-                            {% endif %}">
+                        <span class="badge badge-{{ submission.status|lower }}">
                             {{ submission.get_status_display|default:"" }}
                         </span>
                     </td>

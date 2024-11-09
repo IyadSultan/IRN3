@@ -216,6 +216,52 @@
                 display: block;
             }
         }
+
+        /* Badge Styles */
+        .badge {
+            padding: 0.5em 0.8em !important;
+            font-size: 0.8em !important;
+            font-weight: 500 !important;
+            border-radius: 0.25rem !important;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        /* Submission Status Badges */
+        .badge-draft {
+            background-color: #ffc107 !important;  /* yellow */
+            color: #000 !important;
+        }
+        .badge-submitted {
+            background-color: #17a2b8 !important;  /* cyan */
+            color: white !important;
+        }
+        .badge-accepted {
+            background-color: #198754 !important;  /* green */
+            color: white !important;
+        }
+        .badge-revision_requested {
+            background-color: #fd7e14 !important;  /* orange */
+            color: white !important;
+        }
+        .badge-under_revision {
+            background-color: #0dcaf0 !important;  /* light blue */
+            color: white !important;
+        }
+        .badge-rejected {
+            background-color: #dc3545 !important;  /* red */
+            color: white !important;
+        }
+
+        /* Message Status Badges */
+        .badge-read {
+            background-color: #6c757d !important;  /* gray */
+            color: white !important;
+        }
+        .badge-unread {
+            background-color: #0d6efd !important;  /* blue */
+            color: white !important;
+        }
     </style>
 
     {% block page_specific_css %}{% endblock %}
