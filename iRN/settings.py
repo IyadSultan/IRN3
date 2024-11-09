@@ -207,6 +207,79 @@ CACHES = {
 
 DATATABLES_PAGE_LENGTH = 10
 
+import os
+from pathlib import Path
+
+# Create logs directory if it doesn't exist
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{levelname}] {asctime} - {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        }
+    },
+    'handlers': {
+        'users_file': {
+            'class': 'logging.handlers.RotatingFileHandler',  # Use rotating handler
+            'filename': os.path.join(LOGS_DIR, 'users.log'),
+            'formatter': 'verbose',
+            'maxBytes': 1024 * 1024,  # 1MB
+            'backupCount': 3,
+            'level': 'INFO'
+        },
+        'security_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'security.log'),
+            'formatter': 'verbose',
+            'maxBytes': 1024 * 1024,  # 1MB
+            'backupCount': 3,
+            'level': 'INFO'
+        },
+        'critical_errors': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_DIR, 'critical.log'),
+            'formatter': 'verbose',
+            'maxBytes': 1024 * 1024,  # 1MB
+            'backupCount': 3,
+            'level': 'ERROR'
+        }
+    },
+    'loggers': {
+        # Your application loggers
+        'IRN.users': {
+            'handlers': ['users_file', 'critical_errors'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'IRN.security': {
+            'handlers': ['security_file', 'critical_errors'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    }
+}
+
+# Only add console logging in DEBUG mode
+if DEBUG:
+    LOGGING['handlers']['console'] = {
+        'class': 'logging.StreamHandler',
+        'formatter': 'verbose',
+        'level': 'INFO'
+    }
+    # Add console handler to each logger
+    for logger in LOGGING['loggers'].values():
+        logger['handlers'].append('console')
+# Make sure debug messages are displayed in development
+if DEBUG:
+    for logger in LOGGING['loggers'].values():
+        logger['level'] = 'DEBUG'
 # # System user settings
 # SYSTEM_EMAIL = 'aidi@khcc.jo'
 # SYSTEM_NAME = 'AIDI System'

@@ -7,87 +7,183 @@ from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.utils import timezone
 from django.core.cache import cache
+from django.core.validators import EmailValidator, RegexValidator
+from iRN.constants import USER_ROLE_CHOICES
 
-ROLE_CHOICES = [
-    ('KHCC investigator', 'KHCC investigator'),
-    ('Non-KHCC investigator', 'Non-KHCC investigator'),
-    ('Research Assistant/Coordinator', 'Research Assistant/Coordinator'),
-    ('OSAR head', 'OSAR head'),
-    ('OSAR', 'OSAR'),
-    ('IRB chair', 'IRB chair'),
-    ('RC coordinator', 'RC coordinator'),
-    ('IRB member', 'IRB member'),
-    ('RC chair', 'RC chair'),
-    ('RC member', 'RC member'),
-    ('RC coordinator', 'RC coordinator'),
-    ('AHARPP Head', 'AHARPP Head'),
-    ('System administrator', 'System administrator'),
-    ('CEO', 'CEO'),
-    ('CMO', 'CMO'),
-    ('AIDI Head', 'AIDI Head'),
-    ('Grant Management Officer', 'Grant Management Officer'),
-]
+class Role(models.Model):
+    """Role model for managing user roles"""
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Role'
+        verbose_name_plural = 'Roles'
+
+    def __str__(self):
+        return self.name
 
 class Group(models.Model):
+    """Group model for user permissions"""
     name = models.CharField(max_length=50, unique=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
 
     def __str__(self):
         return self.name
 
 def validate_full_name(value):
+    """Validate full name format"""
     names = value.strip().split()
     if len(names) < 2:
         raise ValidationError('Full name must contain at least two names.')
+    if not all(name.isalpha() for name in names):
+        raise ValidationError('Names should only contain letters.')
+    if any(len(name) < 2 for name in names):
+        raise ValidationError('Each name should be at least 2 characters long.')
+
+phone_regex = RegexValidator(
+    regex=r'^\+?1?\d{9,15}$',
+    message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+)
 
 class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    institution = models.CharField(max_length=255, default='King Hussein Cancer Center')
-    mobile = models.CharField(max_length=20)
-    khcc_employee_number = models.CharField(max_length=20, blank=True, null=True)
-    title = models.CharField(max_length=255)
-    role = models.CharField(max_length=50, choices=ROLE_CHOICES)
-    groups = models.ManyToManyField(Group, related_name='user_profiles', blank=True)
-    photo = models.ImageField(upload_to='photos/', blank=True, null=True)
+    user = models.OneToOneField(
+        User, 
+        on_delete=models.CASCADE,
+        related_name='userprofile'
+    )
+    institution = models.CharField(
+        max_length=255,
+        default='King Hussein Cancer Center'
+    )
+    mobile = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        default='',
+        validators=[phone_regex]
+    )
+    khcc_employee_number = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        unique=True,
+        validators=[
+            RegexValidator(
+                regex=r'^[A-Za-z0-9]+$',
+                message='Employee number can only contain letters and numbers.'
+            )
+        ]
+    )
+    title = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+    role = models.CharField(
+        max_length=50,
+        choices=USER_ROLE_CHOICES,
+        blank=True,
+        null=True
+    )
+    groups = models.ManyToManyField(
+        Group,
+        related_name='user_profiles',
+        blank=True
+    )
+    photo = models.ImageField(
+        upload_to='photos/',
+        blank=True,
+        null=True
+    )
     is_approved = models.BooleanField(default=False)
     full_name = models.CharField(
         max_length=255,
         default='',
-        help_text='Full name (at least tw names required)'
+        help_text='Full name (at least two names required)',
+        validators=[validate_full_name]
     )
 
+    class Meta:
+        ordering = ['user__username']
+        indexes = [
+            models.Index(fields=['is_approved']),
+            models.Index(fields=['role'])
+        ]
+
     def __str__(self):
-        return self.user.username
+        return f"{self.full_name} ({self.user.username})"
 
     def clean(self):
-        """Validate that the full name contains at least three parts."""
-        if self.full_name.strip():  # Only validate if not empty
+        """Validate model fields"""
+        super().clean()
+        
+        if self.role == 'KHCC investigator':
+            # Validate employee number
+            if not self.khcc_employee_number:
+                raise ValidationError({
+                    'khcc_employee_number': 'Employee number is required for KHCC investigators.'
+                })
+                
+            # Validate institution
+            if self.institution.lower() != 'king hussein cancer center':
+                raise ValidationError({
+                    'institution': 'KHCC investigators must be from King Hussein Cancer Center'
+                })
+
+        if self.full_name:
             validate_full_name(self.full_name)
 
     def save(self, *args, **kwargs):
-        # If full_name is not set, try to construct it from user's first and last name
+        """Custom save method with additional logic"""
         if not self.full_name and self.user:
             self.full_name = f"{self.user.first_name} {self.user.last_name}".strip()
+        
+        # Only run full_clean if it's a new object or specific fields have changed
+        if not self.pk or self.has_changed:
+            self.full_clean()
+            
         super().save(*args, **kwargs)
+
+    @property
+    def has_changed(self):
+        """Check if important fields have changed"""
+        if not self.pk:
+            return True
+            
+        original = UserProfile.objects.get(pk=self.pk)
+        fields_to_check = ['full_name', 'role', 'institution', 'khcc_employee_number']
+        
+        return any(getattr(self, field) != getattr(original, field) for field in fields_to_check)
 
     def is_in_group(self, group_name):
         return self.groups.filter(name=group_name).exists()
-    
+
+    @property
     def is_irb_member(self):
         return self.is_in_group('IRB Member')
 
+    @property
     def is_research_council_member(self):
         return self.is_in_group('Research Council Member')
 
+    @property
     def is_head_of_irb(self):
         return self.is_in_group('Head of IRB')
 
+    @property
     def is_osar_admin(self):
         return self.is_in_group('OSAR Admin')
 
-
     @property
     def has_valid_gcp(self):
-        """Check if user has a valid (non-expired) GCP certificate"""
         today = timezone.now().date()
         return self.user.documents.filter(
             document_type='GCP',
@@ -96,50 +192,18 @@ class UserProfile(models.Model):
 
     @property
     def has_qrc(self):
-        """Check if user has uploaded a QRC certificate"""
-        return self.user.documents.filter(
-            document_type='QRC'
-        ).exists()
+        return self.user.documents.filter(document_type='QRC').exists()
 
     @property
     def has_ctc(self):
-        """Check if user has uploaded a CTC certificate"""
-        return self.user.documents.filter(
-            document_type='CTC'
-        ).exists()
+        return self.user.documents.filter(document_type='CTC').exists()
 
     @property
     def has_cv(self):
-        """Check if user has uploaded a CV"""
-        return self.user.documents.filter(
-            document_type='CV'
-        ).exists()
-
-    # @property
-    # def is_gcp_expired(self):
-    #     """Check if GCP is expired or missing"""
-    #     today = timezone.now().date()
-    #     latest_gcp = self.user.documents.filter(
-    #         document_type='GCP'
-    #     ).order_by('-expiry_date').first()
-    #     if not latest_gcp or not latest_gcp.expiry_date:
-    #         return True
-    #     return latest_gcp.expiry_date <= today
-
-    # # Helper properties for template usage
-    # @property
-    # def is_qrc_missing(self):
-    #     return not self.has_qrc
-
-    # @property
-    # def is_ctc_missing(self):
-    #     return not self.has_ctc
-
-    # @property
-    # def is_cv_missing(self):
-    #     return not self.has_cv
+        return self.user.documents.filter(document_type='CV').exists()
 
 class Document(models.Model):
+    """Document model for user certificates and files"""
     DOCUMENT_CHOICES = [
         ('GCP', 'Good Clinical Practice Certificate'),
         ('QRC', 'Qualitative Record Certificate'),
@@ -156,59 +220,50 @@ class Document(models.Model):
     file = models.FileField(upload_to='documents/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['document_type', 'expiry_date'])
+        ]
+
+    def __str__(self):
+        display_name = self.other_document_name if self.document_type == 'Other' else self.get_document_type_display()
+        return f"{self.user.username} - {display_name}"
+
     @property
     def is_expired(self):
         if self.expiry_date:
             return self.expiry_date <= timezone.now().date()
-        return False  # If no expiry date, consider it not expired
+        return False
 
     @property
     def days_until_expiry(self):
         if self.expiry_date:
-            delta = self.expiry_date - timezone.now().date()
-            return delta.days
+            return (self.expiry_date - timezone.now().date()).days
         return None
 
-    def __str__(self):
-        return f"{self.user.username} - {self.get_document_type_display()}"
-
     @property
-    def is_missing(self):
-        return not self.file  # Check if the document file is missing
-
-# users/models.py
-
-@receiver(post_save, sender=User)
-def create_or_update_user_profile(sender, instance, created, **kwargs):
-    """Create or update the UserProfile when User is saved"""
-    if created:
-        # Create new profile
-        UserProfile.objects.create(
-            user=instance,
-            full_name=f"{instance.first_name} {instance.last_name}".strip()
-        )
-    else:
-        # Update existing profile
-        if hasattr(instance, 'userprofile'):
-            profile = instance.userprofile
-            if not profile.full_name:
-                profile.full_name = f"{instance.first_name} {instance.last_name}".strip()
-            profile.save()
+    def get_name(self):
+        """Return the document name for display"""
+        if self.document_type == 'Other' and self.other_document_name:
+            return self.other_document_name
+        return self.get_document_type_display()
 
 class SystemSettings(models.Model):
+    """System-wide settings model"""
     system_email = models.EmailField(
         default='aidi@khcc.jo',
-        help_text='System email address used for automated messages'
+        help_text='System email address for automated messages'
     )
     system_user = models.ForeignKey(
-        'auth.User',
+        User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='system_settings',
-        help_text='User account to be used for system messages'
+        help_text='System user account for automated actions'
     )
-    
+
     class Meta:
         verbose_name = 'System Settings'
         verbose_name_plural = 'System Settings'
@@ -216,26 +271,10 @@ class SystemSettings(models.Model):
     def save(self, *args, **kwargs):
         cache.delete('system_settings')
         super().save(*args, **kwargs)
-        
+
     @classmethod
     def get_system_user(cls):
         settings = cls.objects.first()
         if settings and settings.system_user:
             return settings.system_user
-        # Fallback to first superuser if no system user is set
         return User.objects.filter(is_superuser=True).first()
-
-
-from django.db import models
-
-class Role(models.Model):
-    name = models.CharField(max_length=255, unique=True)
-    description = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        ordering = ['name']
