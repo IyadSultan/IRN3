@@ -1,0 +1,17 @@
+# messaging/widgets.py
+
+from django import forms
+
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context['widget']['attrs']['multiple'] = True
+        return context
+
+    def value_from_datadict(self, data, files, name):
+        """Return a list of files."""
+        if not files:
+            return []
+        return files.getlist(name)
