@@ -1,0 +1,365 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <div class="card">
+        <div class="card-body">
+            <h1 class="mb-4">iRN System Operation Manual</h1>
+
+            <div class="table-of-contents mb-4">
+                <h2>Table of Contents</h2>
+                <ul>
+                    <li><a href="#getting-started">Getting Started</a></li>
+                    <li><a href="#submission-process">Submission Process</a></li>
+                    <li><a href="#review-process">Review Process</a></li>
+                    <li><a href="#version-control">Version Control</a></li>
+                    <li><a href="#communication">Communication System</a></li>
+                    <li><a href="#dashboards">Dashboard Management</a></li>
+                </ul>
+            </div>
+
+            <section id="getting-started">
+                <h2>Getting Started</h2>
+                <h3>User Registration and Profile Requirements</h3>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>Required Documents</h4>
+                        <ul>
+                            <li>Good Clinical Practice (GCP) Certificate
+                                <ul>
+                                    <li>Must be valid and not expired</li>
+                                    <li>System tracks expiration dates</li>
+                                </ul>
+                            </li>
+                            <li>Curriculum Vitae (CV)
+                                <ul>
+                                    <li>Must be current and signed</li>
+                                    <li>Include research experience</li>
+                                </ul>
+                            </li>
+                            <li>For KHCC Investigators Only:
+                                <ul>
+                                    <li>Qualitative Record Certificate (QRC)</li>
+                                    <li>Consent Training Certificate (CTC)</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="submission-process">
+                <h2>Submission Process</h2>
+                
+                <h3>Starting a New Submission</h3>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>Initial Setup</h4>
+                        <ol>
+                            <li>Click "Start New Submission" from dashboard</li>
+                            <li>Enter basic information:
+                                <ul>
+                                    <li>Study title</li>
+                                    <li>Study type selection</li>
+                                    <li>Primary investigator details</li>
+                                    <li>IRB number (if applicable)</li>
+                                </ul>
+                            </li>
+                        </ol>
+
+                        <h4>Research Team Setup</h4>
+                        <ol>
+                            <li>Add co-investigators:
+                                <ul>
+                                    <li>Define roles and permissions</li>
+                                    <li>Set document access levels</li>
+                                    <li>Specify editing rights</li>
+                                </ul>
+                            </li>
+                            <li>Add research assistants:
+                                <ul>
+                                    <li>Set access permissions</li>
+                                    <li>Define communication rights</li>
+                                </ul>
+                            </li>
+                        </ol>
+
+                        <h4>Form Completion</h4>
+                        <ol>
+                            <li>Complete dynamic forms in sequence</li>
+                            <li>Upload required documentation</li>
+                            <li>Save progress (draft mode available)</li>
+                            <li>Validate all sections before submission</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <h3>Submission Statuses and Workflow</h3>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <ul>
+                            <li><span class="badge badge-draft">Draft</span> 
+                                <ul>
+                                    <li>Initial state</li>
+                                    <li>Can be edited freely</li>
+                                    <li>Not visible to reviewers</li>
+                                </ul>
+                            </li>
+                            <li><span class="badge badge-submitted">Submitted</span>
+                                <ul>
+                                    <li>Under initial review</li>
+                                    <li>Locked for editing</li>
+                                    <li>Awaiting reviewer assignment</li>
+                                </ul>
+                            </li>
+                            <li><span class="badge badge-revision_requested">Revision Requested</span>
+                                <ul>
+                                    <li>Changes required</li>
+                                    <li>Specific feedback provided</li>
+                                    <li>Temporarily unlocked for editing</li>
+                                </ul>
+                            </li>
+                            <li><span class="badge badge-under_revision">Under Revision</span>
+                                <ul>
+                                    <li>Active revision in progress</li>
+                                    <li>New version being created</li>
+                                    <li>Previous version archived</li>
+                                </ul>
+                            </li>
+                            <li><span class="badge badge-accepted">Accepted</span>
+                                <ul>
+                                    <li>Final approval granted</li>
+                                    <li>IRB number assigned</li>
+                                    <li>Ready for implementation</li>
+                                </ul>
+                            </li>
+                            <li><span class="badge badge-rejected">Rejected</span>
+                                <ul>
+                                    <li>Submission not approved</li>
+                                    <li>Detailed rejection reasons provided</li>
+                                    <li>New submission may be required</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="review-process">
+                <h2>Review Process</h2>
+                
+                <h3>For OSAR Members</h3>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>Review Assignment</h4>
+                        <ol>
+                            <li>Access Review Dashboard</li>
+                            <li>View submissions needing review</li>
+                            <li>Create review requests:
+                                <ul>
+                                    <li>Select appropriate reviewers</li>
+                                    <li>Set review deadlines</li>
+                                    <li>Specify forms for review</li>
+                                    <li>Add review instructions</li>
+                                </ul>
+                            </li>
+                        </ol>
+
+                        <h4>Review Monitoring</h4>
+                        <ul>
+                            <li>Track review status:
+                                <ul>
+                                    <li>⏳ Pending</li>
+                                    <li>✅ Completed</li>
+                                    <li>❌ Declined</li>
+                                </ul>
+                            </li>
+                            <li>Monitor deadlines and progress</li>
+                            <li>Handle extension requests</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>For Reviewers</h3>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>Review Process</h4>
+                        <ol>
+                            <li>Receive review request notification</li>
+                            <li>Accept or decline review assignment</li>
+                            <li>Access assigned submissions</li>
+                            <li>Complete review by deadline:
+                                <ul>
+                                    <li>Provide detailed feedback</li>
+                                    <li>Submit recommendations</li>
+                                    <li>Request clarifications if needed</li>
+                                </ul>
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+
+                <h3>IRB Decision Process</h3>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>Available Decisions</h4>
+                        <ul>
+                            <li>Approve
+                                <ul>
+                                    <li>Grant final approval</li>
+                                    <li>Assign IRB number</li>
+                                    <li>Generate approval documentation</li>
+                                </ul>
+                            </li>
+                            <li>Request Revision
+                                <ul>
+                                    <li>Specify required changes</li>
+                                    <li>Set revision deadline</li>
+                                    <li>Unlock for editing</li>
+                                </ul>
+                            </li>
+                            <li>Reject
+                                <ul>
+                                    <li>Provide detailed reasoning</li>
+                                    <li>Include recommendations</li>
+                                    <li>Explain appeal process</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="version-control">
+                <h2>Version Control</h2>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>Version Management</h4>
+                        <ul>
+                            <li>Track all submission versions</li>
+                            <li>Compare versions side-by-side</li>
+                            <li>Download version-specific PDFs</li>
+                            <li>View complete change history</li>
+                        </ul>
+
+                        <h4>Version Features</h4>
+                        <ul>
+                            <li>Automatic version numbering</li>
+                            <li>Change tracking and highlighting</li>
+                            <li>Version-specific comments</li>
+                            <li>Document archiving</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="communication">
+                <h2>Communication System</h2>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>Messaging Features</h4>
+                        <ul>
+                            <li>Direct messaging between users</li>
+                            <li>File attachments support</li>
+                            <li>Message tracking and status</li>
+                            <li>Automated notifications</li>
+                        </ul>
+
+                        <h4>Notification Types</h4>
+                        <ul>
+                            <li>Status changes</li>
+                            <li>Review assignments</li>
+                            <li>Deadline reminders</li>
+                            <li>Document updates</li>
+                            <li>System announcements</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="dashboards">
+                <h2>Dashboard Management</h2>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>Investigator Dashboard</h4>
+                        <ul>
+                            <li>View all submissions</li>
+                            <li>Track submission status</li>
+                            <li>Access version history</li>
+                            <li>Download PDFs</li>
+                            <li>Edit submissions (when unlocked)</li>
+                        </ul>
+
+                        <h4>Reviewer Dashboard</h4>
+                        <ul>
+                            <li>View assigned reviews</li>
+                            <li>Track deadlines</li>
+                            <li>Access submission details</li>
+                            <li>Submit reviews</li>
+                            <li>View completed reviews</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <div class="mt-4">
+                <p class="text-muted">
+                    <i class="fas fa-info-circle"></i> 
+                    For technical support or questions about the system, please contact the system administrators through the messaging system.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_css %}
+<style>
+    .table-of-contents {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+    }
+    
+    section {
+        margin-bottom: 3rem;
+    }
+    
+    h2 {
+        color: var(--primary-color);
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--primary-color);
+    }
+    
+    h3 {
+        color: var(--secondary-color);
+        margin: 1.5rem 0 1rem;
+    }
+    
+    h4 {
+        color: var(--text-color);
+        font-size: 1.1rem;
+        margin: 1rem 0;
+    }
+    
+    .badge {
+        font-size: 0.9em;
+        padding: 0.4em 0.8em;
+        margin-right: 0.5em;
+    }
+
+    .card {
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .card-body ul li {
+        margin-bottom: 0.5rem;
+    }
+
+    .card-body ul ul {
+        margin-top: 0.5rem;
+    }
+</style>
+{% endblock %} 

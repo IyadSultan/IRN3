@@ -43,4 +43,6 @@ urlpatterns = [
             template_name='users/password_reset_complete.html'
         ),
         name='password_reset_complete'),
+    path('operation-manual/', views.operation_manual, name='operation_manual'),
+    path('faq/', views.faq_view, name='faq'),
 ]

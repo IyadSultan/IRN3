@@ -351,3 +351,9 @@ def role_autocomplete(request):
     except Exception as e:
         users_logger.error(f"Role autocomplete error: {str(e)}", exc_info=True)
         return JsonResponse([], safe=False)
+
+def operation_manual(request):
+    return render(request, 'users/operation_manual.html')
+
+def faq_view(request):
+    return render(request, 'users/faq.html')
