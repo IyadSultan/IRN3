@@ -70,6 +70,81 @@ class Submission(models.Model):
     def increment_version(self):
         VersionHistory.objects.create(submission=self, version=self.version, status=self.status, date=timezone.now())
         self.version += 1
+
+    def get_required_investigator_forms(self):
+        """Get all forms that require per-investigator submission."""
+        return self.study_type.forms.filter(requested_per_investigator=True)
+
+    def get_pending_investigator_forms(self, user):
+        """Get forms that still need to be filled by an investigator."""
+        required_forms = self.get_required_investigator_forms()
+        submitted_forms = InvestigatorFormSubmission.objects.filter(
+            submission=self,
+            investigator=user,
+            version=self.version
+        ).values_list('form_id', flat=True)
+        return required_forms.exclude(id__in=submitted_forms)
+
+    def get_investigator_form_status(self):
+        """Get completion status of all investigator forms."""
+        required_forms = self.get_required_investigator_forms()
+        if not required_forms.exists():
+            return {}
+
+        investigators = list(self.coinvestigators.all())
+        investigators.append({'user': self.primary_investigator, 'role': 'Primary Investigator'})
+
+        status = {}
+        for form in required_forms:
+            form_submissions = InvestigatorFormSubmission.objects.filter(
+                submission=self,
+                form=form,
+                version=self.version
+            ).select_related('investigator')
+
+            submitted_users = {sub.investigator_id: sub.date_submitted for sub in form_submissions}
+            
+            # For the PI, if they submitted the submission, consider their forms complete
+            if self.date_submitted and self.status == 'submitted':
+                submitted_users.setdefault(
+                    self.primary_investigator.id, 
+                    self.date_submitted
+                )
+
+            status[form.name] = {
+                'form': form,
+                'investigators': [
+                    {
+                        'user': inv['user'] if isinstance(inv, dict) else inv.user,
+                        'role': inv['role'] if isinstance(inv, dict) else 'Co-Investigator',
+                        'submitted': submitted_users.get(
+                            inv['user'].id if isinstance(inv, dict) else inv.user.id
+                        ),
+                        'is_pi': (inv['user'] if isinstance(inv, dict) else inv.user) == self.primary_investigator
+                    }
+                    for inv in investigators
+                ]
+            }
+        return status
+
+    def are_all_investigator_forms_complete(self):
+        """Check if all investigators have completed their required forms."""
+        required_forms = self.get_required_investigator_forms()
+        if not required_forms.exists():
+            return True
+
+        investigators = list(self.coinvestigators.all().values_list('user_id', flat=True))
+        # Don't include PI in check as their forms are auto-completed
+        
+        for form in required_forms:
+            submitted_users = InvestigatorFormSubmission.objects.filter(
+                submission=self,
+                form=form,
+                version=self.version
+            ).values_list('investigator_id', flat=True)
+            if not set(investigators).issubset(set(submitted_users)):
+                return False
+        return True
         
         
 
@@ -193,3 +268,28 @@ class SystemSettings(models.Model):
             return settings.system_email if settings else 'aidi@khcc.jo'
         except Exception:
             return 'aidi@khcc.jo'
+
+
+class InvestigatorFormSubmission(models.Model):
+    submission = models.ForeignKey(
+        'Submission', 
+        on_delete=models.CASCADE,
+        related_name='investigator_form_submissions'
+    )
+    form = models.ForeignKey(
+        'forms_builder.DynamicForm',
+        on_delete=models.CASCADE
+    )
+    investigator = models.ForeignKey(
+        'auth.User',
+        on_delete=models.CASCADE
+    )
+    date_submitted = models.DateTimeField(auto_now_add=True)
+    version = models.PositiveIntegerField()
+
+    class Meta:
+        unique_together = ['submission', 'form', 'investigator', 'version']
+        ordering = ['date_submitted']
+
+    def __str__(self):
+        return f"{self.investigator.get_full_name()} - {self.form.name} (v{self.version})"

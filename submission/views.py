@@ -509,15 +509,14 @@ def submission_review(request, submission_id):
                         submission.status = 'submitted'
                         submission.date_submitted = timezone.now()
                         
-                        # Create version history entry BEFORE incrementing version
+                        # Create version history entry
                         VersionHistory.objects.create(
                             submission=submission,
                             version=submission.version,
                             status=submission.status,
                             date=timezone.now()
                         )
-
-                        # Generate PDF once and store in buffer
+			# Generate PDF once and store in buffer
                         buffer = generate_submission_pdf(
                             submission=submission,
                             version=submission.version,
@@ -589,6 +588,9 @@ AIDI System
                         osar_attachment = MessageAttachment(message=osar_notification)
                         osar_attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
 
+                        # Notify co-investigators of required forms
+                        notify_pending_forms(submission)
+
                         # Increment version AFTER everything else is done
                         submission.version += 1
                         submission.save()
@@ -596,9 +598,9 @@ AIDI System
                         messages.success(request, 'Submission has been finalized and sent to OSAR.')
                         return redirect('submission:dashboard')
 
+
                 except Exception as e:
                     logger.error(f"Error in submission finalization: {str(e)}")
-                    logger.error("Error details:", exc_info=True)
                     messages.error(request, f"Error during submission: {str(e)}")
                     return redirect('submission:dashboard')
 
@@ -979,3 +981,231 @@ def view_version(request, submission_id, version_number):
     }
     
     return render(request, 'submission/view_version.html', context)
+
+
+# views.py
+@login_required
+def investigator_form(request, submission_id, form_id):
+    """Handle investigator form submission."""
+    submission = get_object_or_404(Submission, pk=submission_id)
+    form = get_object_or_404(DynamicForm, pk=form_id)
+    
+    # Check if user is allowed to submit this form
+    if request.user != submission.primary_investigator and \
+       not submission.coinvestigators.filter(user=request.user).exists():
+        messages.error(request, "You are not authorized to submit this form.")
+        return redirect('submission:dashboard')
+        
+    # Check if form is already submitted
+    if InvestigatorFormSubmission.objects.filter(
+        submission=submission,
+        form=form,
+        investigator=request.user,
+        version=submission.version
+    ).exists():
+        messages.error(request, "You have already submitted this form.")
+        return redirect('submission:dashboard')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'submit_form':
+            form_class = generate_django_form(form)
+            form_instance = form_class(request.POST)
+            
+            if form_instance.is_valid():
+                try:
+                    with transaction.atomic():
+                        # Save form data
+                        for field_name, value in form_instance.cleaned_data.items():
+                            FormDataEntry.objects.create(
+                                submission=submission,
+                                form=form,
+                                field_name=field_name,
+                                value=value,
+                                version=submission.version
+                            )
+                        
+                        # Record form submission
+                        InvestigatorFormSubmission.objects.create(
+                            submission=submission,
+                            form=form,
+                            investigator=request.user,
+                            version=submission.version
+                        )
+
+                        # Check if all forms are complete
+                        if submission.are_all_investigator_forms_complete():
+                            # Notify all users who can submit
+                            notify_form_completion(submission)
+
+                        messages.success(request, f"Form '{form.name}' submitted successfully.")
+                        return redirect('submission:dashboard')
+                        
+                except Exception as e:
+                    logger.error(f"Error saving investigator form: {str(e)}")
+                    messages.error(request, "An error occurred while saving your form.")
+            else:
+                messages.error(request, "Please correct the errors in the form.")
+    else:
+        form_class = generate_django_form(form)
+        form_instance = form_class()
+
+    return render(request, 'submission/investigator_form.html', {
+        'form': form_instance,
+        'dynamic_form': form,
+        'submission': submission
+    })
+
+def notify_form_completion(submission):
+    """Notify relevant users when all forms are complete."""
+    system_user = get_system_user()
+    
+    # Get all users who can submit
+    recipients = []
+    recipients.append(submission.primary_investigator)
+    recipients.extend([
+        ci.user for ci in submission.coinvestigators.filter(can_submit=True)
+    ])
+    recipients.extend([
+        ra.user for ra in submission.research_assistants.filter(can_submit=True)
+    ])
+    
+    # Create notification message
+    message = Message.objects.create(
+        sender=system_user,
+        subject=f'All Required Forms Completed - {submission.title}',
+        body=f"""
+All investigators have completed their required forms for:
+
+Submission ID: {submission.temporary_id}
+Title: {submission.title}
+
+The submission is now ready for review.
+
+Best regards,
+AIDI System
+        """.strip(),
+        related_submission=submission
+    )
+    
+    # Add recipients
+    for recipient in recipients:
+        message.recipients.add(recipient)
+
+def notify_pending_forms(submission):
+    """Notify co-investigators of pending forms."""
+    system_user = get_system_user()
+    required_forms = submission.get_required_investigator_forms()
+    
+    if not required_forms.exists():
+        return
+        
+    form_names = ", ".join([form.name for form in required_forms])
+    
+    # Create notification for all co-investigators
+    message = Message.objects.create(
+        sender=system_user,
+        subject=f'Forms Required - {submission.title}',
+        body=f"""
+You need to complete the following forms for:
+
+Submission ID: {submission.temporary_id}
+Title: {submission.title}
+
+Required Forms:
+{form_names}
+
+Please log in to the system and complete these forms at your earliest convenience.
+
+Best regards,
+AIDI System
+        """.strip(),
+        related_submission=submission
+    )
+    
+    # Add all co-investigators as recipients
+    for coinv in submission.coinvestigators.all():
+        message.recipients.add(coinv.user)
+
+
+@login_required
+def check_form_status(request, submission_id):
+    """AJAX endpoint to check form completion status."""
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    if not has_edit_permission(request.user, submission):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+        
+    status = submission.get_investigator_form_status()
+    all_complete = submission.are_all_investigator_forms_complete()
+    
+    return JsonResponse({
+        'status': status,
+        'all_complete': all_complete
+    })
+
+
+# if you don't want to allow submission withouth coauthors filling their forms.
+# views.py
+
+# @login_required
+# def submission_review(request, submission_id):
+#     """Existing submission review view - add this to the submit_final section"""
+#     if request.method == 'POST':
+#         action = request.POST.get('action')
+        
+#         if action == 'submit_final':
+#             if missing_documents or validation_errors:
+#                 messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
+#             else:
+#                 try:
+#                     with transaction.atomic():
+#                         # ... existing submission code ...
+                        
+#                         # Add this after submission is created but before redirecting
+#                         required_forms = submission.get_required_investigator_forms()
+#                         if required_forms.exists():
+#                             # Notify co-investigators of required forms
+#                             notify_pending_forms(submission)
+                        
+#                         messages.success(request, 'Submission has been finalized and sent to OSAR.')
+#                         return redirect('submission:dashboard')
+                        
+#                 except Exception as e:
+#                     logger.error(f"Error in submission finalization: {str(e)}")
+#                     messages.error(request, f"Error during submission: {str(e)}")
+#                     return redirect('submission:dashboard')
+
+# # Optional: Add periodic check for overdue forms
+# @login_required
+# def check_overdue_forms(request):
+#     """Administrative view to check for overdue forms."""
+#     if not request.user.is_staff:
+#         messages.error(request, "Permission denied.")
+#         return redirect('submission:dashboard')
+        
+#     overdue_submissions = Submission.objects.filter(
+#         status='submitted'
+#     ).exclude(
+#         study_type__forms__requested_per_investigator=False
+#     )
+    
+#     overdue_data = []
+#     for submission in overdue_submissions:
+#         if not submission.are_all_investigator_forms_complete():
+#             overdue_data.append({
+#                 'submission': submission,
+#                 'status': submission.get_investigator_form_status()
+#             })
+    
+#     return render(request, 'submission/overdue_forms.html', {
+#         'overdue_data': overdue_data
+#     })
+
+# # Add this URL if you want the overdue forms check
+# urlpatterns += [
+#     path('check-overdue-forms/',
+#          views.check_overdue_forms,
+#          name='check_overdue_forms'),
+# ]

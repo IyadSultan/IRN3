@@ -97,6 +97,14 @@
                                        title="Download PDF">
                                         <i class="fas fa-file-pdf"></i>
                                     </a>
+                                    
+                                    {% for form in submission.get_pending_investigator_forms %}
+                                        <a href="{% url 'submission:investigator_form' submission.temporary_id form.id %}"
+                                           class="btn btn-sm btn-warning"
+                                            title="Fill {{ form.name }}">
+                                                <i class="fas fa-file-signature"></i> Fill {{ form.name }}
+                                            </a>
+                                    {% endfor %}
                                 </div>
                             </td>
                         </tr>
