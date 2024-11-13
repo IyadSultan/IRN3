@@ -63,6 +63,20 @@ class Submission(models.Model):
     date_submitted = models.DateTimeField(blank=True, null=True)
     version = models.PositiveIntegerField(default=1)
     is_locked = models.BooleanField(default=False)
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
+
+    def archive(self, user=None):
+        """Archive the submission"""
+        self.is_archived = True
+        self.archived_at = timezone.now()
+        self.save(update_fields=['is_archived', 'archived_at'])
+
+    def unarchive(self, user=None):
+        """Unarchive the submission"""
+        self.is_archived = False
+        self.archived_at = None
+        self.save(update_fields=['is_archived', 'archived_at'])
 
     def __str__(self):
         return f"{self.title} (ID: {self.temporary_id}, Version: {self.version})"
@@ -155,11 +169,11 @@ from users.models import Role  # Add this import
 class CoInvestigator(models.Model):
     submission = models.ForeignKey(
         'Submission', 
-        related_name='coinvestigators',  # Add this related_name
+        related_name='coinvestigators',
         on_delete=models.CASCADE
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    roles = models.ManyToManyField(Role, related_name='coinvestigators')
+    roles = models.JSONField(default=list)  # Changed from ManyToManyField to JSONField
     can_edit = models.BooleanField(default=False)
     can_submit = models.BooleanField(default=False)
     can_view_communications = models.BooleanField(default=False)
@@ -171,6 +185,11 @@ class CoInvestigator(models.Model):
 
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.submission.temporary_id}"
+
+    def get_role_display(self):
+        """Return human-readable role names"""
+        role_dict = dict(COINVESTIGATOR_ROLES)
+        return [role_dict.get(role, role) for role in (self.roles or [])]
 
 from django.db import models
 from django.contrib.auth.models import User

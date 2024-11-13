@@ -25,4 +25,8 @@ urlpatterns = [
     path('compare-version/<int:submission_id>/<int:version>/', views.compare_version, name='compare_version'),
     path('investigator-form/<int:submission_id>/<int:form_id>/', views.investigator_form, name='investigator_form'),
     path('check-form-status/<int:submission_id>/', views.check_form_status, name='check_form_status'),
+    path('archived/', views.archived_dashboard, name='archived_dashboard'),
+    path('archive/<int:submission_id>/', views.archive_submission, name='archive_submission'),
+    path('unarchive/<int:submission_id>/', views.unarchive_submission, name='unarchive_submission'),
+    path('view/<int:submission_id>/', views.view_submission, name='view_submission'),
 ]

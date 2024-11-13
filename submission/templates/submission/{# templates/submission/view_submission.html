@@ -1,0 +1,106 @@
+{# templates/submission/view_submission.html #}
+{% extends 'users/base.html' %}
+{% load static %}
+
+{% block title %}View Submission{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2>{{ submission.title }}</h2>
+            <h6 class="text-muted">ID: {{ submission.temporary_id }}</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>IRB Number:</strong> {{ submission.irb_number|default:"N/A" }}</p>
+                    <p><strong>Status:</strong> {{ submission.get_status_display }}</p>
+                    <p><strong>Version:</strong> {{ submission.version }}</p>
+                    <p><strong>Primary Investigator:</strong> {{ submission.primary_investigator.get_full_name }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Date Created:</strong> {{ submission.date_created|date:"M d, Y H:i" }}</p>
+                    <p><strong>Last Modified:</strong> {{ submission.last_modified|date:"M d, Y H:i" }}</p>
+                    {% if submission.is_archived %}
+                    <p><strong>Archived Date:</strong> {{ submission.archived_at|date:"M d, Y H:i" }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if versions %}
+            <div class="mt-4">
+                <h4>Version History</h4>
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Version</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for version in versions %}
+                        <tr>
+                            <td>{{ version.version }}</td>
+                            <td>{{ version.get_status_display }}</td>
+                            <td>{{ version.date|date:"M d, Y H:i" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+            
+            <div class="mt-4">
+                {% if submission.is_archived %}
+                <a href="{% url 'submission:archived_dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Archived
+                </a>
+                <button class="btn btn-info unarchive-submission" 
+                        data-submission-id="{{ submission.temporary_id }}">
+                    <i class="fas fa-box-open"></i> Unarchive Submission
+                </button>
+                {% else %}
+                <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+                {% endif %}
+                <a href="{% url 'submission:download_submission_pdf' submission.temporary_id %}" 
+                   class="btn btn-primary">
+                    <i class="fas fa-file-pdf"></i> Download PDF
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+{{ block.super }}
+<script>
+$(document).ready(function() {
+    $('.unarchive-submission').click(function() {
+        const submissionId = $(this).data('submission-id');
+        if (confirm('Are you sure you want to unarchive this submission?')) {
+            $.ajax({
+                url: `/submission/unarchive/${submissionId}/`,
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        window.location.href = "{% url 'submission:dashboard' %}";
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error unarchiving submission:', error);
+                    alert('Failed to unarchive submission. Please try again.');
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -42,3 +42,14 @@ USER_ROLE_CHOICES = [
     ('AIDI Head', 'AIDI Head'),
     ('Grant Management Officer', 'Grant Management Officer'),
 ]
+
+
+COINVESTIGATOR_ROLES = [
+    ('PI', 'Principal Investigator'),
+    ('CO_PI', 'Co-Principal Investigator'),
+    ('SUB_I', 'Sub-Investigator'),
+    ('DATA_MANAGER', 'Data Manager'),
+    ('STATISTICIAN', 'Statistician'),
+    ('CONSULTANT', 'Consultant'),
+    ('OTHER', 'Other'),
+]

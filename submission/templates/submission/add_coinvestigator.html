@@ -76,8 +76,8 @@
                                 <tr>
                                     <td>{{ co.user.get_full_name }}</td>
                                     <td>
-                                        {% for role in co.roles.all %}
-                                            <span class="badge bg-secondary me-1">{{ role.name }}</span>
+                                        {% for role in co.get_role_display %}
+                                            <span class="badge bg-secondary me-1">{{ role }}</span>
                                         {% endfor %}
                                     </td>
                                     <td>

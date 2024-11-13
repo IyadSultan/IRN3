@@ -14,6 +14,7 @@ urlpatterns = [
     path('messaging/', include('messaging.urls', namespace='messaging')),
     path('submission/', include('submission.urls', namespace='submission')),
     path('review/', include('review.urls', namespace='review')),
+    path('feedback/', include('feedback.urls', namespace='feedback')),
     
 ]
 

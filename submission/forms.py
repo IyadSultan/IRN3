@@ -129,6 +129,8 @@ class ResearchAssistantForm(forms.ModelForm):
         return instance
 
 
+from iRN.constants import COINVESTIGATOR_ROLES
+
 class CoInvestigatorForm(forms.ModelForm):
     investigator = forms.ModelChoiceField(
         queryset=User.objects.all(),
@@ -139,8 +141,8 @@ class CoInvestigatorForm(forms.ModelForm):
             'data-placeholder': 'Search for co-investigator...'
         })
     )
-    roles = forms.ModelMultipleChoiceField(
-        queryset=Role.objects.all(),
+    roles = forms.MultipleChoiceField(
+        choices=COINVESTIGATOR_ROLES,
         required=True,
         label="Roles",
         widget=forms.CheckboxSelectMultiple,
@@ -177,20 +179,17 @@ class CoInvestigatorForm(forms.ModelForm):
             raise forms.ValidationError("Please select a co-investigator.")
 
         if self.submission:
-            # Check if user is primary investigator
             if self.submission.primary_investigator == investigator:
                 raise forms.ValidationError(
                     "This user is already the primary investigator of this submission."
                 )
 
-            # Check if user is a research assistant
-            if ResearchAssistant.objects.filter(submission=self.submission, user=investigator).exists():
+            if self.submission.research_assistants.filter(user=investigator).exists():
                 raise forms.ValidationError(
                     "This user is already a research assistant of this submission."
                 )
 
-            # Check if user is already a co-investigator
-            if CoInvestigator.objects.filter(submission=self.submission, user=investigator).exists():
+            if self.submission.coinvestigators.filter(user=investigator).exists():
                 raise forms.ValidationError(
                     "This user is already a co-investigator of this submission."
                 )
@@ -210,8 +209,9 @@ class CoInvestigatorForm(forms.ModelForm):
             instance.submission = self.submission
         if commit:
             instance.save()
-            # Save the many-to-many relationships
-            self.save_m2m()
+            # Save roles as a list in the JSONField
+            instance.roles = list(self.cleaned_data['roles'])
+            instance.save()
         return instance
 
 def generate_django_form(dynamic_form):

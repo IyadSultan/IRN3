@@ -1,42 +1,23 @@
-{% extends 'base.html' %}
+{% extends 'users/base.html' %}
 {% load static %}
 
-{% block extra_css %}
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.3/css/buttons.bootstrap4.min.css">
-<style>
-    .btn-green {
-        background-color: #28a745;
-        border-color: #28a745;
-        color: #fff;
-    }
-    .btn-green:hover {
-        background-color: #218838;
-        border-color: #1e7e34;
-        color: #fff;
-    }
-    
-    /* Status badge styles */
-    .badge-draft { background-color: #6c757d; }
-    .badge-submitted { background-color: #007bff; }
-    .badge-under_review { background-color: #ffc107; }
-    .badge-approved { background-color: #28a745; }
-    .badge-rejected { background-color: #dc3545; }
-    .badge-revisions_needed { background-color: #fd7e14; }
-</style>
-{% endblock %}
+{% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h2 class="mb-4">My Submissions</h2>
-
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="card-title mb-0">All Submissions</h3>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>My Submissions</h1>
+        <div class="btn-group">
             <a href="{% url 'submission:start_submission' %}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> Start New Submission
             </a>
+            <a href="{% url 'submission:archived_dashboard' %}" class="btn btn-secondary">
+                <i class="fas fa-archive"></i> View Archived
+            </a>
         </div>
+    </div>
+
+    <div class="card">
         <div class="card-body">
             <div class="table-responsive">
                 <table id="submissionsTable" class="table table-hover">
@@ -76,35 +57,32 @@
                                 <div class="btn-group">
                                     {% if submission.is_locked %}
                                         <a href="{% url 'submission:edit_submission' submission.temporary_id %}" 
-                                           class="btn btn-danger btn-sm" 
+                                           class="btn btn-sm btn-danger" 
                                            title="Submission Locked">
                                             <i class="fas fa-lock"></i>
                                         </a>
                                     {% else %}
                                         <a href="{% url 'submission:edit_submission' submission.temporary_id %}" 
-                                           class="btn btn-success btn-sm" 
+                                           class="btn btn-sm btn-success" 
                                            title="Edit Submission">
                                             <i class="fas fa-edit"></i>
                                         </a>
                                     {% endif %}
                                     <a href="{% url 'submission:version_history' submission.temporary_id %}" 
-                                       class="btn btn-info btn-sm" 
+                                       class="btn btn-sm btn-info" 
                                        title="Version History">
                                         <i class="fas fa-history"></i>
                                     </a>
-                                    <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id submission.actual_version %}" 
-                                       class="btn btn-secondary btn-sm" 
+                                    <a href="{% url 'submission:download_submission_pdf' submission.temporary_id %}" 
+                                       class="btn btn-sm btn-secondary" 
                                        title="Download PDF">
                                         <i class="fas fa-file-pdf"></i>
                                     </a>
-                                    
-                                    {% for form in submission.get_pending_investigator_forms %}
-                                        <a href="{% url 'submission:investigator_form' submission.temporary_id form.id %}"
-                                           class="btn btn-sm btn-warning"
-                                            title="Fill {{ form.name }}">
-                                                <i class="fas fa-file-signature"></i> Fill {{ form.name }}
-                                            </a>
-                                    {% endfor %}
+                                    <button class="btn btn-sm btn-warning archive-submission" 
+                                            data-submission-id="{{ submission.temporary_id }}"
+                                            title="Archive Submission">
+                                        <i class="fas fa-archive"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -122,23 +100,70 @@
 {% endblock %}
 
 {% block page_specific_js %}
+{{ block.super }}
 <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.2.3/js/dataTables.buttons.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.2.3/js/buttons.bootstrap4.min.js"></script>
 <script>
 $(document).ready(function() {
+    // Initialize DataTable
     $('#submissionsTable').DataTable({
-        dom: 'Bfrtip',
-        buttons: ['copy', 'excel', 'csv'],
-        order: [[6, "desc"]],
+        processing: true,
+        serverSide: false,
         pageLength: 10,
+        order: [[6, "desc"]],
         columnDefs: [
             { orderable: false, targets: 8 }
-        ],
-        processing: true,
-        serverSide: false
+        ]
+    });
+
+    // Archive submission handler
+    $('.archive-submission').click(function() {
+        const submissionId = $(this).data('submission-id');
+        if (confirm('Are you sure you want to archive this submission?')) {
+            $.ajax({
+                url: `/submission/archive/${submissionId}/`,
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        location.reload();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error archiving submission:', error);
+                    alert('Failed to archive submission. Please try again.');
+                }
+            });
+        }
     });
 });
 </script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .btn-group {
+        gap: 0.5rem;
+    }
+    
+    .status-badge {
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 0.9em;
+    }
+    
+    .status-badge i {
+        margin-right: 5px;
+    }
+
+    .table td {
+        vertical-align: middle;
+    }
+
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+    }
+</style>
 {% endblock %}

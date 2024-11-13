@@ -1,6 +1,6 @@
 # Combined Python and HTML files
 # Generated from directory: C:\Users\isult\Dropbox\AI\Projects\IRN3\submission
-# Total files found: 46
+# Total files found: 48
 
 
 
@@ -367,46 +367,50 @@
 <div class="container mt-4">
     <div class="card">
         <div class="card-header">
-            <h2>Version Comparison</h2>
-            <h4>{{ submission.title }}</h4>
-            <p>Comparing Version {{ version1 }} with Version {{ version2 }}</p>
+            <h2>Version Changes</h2>
+            <h4 class="text-muted">{{ submission.title }}</h4>
+            <p>Changes from Version {{ previous_version }} to Version {{ version }}</p>
         </div>
         <div class="card-body">
             {% if comparison_data %}
                 {% for form_data in comparison_data %}
-                    <h5 class="mt-4">{{ form_data.form_name }}</h5>
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Field</th>
-                                <th>Version {{ version1 }}</th>
-                                <th>Version {{ version2 }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for change in form_data.changes %}
-                                <tr>
-                                    <td>{{ change.field }}</td>
-                                    <td {% if change.old_value != change.new_value %}class="bg-light-yellow"{% endif %}>
-                                        {{ change.old_value }}
-                                    </td>
-                                    <td {% if change.old_value != change.new_value %}class="bg-light-yellow"{% endif %}>
-                                        {{ change.new_value }}
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                    <div class="mb-4">
+                        <h5 class="border-bottom pb-2">{{ form_data.form_name }}</h5>
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 30%">Field</th>
+                                        <th style="width: 35%">Previous Value (v{{ previous_version }})</th>
+                                        <th style="width: 35%">Current Value (v{{ version }})</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for change in form_data.changes %}
+                                        <tr>
+                                            <td class="fw-bold">{{ change.field }}</td>
+                                            <td class="bg-light-yellow">
+                                                {{ change.previous_value }}
+                                            </td>
+                                            <td class="bg-light-green">
+                                                {{ change.current_value }}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 {% endfor %}
             {% else %}
                 <div class="alert alert-info">
-                    No differences found between these versions.
+                    <i class="fas fa-info-circle"></i> No changes found between these versions.
                 </div>
             {% endif %}
 
             <div class="mt-4">
-                <a href="{% url 'submission:submission_review' submission.temporary_id %}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Review
+                <a href="{% url 'submission:version_history' submission.temporary_id %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Version History
                 </a>
             </div>
         </div>
@@ -417,105 +421,155 @@
     .bg-light-yellow {
         background-color: #fff3cd;
     }
+    .bg-light-green {
+        background-color: #d4edda;
+    }
 </style>
 {% endblock %}
 
-
 # Contents from: .\templates\submission\dashboard.html
-{% extends 'users/base.html' %}
+{% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Dashboard{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.3/css/buttons.bootstrap4.min.css">
+<style>
+    .btn-green {
+        background-color: #28a745;
+        border-color: #28a745;
+        color: #fff;
+    }
+    .btn-green:hover {
+        background-color: #218838;
+        border-color: #1e7e34;
+        color: #fff;
+    }
+    
+    /* Status badge styles */
+    .badge-draft { background-color: #6c757d; }
+    .badge-submitted { background-color: #007bff; }
+    .badge-under_review { background-color: #ffc107; }
+    .badge-approved { background-color: #28a745; }
+    .badge-rejected { background-color: #dc3545; }
+    .badge-revisions_needed { background-color: #fd7e14; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h1 class="mb-4">My Submissions</h1>
-    <div class="mb-3">
-        <a href="{% url 'submission:start_submission' %}" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Start New Submission
-        </a>
-    </div>
-    <div class="table-responsive">
-        <table id="submissions-table" class="table table-striped table-hover">
-            <thead class="thead-light">
-                <tr>
-                    <th>ID</th>
-                    <th>IRB Number</th>
-                    <th>Title</th>
-                    <th>Primary Investigator</th>
-                    <th>Status</th>
-                    <th>Version</th>
-                    <th>Date Created</th>
-                    <th>Last Modified</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>    
-            <tbody>
-                {% for submission in submissions %}
-                <tr>
-                    <td>{{ submission.temporary_id|default:"" }}</td>
-                    <td>{{ submission.irb_number|default:"N/A" }}</td>
-                    <td>{{ submission.title|default:"" }}</td>
-                    <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
-                    <td>
-                        <span class="badge badge-{{ submission.status|lower }}">
-                            {{ submission.get_status_display|default:"" }}
-                        </span>
-                    </td>
-                    <td>{{ submission.actual_version }}</td>
-                    <td data-order="{{ submission.date_created|date:'Y-m-d H:i:s' }}">
-                        {{ submission.date_created|date:"M d, Y H:i"|default:"" }}
-                    </td>
-                    <td data-order="{{ submission.last_modified|date:'Y-m-d H:i:s' }}">
-                        {{ submission.last_modified|date:"M d, Y H:i"|default:"" }}
-                    </td>
-                    <td>
-                        {% if submission.is_locked %}
-                            <a href="{% url 'submission:edit_submission' submission.temporary_id %}" 
-                               class="btn btn-sm btn-danger" 
-                               title="Submission Locked">
-                                <i class="fas fa-lock"></i>
-                            </a>
-                        {% else %}
-                            <a href="{% url 'submission:edit_submission' submission.temporary_id %}" 
-                               class="btn btn-sm btn-success" 
-                               title="Edit Submission">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                        {% endif %}
-                        <a href="{% url 'submission:version_history' submission.temporary_id %}" 
-                           class="btn btn-sm btn-info" 
-                           title="Version History">
-                            <i class="fas fa-history"></i>
-                        </a>
-                        <a href="{% url 'submission:download_submission_pdf' submission.temporary_id %}" 
-                           class="btn btn-sm btn-secondary" 
-                           title="Download PDF">
-                            <i class="fas fa-file-pdf"></i>
-                        </a>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="9" class="text-center">No submissions found.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="container">
+    <h2 class="mb-4">My Submissions</h2>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="card-title mb-0">All Submissions</h3>
+            <a href="{% url 'submission:start_submission' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Start New Submission
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table id="submissionsTable" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>IRB Number</th>
+                            <th>Title</th>
+                            <th>Primary Investigator</th>
+                            <th>Status</th>
+                            <th>Version</th>
+                            <th>Date Created</th>
+                            <th>Last Modified</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for submission in submissions %}
+                        <tr>
+                            <td>{{ submission.temporary_id|default:"" }}</td>
+                            <td>{{ submission.irb_number|default:"N/A" }}</td>
+                            <td>{{ submission.title|default:"" }}</td>
+                            <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                            <td>
+                                <span class="badge badge-{{ submission.status|lower }}">
+                                    {{ submission.get_status_display|default:"" }}
+                                </span>
+                            </td>
+                            <td>{{ submission.actual_version }}</td>
+                            <td data-order="{{ submission.date_created|date:'Y-m-d H:i:s' }}">
+                                {{ submission.date_created|date:"M d, Y H:i"|default:"" }}
+                            </td>
+                            <td data-order="{{ submission.last_modified|date:'Y-m-d H:i:s' }}">
+                                {{ submission.last_modified|date:"M d, Y H:i"|default:"" }}
+                            </td>
+                            <td>
+                                <div class="btn-group">
+                                    {% if submission.is_locked %}
+                                        <a href="{% url 'submission:edit_submission' submission.temporary_id %}" 
+                                           class="btn btn-danger btn-sm" 
+                                           title="Submission Locked">
+                                            <i class="fas fa-lock"></i>
+                                        </a>
+                                    {% else %}
+                                        <a href="{% url 'submission:edit_submission' submission.temporary_id %}" 
+                                           class="btn btn-success btn-sm" 
+                                           title="Edit Submission">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    {% endif %}
+                                    <a href="{% url 'submission:version_history' submission.temporary_id %}" 
+                                       class="btn btn-info btn-sm" 
+                                       title="Version History">
+                                        <i class="fas fa-history"></i>
+                                    </a>
+                                    <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id submission.actual_version %}" 
+                                       class="btn btn-secondary btn-sm" 
+                                       title="Download PDF">
+                                        <i class="fas fa-file-pdf"></i>
+                                    </a>
+                                    
+                                    {% for form in submission.get_pending_investigator_forms %}
+                                        <a href="{% url 'submission:investigator_form' submission.temporary_id form.id %}"
+                                           class="btn btn-sm btn-warning"
+                                            title="Fill {{ form.name }}">
+                                                <i class="fas fa-file-signature"></i> Fill {{ form.name }}
+                                            </a>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center">No submissions found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block page_specific_js %}
+<script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.3/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.3/js/buttons.bootstrap4.min.js"></script>
 <script>
-    $(document).ready(function() {
-        $('#submissions-table').DataTable({
-            "order": [[6, "desc"]],
-            "columnDefs": [
-                { "orderable": false, "targets": 8 }
-            ]
-        });
+$(document).ready(function() {
+    $('#submissionsTable').DataTable({
+        dom: 'Bfrtip',
+        buttons: ['copy', 'excel', 'csv'],
+        order: [[6, "desc"]],
+        pageLength: 10,
+        columnDefs: [
+            { orderable: false, targets: 8 }
+        ],
+        processing: true,
+        serverSide: false
     });
+});
 </script>
 {% endblock %}
 
@@ -622,6 +676,41 @@
 {{ form.media }}
 {% endblock %}
 
+
+# Contents from: .\templates\submission\investigator_form.html
+
+{# investigator_form.html #}
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2>{{ dynamic_form.name }}</h2>
+            <h6 class="text-muted">Submission: {{ submission.title }}</h6>
+        </div>
+        <div class="card-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {{ form|crispy }}
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                    <a href="{% url 'submission:dashboard' %}" 
+                       class="btn btn-secondary me-md-2">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                    <button type="submit" 
+                            name="action" 
+                            value="submit_form" 
+                            class="btn btn-primary">
+                        <i class="fas fa-save"></i> Submit Form
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
 # Contents from: .\templates\submission\review.html
 {% extends 'users/base.html' %}
@@ -1234,35 +1323,119 @@ document.addEventListener('DOMContentLoaded', function() {
 {% extends 'users/base.html' %}
 {% block content %}
 <div class="container mt-4">
-    <h1>Version History for "{{ submission.title }}"</h1>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Version</th>
-                <th>Status</th>
-                <th>Date</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for history in histories %}
-            <tr>
-                <td>{{ history.version }}</td>
-                <td>{{ history.get_status_display }}</td>
-                <td>{{ history.date }}</td>
-                <td>
-                    <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id history.version %}" class="btn btn-sm btn-secondary">Download PDF</a>
-                    {% if not forloop.last %}
-                    <a href="{% url 'submission:compare_versions' submission.temporary_id history.version submission.version %}" class="btn btn-sm btn-primary">Compare with Latest</a>
+    <div class="card">
+        <div class="card-header">
+            <h2>Version History</h2>
+            <h4 class="text-muted">{{ submission.title }}</h4>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Version</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for history in histories %}
+                        <tr>
+                            <td>{{ history.version }}</td>
+                            <td>
+                                <span class="badge bg-{{ history.status|lower }}">
+                                    {{ history.get_status_display }}
+                                </span>
+                            </td>
+                            <td>{{ history.date|date:"M d, Y H:i" }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id history.version %}" 
+                                       class="btn btn-sm btn-secondary" 
+                                       title="Download PDF">
+                                        <i class="fas fa-file-pdf"></i> Download
+                                    </a>
+                                    
+                                    {% if history.can_compare %}
+                                    <a href="{% url 'submission:compare_version' submission.temporary_id history.version %}" 
+                                       class="btn btn-sm btn-primary" 
+                                       title="Compare with Previous Version">
+                                        <i class="fas fa-code-compare"></i> Compare Changes
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if submission.get_required_investigator_forms %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h4>Required Investigator Forms</h4>
+                </div>
+                <div class="card-body">
+                    {% with form_status=submission.get_investigator_form_status %}
+                    {% if form_status %}
+                        {% for form_name, status in form_status.items %}
+                        <h5 class="mb-3">{{ form_name }}</h5>
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Investigator</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Submission Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for inv in status.investigators %}
+                                <tr>
+                                    <td>{{ inv.user.get_full_name }}</td>
+                                    <td>{{ inv.role }}</td>
+                                    <td>
+                                        {% if inv.submitted %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check"></i> Submitted
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-times"></i> Pending
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if inv.submitted %}
+                                            {{ inv.submitted|date:"M d, Y H:i" }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No form submissions required for this version.</p>
                     {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                    {% endwith %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="mt-4">
+                <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
-
 
 # Contents from: .\__init__.py
 
@@ -2416,6 +2589,68 @@ class Migration(migrations.Migration):
     ]
 
 
+# Contents from: .\migrations\0010_investigatorformsubmission.py
+# Generated by Django 5.1.2 on 2024-11-10 02:17
+
+import django.db.models.deletion
+from django.conf import settings
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("forms_builder", "0003_merge_20241108_1706"),
+        ("submission", "0009_alter_versionhistory_options_and_more"),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name="InvestigatorFormSubmission",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("date_submitted", models.DateTimeField(auto_now_add=True)),
+                ("version", models.PositiveIntegerField()),
+                (
+                    "form",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="forms_builder.dynamicform",
+                    ),
+                ),
+                (
+                    "investigator",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "submission",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="investigator_form_submissions",
+                        to="submission.submission",
+                    ),
+                ),
+            ],
+            options={
+                "ordering": ["date_submitted"],
+                "unique_together": {("submission", "form", "investigator", "version")},
+            },
+        ),
+    ]
+
+
 # Contents from: .\migrations\__init__.py
 
 
@@ -2492,6 +2727,81 @@ class Submission(models.Model):
     def increment_version(self):
         VersionHistory.objects.create(submission=self, version=self.version, status=self.status, date=timezone.now())
         self.version += 1
+
+    def get_required_investigator_forms(self):
+        """Get all forms that require per-investigator submission."""
+        return self.study_type.forms.filter(requested_per_investigator=True)
+
+    def get_pending_investigator_forms(self, user):
+        """Get forms that still need to be filled by an investigator."""
+        required_forms = self.get_required_investigator_forms()
+        submitted_forms = InvestigatorFormSubmission.objects.filter(
+            submission=self,
+            investigator=user,
+            version=self.version
+        ).values_list('form_id', flat=True)
+        return required_forms.exclude(id__in=submitted_forms)
+
+    def get_investigator_form_status(self):
+        """Get completion status of all investigator forms."""
+        required_forms = self.get_required_investigator_forms()
+        if not required_forms.exists():
+            return {}
+
+        investigators = list(self.coinvestigators.all())
+        investigators.append({'user': self.primary_investigator, 'role': 'Primary Investigator'})
+
+        status = {}
+        for form in required_forms:
+            form_submissions = InvestigatorFormSubmission.objects.filter(
+                submission=self,
+                form=form,
+                version=self.version
+            ).select_related('investigator')
+
+            submitted_users = {sub.investigator_id: sub.date_submitted for sub in form_submissions}
+            
+            # For the PI, if they submitted the submission, consider their forms complete
+            if self.date_submitted and self.status == 'submitted':
+                submitted_users.setdefault(
+                    self.primary_investigator.id, 
+                    self.date_submitted
+                )
+
+            status[form.name] = {
+                'form': form,
+                'investigators': [
+                    {
+                        'user': inv['user'] if isinstance(inv, dict) else inv.user,
+                        'role': inv['role'] if isinstance(inv, dict) else 'Co-Investigator',
+                        'submitted': submitted_users.get(
+                            inv['user'].id if isinstance(inv, dict) else inv.user.id
+                        ),
+                        'is_pi': (inv['user'] if isinstance(inv, dict) else inv.user) == self.primary_investigator
+                    }
+                    for inv in investigators
+                ]
+            }
+        return status
+
+    def are_all_investigator_forms_complete(self):
+        """Check if all investigators have completed their required forms."""
+        required_forms = self.get_required_investigator_forms()
+        if not required_forms.exists():
+            return True
+
+        investigators = list(self.coinvestigators.all().values_list('user_id', flat=True))
+        # Don't include PI in check as their forms are auto-completed
+        
+        for form in required_forms:
+            submitted_users = InvestigatorFormSubmission.objects.filter(
+                submission=self,
+                form=form,
+                version=self.version
+            ).values_list('investigator_id', flat=True)
+            if not set(investigators).issubset(set(submitted_users)):
+                return False
+        return True
         
         
 
@@ -2616,6 +2926,30 @@ class SystemSettings(models.Model):
         except Exception:
             return 'aidi@khcc.jo'
 
+
+class InvestigatorFormSubmission(models.Model):
+    submission = models.ForeignKey(
+        'Submission', 
+        on_delete=models.CASCADE,
+        related_name='investigator_form_submissions'
+    )
+    form = models.ForeignKey(
+        'forms_builder.DynamicForm',
+        on_delete=models.CASCADE
+    )
+    investigator = models.ForeignKey(
+        'auth.User',
+        on_delete=models.CASCADE
+    )
+    date_submitted = models.DateTimeField(auto_now_add=True)
+    version = models.PositiveIntegerField()
+
+    class Meta:
+        unique_together = ['submission', 'form', 'investigator', 'version']
+        ordering = ['date_submitted']
+
+    def __str__(self):
+        return f"{self.investigator.get_full_name()} - {self.form.name} (v{self.version})"
 
 # Contents from: .\templatetags\__init__.py
 # Empty file, but needs to exist
@@ -2951,10 +3285,11 @@ urlpatterns = [
     path('update-coinvestigator-order/<int:submission_id>/', views.update_coinvestigator_order, name='update_coinvestigator_order'),
     path('document-delete/<int:submission_id>/<int:document_id>/', views.document_delete, name='document_delete'),
     path('version-history/<int:submission_id>/', views.version_history, name='version_history'),
-    path('compare-versions/<int:submission_id>/<int:version1>/<int:version2>/', views.compare_versions, name='compare_versions'),
     path('<int:submission_id>/', views.submission_detail, name='submission_detail'),
     path('<int:submission_id>/version/<int:version_number>/', views.view_version, name='view_version'),
-    path('<int:submission_id>/compare/<int:version1_number>/<int:version2_number>/', views.compare_versions, name='compare_versions'),
+    path('compare-version/<int:submission_id>/<int:version>/', views.compare_version, name='compare_version'),
+    path('investigator-form/<int:submission_id>/<int:form_id>/', views.investigator_form, name='investigator_form'),
+    path('check-form-status/<int:submission_id>/', views.check_form_status, name='check_form_status'),
 ]
 
 
@@ -4066,9 +4401,10 @@ def submission_form(request, submission_id, form_id):
     return render(request, 'submission/dynamic_form.html', context)
 
 
+# submission/views.py
+
 @login_required
 def submission_review(request, submission_id):
-    """Review submission before final submission."""
     submission = get_object_or_404(Submission, temporary_id=submission_id)
     
     if submission.is_locked and not has_edit_permission(request.user, submission):
@@ -4113,37 +4449,10 @@ def submission_review(request, submission_id):
 
     documents = submission.documents.all()
     doc_form = DocumentForm()
-
     if request.method == 'POST':
         action = request.POST.get('action')
         
-        if action == 'analyze_submission':
-            try:
-                cache_key = f'gpt_analysis_{submission.temporary_id}_{submission.version}'
-                analysis = cache.get(cache_key)
-                
-                if not analysis:
-                    analyzer = ResearchAnalyzer(submission, submission.version)
-                    analysis = analyzer.analyze_submission()
-                    
-                    if analysis and not analysis.startswith("Error"):
-                        cache.set(cache_key, analysis, 3600)
-                    
-                context = {
-                    'submission': submission,
-                    'missing_documents': missing_documents,
-                    'validation_errors': validation_errors,
-                    'documents': documents,
-                    'doc_form': doc_form,
-                    'gpt_analysis': analysis
-                }
-                return render(request, 'submission/submission_review.html', context)
-                
-            except Exception as e:
-                logger.error(f"Error in GPT analysis: {str(e)}")
-                messages.error(request, "Error generating analysis. Please try again later.")
-
-        elif action == 'submit_final':
+        if action == 'submit_final':
             if missing_documents or validation_errors:
                 messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
             else:
@@ -4153,9 +4462,6 @@ def submission_review(request, submission_id):
                         submission.is_locked = True
                         submission.status = 'submitted'
                         submission.date_submitted = timezone.now()
-                        submission.save()
-                        
-                        
                         
                         # Create version history entry
                         VersionHistory.objects.create(
@@ -4164,8 +4470,7 @@ def submission_review(request, submission_id):
                             status=submission.status,
                             date=timezone.now()
                         )
-
-                        # Generate PDF
+			# Generate PDF once and store in buffer
                         buffer = generate_submission_pdf(
                             submission=submission,
                             version=submission.version,
@@ -4178,10 +4483,13 @@ def submission_review(request, submission_id):
 
                         # Get system user for automated messages
                         system_user = get_system_user()
+                        
+                        # Create PDF filename
+                        pdf_filename = f"submission_{submission.temporary_id}_v{submission.version}.pdf"
 
-                        # Send confirmation to PI
+                        # Send confirmation to PI with PDF attachment
                         pi_message = Message.objects.create(
-                            sender=system_user,  # Using the system user here
+                            sender=system_user,
                             subject=f'Submission {submission.temporary_id} - Version {submission.version} Confirmation',
                             body=f"""
 Dear {submission.primary_investigator.userprofile.full_name},
@@ -4194,23 +4502,18 @@ Your submission will be reviewed by the OSAR who will direct it to the appropria
 Best regards,
 AIDI System
                             """.strip(),
-                            # study_name=submission.title,
                             related_submission=submission
                         )
                         pi_message.recipients.add(submission.primary_investigator)
                         
                         # Attach PDF to PI message
-                        pdf_filename = f"submission_{submission.temporary_id}_v1.pdf"
-                        attachment = MessageAttachment(message=pi_message)
-                        attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
+                        pi_attachment = MessageAttachment(message=pi_message)
+                        pi_attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
 
-                        # Notify OSAR
-                        osar_coordinators = User.objects.filter(
-                            groups__name='OSAR'
-                        )
-                        
+                        # Notify OSAR with PDF attachment
+                        osar_coordinators = User.objects.filter(groups__name='OSAR')
                         osar_notification = Message.objects.create(
-                            sender=get_system_user(),
+                            sender=system_user,
                             subject=f'New Submission For Review - {submission.title}',
                             body=f"""
 A new research submission requires your initial review and forwarding.
@@ -4222,31 +4525,36 @@ Submission Details:
 - Study Type: {submission.study_type.name}
 - Submitted: {timezone.now().strftime('%Y-%m-%d %H:%M')}
 
-Please review and forward this submission to the appropriate review bodies.
+Please review the attached PDF and forward this submission to the appropriate review bodies.
 
 Access the submission here: {request.build_absolute_uri(reverse('review:review_dashboard'))}
 
 Best regards,
 AIDI System
                             """.strip(),
-                            # study_name=submission.title,
                             related_submission=submission
                         )
                         
                         for coordinator in osar_coordinators:
                             osar_notification.recipients.add(coordinator)
+                            
+                        # Attach PDF to OSAR message
+                        osar_attachment = MessageAttachment(message=osar_notification)
+                        osar_attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
 
-                        # Prepare for future revisions
-                        # submission.version = 2  # Next version will be 2
-                        # submission.save()
+                        # Notify co-investigators of required forms
+                        notify_pending_forms(submission)
+
+                        # Increment version AFTER everything else is done
+                        submission.version += 1
+                        submission.save()
 
                         messages.success(request, 'Submission has been finalized and sent to OSAR.')
-                        submission.increment_version()
                         return redirect('submission:dashboard')
+
 
                 except Exception as e:
                     logger.error(f"Error in submission finalization: {str(e)}")
-                    logger.error("Error details:", exc_info=True)
                     messages.error(request, f"Error during submission: {str(e)}")
                     return redirect('submission:dashboard')
 
@@ -4311,69 +4619,100 @@ def document_delete(request, submission_id, document_id):
 def version_history(request, submission_id):
     """View version history of a submission."""
     submission = get_object_or_404(Submission, pk=submission_id)
-    histories = submission.version_histories.order_by('-version')
+    if not has_edit_permission(request.user, submission):
+        messages.error(request, "You do not have permission to view this submission.")
+        return redirect('submission:dashboard')
+        
+    # Get all versions from version history, ordered by version number descending
+    histories = VersionHistory.objects.filter(
+        submission=submission
+    ).order_by('-version')
+    
+    # Add a flag to each history item indicating if it can be compared
+    for history in histories:
+        history.can_compare = history.version > 1
+    
     return render(request, 'submission/version_history.html', {
         'submission': submission,
         'histories': histories,
     })
 
 @login_required
-def compare_versions(request, submission_id, version1, version2):
-    """Compare two versions of a submission."""
+def compare_version(request, submission_id, version):
+    """Compare a version with its previous version."""
     submission = get_object_or_404(Submission, pk=submission_id)
     if not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to view this submission.")
         return redirect('submission:dashboard')
 
+    # Can't compare version 1 as it has no previous version
+    if version <= 1:
+        messages.error(request, "Version 1 cannot be compared as it has no previous version.")
+        return redirect('submission:version_history', submission_id=submission_id)
+
+    previous_version = version - 1
     comparison_data = []
     
-    for form in submission.study_type.forms.all():
-        entries_v1 = FormDataEntry.objects.filter(
+    # Get all forms associated with this submission's study type
+    forms = submission.study_type.forms.all()
+    
+    for form in forms:
+        # Get entries for both versions
+        entries_previous = FormDataEntry.objects.filter(
             submission=submission,
             form=form,
-            version=version1
+            version=previous_version
         ).select_related('form')
         
-        entries_v2 = FormDataEntry.objects.filter(
+        entries_current = FormDataEntry.objects.filter(
             submission=submission,
             form=form,
-            version=version2
+            version=version
         ).select_related('form')
 
-        data_v1 = {entry.field_name: entry.value for entry in entries_v1}
-        data_v2 = {entry.field_name: entry.value for entry in entries_v2}
+        # Convert entries to dictionaries for easier comparison
+        data_previous = {entry.field_name: entry.value for entry in entries_previous}
+        data_current = {entry.field_name: entry.value for entry in entries_current}
 
+        # Get field display names from form definition
         field_definitions = {
             field.name: field.displayed_name 
             for field in form.fields.all()
         }
 
+        # Compare fields
         form_changes = []
-        all_fields = set(data_v1.keys()) | set(data_v2.keys())
+        all_fields = sorted(set(data_previous.keys()) | set(data_current.keys()))
         
         for field in all_fields:
             displayed_name = field_definitions.get(field, field)
-            value1 = data_v1.get(field, 'Not provided')
-            value2 = data_v2.get(field, 'Not provided')
+            value_previous = data_previous.get(field, 'Not provided')
+            value_current = data_current.get(field, 'Not provided')
 
-            if isinstance(value1, str) and value1.startswith('['):
-                try:
-                    value1 = ', '.join(json.loads(value1))
-                except json.JSONDecodeError:
-                    pass
-            if isinstance(value2, str) and value2.startswith('['):
-                try:
-                    value2 = ', '.join(json.loads(value2))
-                except json.JSONDecodeError:
-                    pass
+            # Handle JSON array values (e.g., checkbox selections)
+            try:
+                if isinstance(value_previous, str) and value_previous.startswith('['):
+                    value_previous_display = ', '.join(json.loads(value_previous))
+                else:
+                    value_previous_display = value_previous
+                    
+                if isinstance(value_current, str) and value_current.startswith('['):
+                    value_current_display = ', '.join(json.loads(value_current))
+                else:
+                    value_current_display = value_current
+            except json.JSONDecodeError:
+                value_previous_display = value_previous
+                value_current_display = value_current
 
-            if value1 != value2:
+            # Only add to changes if values are different
+            if value_previous != value_current:
                 form_changes.append({
                     'field': displayed_name,
-                    'old_value': value1,
-                    'new_value': value2
+                    'previous_value': value_previous_display,
+                    'current_value': value_current_display
                 })
 
+        # Only add form to comparison data if it has changes
         if form_changes:
             comparison_data.append({
                 'form_name': form.name,
@@ -4382,8 +4721,8 @@ def compare_versions(request, submission_id, version1, version2):
 
     return render(request, 'submission/compare_versions.html', {
         'submission': submission,
-        'version1': version1,
-        'version2': version2,
+        'version': version,
+        'previous_version': previous_version,
         'comparison_data': comparison_data,
     })
 
@@ -4600,3 +4939,231 @@ def view_version(request, submission_id, version_number):
     }
     
     return render(request, 'submission/view_version.html', context)
+
+
+# views.py
+@login_required
+def investigator_form(request, submission_id, form_id):
+    """Handle investigator form submission."""
+    submission = get_object_or_404(Submission, pk=submission_id)
+    form = get_object_or_404(DynamicForm, pk=form_id)
+    
+    # Check if user is allowed to submit this form
+    if request.user != submission.primary_investigator and \
+       not submission.coinvestigators.filter(user=request.user).exists():
+        messages.error(request, "You are not authorized to submit this form.")
+        return redirect('submission:dashboard')
+        
+    # Check if form is already submitted
+    if InvestigatorFormSubmission.objects.filter(
+        submission=submission,
+        form=form,
+        investigator=request.user,
+        version=submission.version
+    ).exists():
+        messages.error(request, "You have already submitted this form.")
+        return redirect('submission:dashboard')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'submit_form':
+            form_class = generate_django_form(form)
+            form_instance = form_class(request.POST)
+            
+            if form_instance.is_valid():
+                try:
+                    with transaction.atomic():
+                        # Save form data
+                        for field_name, value in form_instance.cleaned_data.items():
+                            FormDataEntry.objects.create(
+                                submission=submission,
+                                form=form,
+                                field_name=field_name,
+                                value=value,
+                                version=submission.version
+                            )
+                        
+                        # Record form submission
+                        InvestigatorFormSubmission.objects.create(
+                            submission=submission,
+                            form=form,
+                            investigator=request.user,
+                            version=submission.version
+                        )
+
+                        # Check if all forms are complete
+                        if submission.are_all_investigator_forms_complete():
+                            # Notify all users who can submit
+                            notify_form_completion(submission)
+
+                        messages.success(request, f"Form '{form.name}' submitted successfully.")
+                        return redirect('submission:dashboard')
+                        
+                except Exception as e:
+                    logger.error(f"Error saving investigator form: {str(e)}")
+                    messages.error(request, "An error occurred while saving your form.")
+            else:
+                messages.error(request, "Please correct the errors in the form.")
+    else:
+        form_class = generate_django_form(form)
+        form_instance = form_class()
+
+    return render(request, 'submission/investigator_form.html', {
+        'form': form_instance,
+        'dynamic_form': form,
+        'submission': submission
+    })
+
+def notify_form_completion(submission):
+    """Notify relevant users when all forms are complete."""
+    system_user = get_system_user()
+    
+    # Get all users who can submit
+    recipients = []
+    recipients.append(submission.primary_investigator)
+    recipients.extend([
+        ci.user for ci in submission.coinvestigators.filter(can_submit=True)
+    ])
+    recipients.extend([
+        ra.user for ra in submission.research_assistants.filter(can_submit=True)
+    ])
+    
+    # Create notification message
+    message = Message.objects.create(
+        sender=system_user,
+        subject=f'All Required Forms Completed - {submission.title}',
+        body=f"""
+All investigators have completed their required forms for:
+
+Submission ID: {submission.temporary_id}
+Title: {submission.title}
+
+The submission is now ready for review.
+
+Best regards,
+AIDI System
+        """.strip(),
+        related_submission=submission
+    )
+    
+    # Add recipients
+    for recipient in recipients:
+        message.recipients.add(recipient)
+
+def notify_pending_forms(submission):
+    """Notify co-investigators of pending forms."""
+    system_user = get_system_user()
+    required_forms = submission.get_required_investigator_forms()
+    
+    if not required_forms.exists():
+        return
+        
+    form_names = ", ".join([form.name for form in required_forms])
+    
+    # Create notification for all co-investigators
+    message = Message.objects.create(
+        sender=system_user,
+        subject=f'Forms Required - {submission.title}',
+        body=f"""
+You need to complete the following forms for:
+
+Submission ID: {submission.temporary_id}
+Title: {submission.title}
+
+Required Forms:
+{form_names}
+
+Please log in to the system and complete these forms at your earliest convenience.
+
+Best regards,
+AIDI System
+        """.strip(),
+        related_submission=submission
+    )
+    
+    # Add all co-investigators as recipients
+    for coinv in submission.coinvestigators.all():
+        message.recipients.add(coinv.user)
+
+
+@login_required
+def check_form_status(request, submission_id):
+    """AJAX endpoint to check form completion status."""
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    if not has_edit_permission(request.user, submission):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+        
+    status = submission.get_investigator_form_status()
+    all_complete = submission.are_all_investigator_forms_complete()
+    
+    return JsonResponse({
+        'status': status,
+        'all_complete': all_complete
+    })
+
+
+# if you don't want to allow submission withouth coauthors filling their forms.
+# views.py
+
+# @login_required
+# def submission_review(request, submission_id):
+#     """Existing submission review view - add this to the submit_final section"""
+#     if request.method == 'POST':
+#         action = request.POST.get('action')
+        
+#         if action == 'submit_final':
+#             if missing_documents or validation_errors:
+#                 messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
+#             else:
+#                 try:
+#                     with transaction.atomic():
+#                         # ... existing submission code ...
+                        
+#                         # Add this after submission is created but before redirecting
+#                         required_forms = submission.get_required_investigator_forms()
+#                         if required_forms.exists():
+#                             # Notify co-investigators of required forms
+#                             notify_pending_forms(submission)
+                        
+#                         messages.success(request, 'Submission has been finalized and sent to OSAR.')
+#                         return redirect('submission:dashboard')
+                        
+#                 except Exception as e:
+#                     logger.error(f"Error in submission finalization: {str(e)}")
+#                     messages.error(request, f"Error during submission: {str(e)}")
+#                     return redirect('submission:dashboard')
+
+# # Optional: Add periodic check for overdue forms
+# @login_required
+# def check_overdue_forms(request):
+#     """Administrative view to check for overdue forms."""
+#     if not request.user.is_staff:
+#         messages.error(request, "Permission denied.")
+#         return redirect('submission:dashboard')
+        
+#     overdue_submissions = Submission.objects.filter(
+#         status='submitted'
+#     ).exclude(
+#         study_type__forms__requested_per_investigator=False
+#     )
+    
+#     overdue_data = []
+#     for submission in overdue_submissions:
+#         if not submission.are_all_investigator_forms_complete():
+#             overdue_data.append({
+#                 'submission': submission,
+#                 'status': submission.get_investigator_form_status()
+#             })
+    
+#     return render(request, 'submission/overdue_forms.html', {
+#         'overdue_data': overdue_data
+#     })
+
+# # Add this URL if you want the overdue forms check
+# urlpatterns += [
+#     path('check-overdue-forms/',
+#          views.check_overdue_forms,
+#          name='check_overdue_forms'),
+# ]

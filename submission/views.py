@@ -94,11 +94,10 @@ def dashboard(request):
     from django.db.models import Max
     
     submissions = Submission.objects.filter(
-        primary_investigator=request.user
+        is_archived=False
     ).select_related(
-        'primary_investigator',
         'primary_investigator__userprofile'
-    )
+    ).order_by('-date_created')
     
     # Get the actual latest version for each submission from FormDataEntry
     for submission in submissions:
@@ -1213,3 +1212,60 @@ def check_form_status(request, submission_id):
 #          views.check_overdue_forms,
 #          name='check_overdue_forms'),
 # ]
+
+@login_required
+def archive_submission(request, submission_id):
+    """Archive a submission."""
+    submission = get_object_or_404(Submission, temporary_id=submission_id)
+    if request.method == 'POST':
+        try:
+            submission.is_archived = True
+            submission.archived_at = timezone.now()
+            submission.save(update_fields=['is_archived', 'archived_at'])
+            messages.success(request, f'Submission "{submission.title}" has been archived.')
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+
+@login_required
+def unarchive_submission(request, submission_id):
+    """Unarchive a submission."""
+    submission = get_object_or_404(Submission, temporary_id=submission_id)
+    if request.method == 'POST':
+        try:
+            submission.is_archived = False
+            submission.archived_at = None
+            submission.save(update_fields=['is_archived', 'archived_at'])
+            messages.success(request, f'Submission "{submission.title}" has been unarchived.')
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+
+@login_required
+def archived_dashboard(request):
+    """Display archived submissions dashboard."""
+    submissions = Submission.objects.filter(
+        is_archived=True
+    ).select_related(
+        'primary_investigator__userprofile'
+    ).order_by('-date_created')
+
+    return render(request, 'submission/archived_dashboard.html', {
+        'submissions': submissions,
+    })
+
+@login_required
+def view_submission(request, submission_id):
+    """View submission details."""
+    submission = get_object_or_404(Submission, temporary_id=submission_id)
+    if not has_edit_permission(request.user, submission):
+        messages.error(request, "You do not have permission to view this submission.")
+        return redirect('submission:dashboard')
+        
+    context = {
+        'submission': submission,
+        'versions': submission.version_histories.all().order_by('-version'),
+    }
+    return render(request, 'submission/view_submission.html', context)

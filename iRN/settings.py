@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'submission',
     'users.apps.UsersConfig',
     'review',
+    'feedback',
     
     
 ]

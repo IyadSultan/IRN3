@@ -1,0 +1,93 @@
+{% extends 'users/base.html' %}
+{% load static %}
+
+{% block title %}Archived Submissions{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Archived Submissions</h1>
+    <div class="mb-3">
+        <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>IRB Number</th>
+                    <th>Title</th>
+                    <th>Primary Investigator</th>
+                    <th>Status</th>
+                    <th>Version</th>
+                    <th>Archived Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for submission in submissions %}
+                <tr>
+                    <td>{{ submission.temporary_id }}</td>
+                    <td>{{ submission.irb_number|default:"N/A" }}</td>
+                    <td>{{ submission.title }}</td>
+                    <td>{{ submission.primary_investigator.get_full_name }}</td>
+                    <td>{{ submission.get_status_display }}</td>
+                    <td>{{ submission.version }}</td>
+                    <td>{{ submission.archived_at|date:"M d, Y H:i" }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info unarchive-submission" 
+                                data-submission-id="{{ submission.temporary_id }}"
+                                title="Unarchive Submission">
+                            <i class="fas fa-box-open"></i>
+                        </button>
+                        <a href="{% url 'submission:view_submission' submission.temporary_id %}" 
+                           class="btn btn-sm btn-secondary" 
+                           title="View Submission">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="{% url 'submission:download_submission_pdf' submission.temporary_id %}" 
+                           class="btn btn-sm btn-secondary" 
+                           title="Download PDF">
+                            <i class="fas fa-file-pdf"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" class="text-center">No archived submissions found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+<script>
+$(document).ready(function() {
+    $('.unarchive-submission').click(function() {
+        const submissionId = $(this).data('submission-id');
+        if (confirm('Are you sure you want to unarchive this submission?')) {
+            $.ajax({
+                url: `/submission/unarchive/${submissionId}/`,
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        location.reload();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error unarchiving submission:', error);
+                    alert('Failed to unarchive submission. Please try again.');
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

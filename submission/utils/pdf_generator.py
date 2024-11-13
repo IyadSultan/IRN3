@@ -47,21 +47,14 @@ class PDFGenerator:
     def add_header(self):
         """Add header to the current page"""
         self.canvas.setFont("Helvetica-Bold", 16)
-        self.canvas.drawString(self.left_margin, self.y, "Intelligent Research Navigator (iRN) report")
+        self.canvas.drawString(self.left_margin, self.y, "Intelligent Research Navigator (iRN) Report")
         self.y -= self.line_height * 1.5
         
         self.canvas.setFont("Helvetica-Bold", 14)
         self.canvas.drawString(self.left_margin, self.y, f"{self.submission.title} - Version {self.version}")
         self.y -= self.line_height * 1.5
-        
-        self.canvas.setFont("Helvetica", 10)
-        self.canvas.drawString(self.left_margin, self.y, f"Date of printing: {timezone.now().strftime('%Y-%m-%d %H:%M')}")
-        self.y -= self.line_height
-        self.canvas.drawString(self.left_margin, self.y, f"Printed by: {self.user.get_full_name()}")
-        self.y -= self.line_height * 2
 
     def add_footer(self):
-        """Add footer to the current page"""
         footer_text = (
             "iRN is a property of the Artificial Intelligence and Data Innovation (AIDI) office "
             "in collaboration with the Office of Scientific Affairs (OSAR) office @ King Hussein "
