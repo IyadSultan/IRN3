@@ -35,7 +35,7 @@
                                         <i class="fas fa-file-pdf"></i> Download
                                     </a>
                                     
-                                    {% if not forloop.first %}
+                                    {% if history.can_compare %}
                                     <a href="{% url 'submission:compare_version' submission.temporary_id history.version %}" 
                                        class="btn btn-sm btn-primary" 
                                        title="Compare with Previous Version">

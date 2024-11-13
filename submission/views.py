@@ -674,6 +674,10 @@ def version_history(request, submission_id):
         submission=submission
     ).order_by('-version')
     
+    # Add a flag to each history item indicating if it can be compared
+    for history in histories:
+        history.can_compare = history.version > 1
+    
     return render(request, 'submission/version_history.html', {
         'submission': submission,
         'histories': histories,
