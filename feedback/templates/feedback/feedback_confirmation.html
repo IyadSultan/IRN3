@@ -1,0 +1,28 @@
+<!-- templates/feedback/feedback_confirmation.html -->
+{% extends 'base.html' %}
+
+{% block title %}Feedback Submitted{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-check-circle text-success fa-5x mb-3"></i>
+                    <h2>Thank You for Your Feedback!</h2>
+                    <p class="lead">
+                        Your feedback has been received and will be reviewed by our team.
+                    </p>
+                    <p>
+                        We appreciate your help in improving the iRN system.
+                    </p>
+                    <a href="{% url 'submission:dashboard' %}" class="btn btn-primary mt-3">
+                        <i class="fas fa-home"></i> Return to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

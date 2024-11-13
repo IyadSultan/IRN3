@@ -1,0 +1,13 @@
+<!-- templates/feedback/email/feedback_notification.txt -->
+New iRN Feedback Received
+
+From: {{ feedback.user.get_full_name }}
+Category: {{ feedback.get_category_display }}
+Subject: {{ feedback.subject }}
+
+Message:
+{{ feedback.message }}
+
+{% if feedback.screenshot %}Screenshot: Attached{% endif %}
+
+View in Admin Panel: {{ admin_url }}

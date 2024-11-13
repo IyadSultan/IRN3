@@ -1,0 +1,34 @@
+<!-- templates/feedback/email/feedback_notification.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #f8f9fa; padding: 20px; border-radius: 5px; }
+        .content { margin: 20px 0; }
+        .footer { color: #6c757d; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>New iRN Feedback Received</h2>
+        </div>
+        <div class="content">
+            <p><strong>From:</strong> {{ feedback.user.get_full_name }}</p>
+            <p><strong>Category:</strong> {{ feedback.get_category_display }}</p>
+            <p><strong>Subject:</strong> {{ feedback.subject }}</p>
+            <p><strong>Message:</strong></p>
+            <p>{{ feedback.message|linebreaks }}</p>
+            {% if feedback.screenshot %}
+            <p><strong>Screenshot:</strong> Attached</p>
+            {% endif %}
+        </div>
+        <div class="footer">
+            <p>You can view and respond to this feedback in the admin panel:</p>
+            <p><a href="{{ admin_url }}">View in Admin Panel</a></p>
+        </div>
+    </div>
+</body>
+</html>
