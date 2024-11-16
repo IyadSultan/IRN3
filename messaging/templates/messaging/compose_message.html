@@ -5,175 +5,278 @@
 
 {% block page_specific_css %}
 <style>
-    /* Adjusted styles for multiple file input */
-    .select2-container--default .select2-selection--multiple,
-    .select2-container--default .select2-selection--single {
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem;
+    /* Professional Form Styling */
+    .compose-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px;
     }
 
+    .form-card {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .form-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #e9ecef;
+        background-color: #f8f9fa;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .form-body {
+        padding: 1.5rem;
+    }
+
+    .form-footer {
+        padding: 1rem 1.5rem;
+        background-color: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+        border-radius: 0 0 8px 8px;
+    }
+
+    /* Recipient Selection Styling */
     .select2-container {
         width: 100% !important;
     }
 
-    /* Fix for double cancel button */
-    .btn-cancel-mobile {
-        display: none;
+    .select2-container--bootstrap5 .select2-selection {
+        border-color: #dee2e6;
+        min-height: 38px;
     }
 
+    .select2-container--bootstrap5 .select2-selection--multiple {
+        padding: 2px 6px;
+    }
+
+    .recipient-chip {
+        display: inline-flex;
+        align-items: center;
+        background: #e9ecef;
+        padding: 2px 8px;
+        border-radius: 16px;
+        margin: 2px;
+        font-size: 0.875rem;
+    }
+
+    .recipient-chip .remove {
+        margin-left: 6px;
+        cursor: pointer;
+        opacity: 0.6;
+    }
+
+    .recipient-chip .remove:hover {
+        opacity: 1;
+    }
+
+    /* Attachment Zone Styling */
+    .attachment-zone {
+        border: 2px dashed #dee2e6;
+        padding: 20px;
+        text-align: center;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .attachment-zone:hover {
+        border-color: #adb5bd;
+        background-color: #e9ecef;
+    }
+
+    .attachment-zone.dragover {
+        border-color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+
+    .attachment-list {
+        margin-top: 10px;
+    }
+
+    .attachment-item {
+        display: flex;
+        align-items: center;
+        padding: 6px 12px;
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        margin-bottom: 4px;
+    }
+
+    .attachment-item .file-icon {
+        margin-right: 8px;
+        color: #6c757d;
+    }
+
+    .attachment-item .file-name {
+        flex-grow: 1;
+        font-size: 0.875rem;
+    }
+
+    .attachment-item .file-size {
+        color: #6c757d;
+        font-size: 0.75rem;
+        margin: 0 8px;
+    }
+
+    .attachment-item .remove-file {
+        color: #dc3545;
+        cursor: pointer;
+    }
+
+    /* Form Field Enhancements */
+    .field-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .field-label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    .field-help {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+
+    /* Rich Text Editor Styling */
+    .message-editor {
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }
+
+    /* Responsive Adjustments */
     @media (max-width: 768px) {
-        .btn-cancel-desktop {
-            display: none;
+        .compose-container {
+            padding: 10px;
         }
-        .btn-cancel-mobile {
-            display: inline-block;
+
+        .form-header, .form-body, .form-footer {
+            padding: 1rem;
         }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
-    <div class="row">
-        <div class="col-md-8 offset-md-2">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title h5 mb-0">
-                        {% if is_reply %}Reply
-                        {% elif is_reply_all %}Reply All
-                        {% elif is_forward %}Forward
-                        {% else %}Compose Message
-                        {% endif %}
-                    </h2>
+<div class="compose-container">
+    <div class="form-card">
+        <div class="form-header">
+            <h2 class="h5 mb-0">
+                {% if is_reply %}Reply to: {{ reply_to.subject }}
+                {% elif is_forward %}Forward: {{ original_message.subject }}
+                {% else %}New Message
+                {% endif %}
+            </h2>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" id="compose-form" novalidate>
+            {% csrf_token %}
+
+            <div class="form-body">
+                <!-- Recipients Section -->
+                <div class="field-group">
+                    <label class="field-label required">To</label>
+                    {{ form.recipients }}
+                    {% if form.recipients.errors %}
+                        <div class="text-danger mt-1">{{ form.recipients.errors|join:", " }}</div>
+                    {% endif %}
+                    <div class="field-help">Search by name or email</div>
                 </div>
-                <div class="card-body">
-                    <form method="post" enctype="multipart/form-data" id="compose-form" novalidate>
-                        {% csrf_token %}
 
-                        {# Subject Field #}
-                        {{ form.subject|as_crispy_field }}
+                <div class="field-group">
+                    <label class="field-label">CC</label>
+                    {{ form.cc }}
+                </div>
 
-                        {# Recipients Fields #}
-                        <div class="mb-3">
-                            <label for="id_recipients" class="form-label required">To</label>
-                            {{ form.recipients }}
-                            <div class="invalid-feedback" id="recipients-error" style="display: none;">
-                                Please select at least one recipient.
-                            </div>
-                        </div>
+                <div class="field-group">
+                    <label class="field-label">BCC</label>
+                    {{ form.bcc }}
+                </div>
 
-                        {# CC and BCC Fields #}
-                        <div class="mb-3">
-                            <label for="id_cc" class="form-label">CC</label>
-                            {{ form.cc }}
-                        </div>
-                        <div class="mb-3">
-                            <label for="id_bcc" class="form-label">BCC</label>
-                            {{ form.bcc }}
-                        </div>
+                <!-- Subject Line -->
+                <div class="field-group">
+                    <label class="field-label required">Subject</label>
+                    {{ form.subject }}
+                    {% if form.subject.errors %}
+                        <div class="text-danger mt-1">{{ form.subject.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
 
-                        {# Related Study Field #}
-                        {{ form.related_submission|as_crispy_field }}
-                        <small class="text-muted d-block mt-1 mb-3">Search by study title or IRB number</small>
+                <!-- Related Submission -->
+                <div class="field-group">
+                    <label class="field-label">Related Submission</label>
+                    {{ form.related_submission }}
+                    <div class="field-help">Optional: Link this message to a submission</div>
+                </div>
 
-                        {# Message Body #}
-                        {{ form.body|as_crispy_field }}
+                <!-- Message Body -->
+                <div class="field-group">
+                    <label class="field-label required">Message</label>
+                    {{ form.body }}
+                    {% if form.body.errors %}
+                        <div class="text-danger mt-1">{{ form.body.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
 
-                        {# Attachments #}
-                        <div class="mb-3">
-                            <label for="id_attachment" class="form-label">Attachment</label>
-                            {{ form.attachment }}
-                            {% if form.attachment.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {{ form.attachment.errors|join:", " }}
-                                </div>
-                            {% endif %}
-                            <small class="text-muted">
-                                Allowed file types: {{ form.attachment.field.widget.attrs.accept }}
-                            </small>
-                        </div>
-
-                        {# Submit Buttons #}
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                            <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary me-md-2 btn-cancel-desktop">
-                                <i class="fas fa-times"></i> Cancel
-                            </a>
-                            <button type="submit" class="btn btn-primary" id="send-button">
-                                <i class="fas fa-paper-plane"></i> Send
-                            </button>
-                            <a href="{% url 'messaging:inbox' %}" class="btn btn-secondary btn-cancel-mobile">
-                                <i class="fas fa-times"></i> Cancel
-                            </a>
-                        </div>
-                    </form>
+                <!-- Attachments -->
+                <div class="field-group">
+                    <label class="field-label">Attachments</label>
+                    <div class="attachment-zone" id="attachment-dropzone">
+                        <i class="fas fa-cloud-upload-alt fa-2x mb-2"></i>
+                        <p class="mb-1">Drop files here or click to upload</p>
+                        <small class="text-muted">
+                            Maximum size: {{ max_attachment_size }}MB<br>
+                            Allowed types: {{ allowed_extensions|join:", " }}
+                        </small>
+                        {{ form.attachment }}
+                    </div>
+                    <div class="attachment-list" id="attachment-list"></div>
                 </div>
             </div>
-        </div>
+
+            <div class="form-footer">
+                <div class="d-flex justify-content-between align-items-center">
+                    <button type="button" class="btn btn-outline-secondary" onclick="window.history.back()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i> Send Message
+                    </button>
+                </div>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}
-
 {% block page_specific_js %}
 <script>
 $(document).ready(function() {
-    // Initialize Select2 for recipients fields
-    function initializeSelect2(element, url, placeholder) {
-        return $(element).select2({
-            theme: 'bootstrap5',
-            ajax: {
-                url: url,
-                dataType: 'json',
-                delay: 250,
-                data: function (params) {
-                    return {
-                        term: params.term,
-                        page: params.page || 1
-                    };
-                },
-                processResults: function (data) {
-                    return {
-                        results: data.map(function(item) {
-                            return {
-                                id: item.id,
-                                text: item.label
-                            };
-                        })
-                    };
-                },
-                cache: true
-            },
-            minimumInputLength: 2,
-            placeholder: placeholder,
-            allowClear: true,
-            multiple: true,
-            width: '100%'
-        });
-    }
-
-    // Initialize recipients fields
-    const recipientsSelect = initializeSelect2('#id_recipients', '{% url "messaging:user_autocomplete" %}', 'Select recipients...');
-    const ccSelect = initializeSelect2('#id_cc', '{% url "messaging:user_autocomplete" %}', 'Select CC recipients...');
-    const bccSelect = initializeSelect2('#id_bcc', '{% url "messaging:user_autocomplete" %}', 'Select BCC recipients...');
-
-    // Initialize related submission field
-    $('#id_related_submission').select2({
+    // Initialize Select2 for recipients, cc, and bcc
+    $('.select2').select2({
         theme: 'bootstrap5',
+        width: '100%',
+        multiple: true,  // Enable multiple selection
         ajax: {
-            url: '{% url "messaging:submission_autocomplete" %}',
+            url: "{% url 'messaging:user_autocomplete' %}",
             dataType: 'json',
             delay: 250,
-            data: function (params) {
+            data: function(params) {
                 return {
-                    term: params.term,
+                    term: params.term || '',
                     page: params.page || 1
                 };
             },
-            processResults: function (data) {
+            processResults: function(data) {
                 return {
-                    results: data.map(function(item) {
+                    results: data.results.map(function(item) {
                         return {
                             id: item.id,
-                            text: `${item.title} (${item.irb_number || 'No IRB'})`
+                            text: item.text,
+                            email: item.email
                         };
                     })
                 };
@@ -181,64 +284,186 @@ $(document).ready(function() {
             cache: true
         },
         minimumInputLength: 2,
-        placeholder: 'Search for a study...',
+        templateResult: formatUserResult,
+        templateSelection: formatUserSelection,
+        closeOnSelect: false,  // Keep dropdown open after selection
+        tags: false,  // Prevent free text entry
+        tokenSeparators: [',', ' '],  // Allow comma and space to separate entries
+        placeholder: function() {
+            return $(this).data('placeholder');
+        },
         allowClear: true,
-        width: '100%'
+        escapeMarkup: function(markup) {
+            return markup;  // Allow HTML in the results
+        }
     });
 
-    // Handle initial values
-    {% if form.recipients.initial %}
-        var initialRecipients = {{ form.recipients.initial|safe }};
-        initialRecipients.forEach(function(user) {
-            var option = new Option(user.text, user.id, true, true);
-            $('#id_recipients').append(option);
-        });
-        $('#id_recipients').trigger('change');
-    {% endif %}
-
-    {% if form.related_submission.initial %}
-        var initialSubmission = {
-            id: '{{ form.related_submission.initial.id }}',
-            text: '{{ form.related_submission.initial.title|escapejs }}'
-        };
-        var option = new Option(initialSubmission.text, initialSubmission.id, true, true);
-        $('#id_related_submission').append(option).trigger('change');
-    {% endif %}
-
-    // File attachment handling
-    $('#id_attachment').on('change', function() {
-        var files = this.files;
-        var fileName = files[0] ? files[0].name : 'Select a file to attach';
-        $('#file-name-display').text(fileName);
+    // Initialize Select2 for submission separately
+    $('#id_related_submission').select2({
+        theme: 'bootstrap5',
+        width: '100%',
+        multiple: false,  // Single selection for submission
+        ajax: {
+            url: "{% url 'messaging:submission_autocomplete' %}",
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return {
+                    term: params.term || '',
+                    page: params.page || 1
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: data.results.map(function(item) {
+                        return {
+                            id: item.id,
+                            text: item.text
+                        };
+                    })
+                };
+            },
+            cache: true
+        },
+        minimumInputLength: 2,
+        placeholder: 'Search for a submission...',
+        allowClear: true
     });
 
-    // Form submission handling
-    $('#compose-form').on('submit', function(e) {
+    // Format the user result in the dropdown
+    function formatUserResult(user) {
+        if (!user.id) return user.text;
+        var $result = $(
+            '<div class="select2-result-user">' +
+                '<div class="select2-result-user__name">' +
+                    '<strong>' + user.text + '</strong>' +
+                '</div>' +
+                '<div class="select2-result-user__email">' +
+                    '<small class="text-muted">(' + user.email + ')</small>' +
+                '</div>' +
+            '</div>'
+        );
+        return $result;
+    }
+
+    // Format the selected user in the input
+    function formatUserSelection(user) {
+        if (!user.id) return user.text;
+        return $('<span>').text(user.text).addClass('selected-user');
+    }
+
+    // Add custom styles for the Select2 dropdown
+    $('<style>')
+        .prop('type', 'text/css')
+        .html(`
+            .select2-result-user {
+                padding: 4px;
+            }
+            .select2-result-user__email {
+                font-size: 0.875em;
+                color: #6c757d;
+            }
+            .selected-user {
+                font-weight: 500;
+            }
+            .select2-container--bootstrap5 .select2-selection--multiple .select2-selection__choice {
+                background-color: #e9ecef;
+                border: 1px solid #dee2e6;
+                border-radius: 16px;
+                padding: 2px 8px;
+                margin: 2px;
+            }
+        `)
+        .appendTo('head');
+
+    // Attachment handling
+    const dropzone = document.getElementById('attachment-dropzone');
+    const attachmentList = document.getElementById('attachment-list');
+    const maxSize = {{ max_attachment_size }} * 1024 * 1024; // Convert to bytes
+
+    // Prevent default drag behaviors
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    // Highlight drop zone when item is dragged over it
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, unhighlight, false);
+    });
+
+    // Handle dropped files
+    dropzone.addEventListener('drop', handleDrop, false);
+
+    function preventDefaults (e) {
         e.preventDefault();
+        e.stopPropagation();
+    }
 
-        // Clear previous error states
-        $('#recipients-error').hide();
-        $('.is-invalid').removeClass('is-invalid');
+    function highlight(e) {
+        dropzone.classList.add('dragover');
+    }
 
-        // Validate recipients
-        const recipients = $('#id_recipients').val();
-        if (!recipients || recipients.length === 0) {
-            $('#id_recipients').next('.select2-container').find('.select2-selection').addClass('is-invalid');
-            $('#recipients-error').show();
-            return false;
+    function unhighlight(e) {
+        dropzone.classList.remove('dragover');
+    }
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles(files);
+    }
+
+    function handleFiles(files) {
+        [...files].forEach(uploadFile);
+    }
+
+    function uploadFile(file) {
+        if (file.size > maxSize) {
+            showError(`File ${file.name} is too large. Maximum size is ${maxSize/1024/1024}MB`);
+            return;
         }
 
-        // If validation passes, submit the form
-        this.submit();
-    });
-
-    // Clear invalid state when recipients are selected
-    $('#id_recipients').on('change', function() {
-        if ($(this).val()?.length > 0) {
-            $(this).next('.select2-container').find('.select2-selection').removeClass('is-invalid');
-            $('#recipients-error').hide();
+        const ext = file.name.split('.').pop().toLowerCase();
+        const allowedExtensions = {{ allowed_extensions|safe }};
+        if (!allowedExtensions.includes(ext)) {
+            showError(`File type .${ext} is not allowed`);
+            return;
         }
-    });
+
+        // Add file to list
+        const item = document.createElement('div');
+        item.className = 'attachment-item';
+        item.innerHTML = `
+            <i class="fas fa-file file-icon"></i>
+            <span class="file-name">${file.name}</span>
+            <span class="file-size">${formatFileSize(file.size)}</span>
+            <i class="fas fa-times remove-file"></i>
+        `;
+        attachmentList.appendChild(item);
+
+        // Handle remove button
+        item.querySelector('.remove-file').addEventListener('click', () => {
+            item.remove();
+        });
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function showError(message) {
+        // Implement error display logic
+        console.error(message);
+    }
 });
 </script>
 {% endblock %}

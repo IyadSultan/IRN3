@@ -1,897 +1,11 @@
-from django.contrib import admin
+# Combined Python and HTML files
+# Generated from directory: C:\Users\USER\Documents\IRN3\messaging
+# Total files found: 41
 
-# Register your models here.
-from django.apps import AppConfig
-from django.template.library import Library
 
-class MessagingConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'messaging'
 
-    def ready(self):
-        import messaging.signals  # Import signals when app is ready
-
-from django.core.checks import Warning, register
-from django.conf import settings
-
-@register()
-def check_email_configuration(app_configs, **kwargs):
-    """
-    Check if email settings are properly configured
-    """
-    errors = []
-
-    # Check if email backend is configured
-    if not hasattr(settings, 'EMAIL_BACKEND'):
-        errors.append(
-            Warning(
-                'EMAIL_BACKEND is not configured.',
-                hint='Set EMAIL_BACKEND in your settings file.',
-                id='messaging.W001',
-            )
-        )
-
-    # Check if email host is configured
-    if not getattr(settings, 'EMAIL_HOST', None):
-        errors.append(
-            Warning(
-                'EMAIL_HOST is not configured.',
-                hint='Set EMAIL_HOST in your settings file.',
-                id='messaging.W002',
-            )
-        )
-
-    # Check if email credentials are configured for non-console backends
-    if getattr(settings, 'EMAIL_BACKEND', '') != 'django.core.mail.backends.console.EmailBackend':
-        if not getattr(settings, 'EMAIL_HOST_USER', None):
-            errors.append(
-                Warning(
-                    'EMAIL_HOST_USER is not configured.',
-                    hint='Set EMAIL_HOST_USER in your settings file.',
-                    id='messaging.W003',
-                )
-            )
-        if not getattr(settings, 'EMAIL_HOST_PASSWORD', None):
-            errors.append(
-                Warning(
-                    'EMAIL_HOST_PASSWORD is not configured.',
-                    hint='Set EMAIL_HOST_PASSWORD in your settings file.',
-                    id='messaging.W004',
-                )
-            )
-
-    return errors
-import os
-
-# delete combined.py
-try:    
-    os.remove('combined.py')
-except FileNotFoundError:
-    pass
-
-app_directory = '../messaging/'
-output_file = 'combined.py'
-
-# List all python files in the directory
-py_files = [f for f in os.listdir(app_directory) if f.endswith('.py')]
-
-with open(output_file, 'a') as outfile:
-    for fname in py_files:
-        with open(os.path.join(app_directory, fname)) as infile:
-            for line in infile:
-                outfile.write(line)
-
-
-app_directory = 'templates/messaging/'
-
-
-# List all python files in the directory
-py_files = [f for f in os.listdir(app_directory) if f.endswith('.html')]
-
-with open(output_file, 'a') as outfile:
-    for fname in py_files:
-        with open(os.path.join(app_directory, fname)) as infile:
-            for line in infile:
-                outfile.write(line)from channels.generic.websocket import AsyncJsonWebsocketConsumer
-from channels.db import database_sync_to_async
-from django.core.cache import cache
-from django.contrib.auth import get_user_model
-
-User = get_user_model()
-
-class NotificationConsumer(AsyncJsonWebsocketConsumer):
-    async def connect(self):
-        if self.scope["user"].is_anonymous:
-            await self.close()
-        else:
-            await self.channel_layer.group_add(
-                f"user_{self.scope['user'].id}",
-                self.channel_name
-            )
-            await self.accept()
-
-    async def disconnect(self, close_code):
-        if not self.scope["user"].is_anonymous:
-            await self.channel_layer.group_discard(
-                f"user_{self.scope['user'].id}",
-                self.channel_name
-            )
-
-    async def notify(self, event):
-        """Send notification to WebSocket"""
-        await self.send_json(event["data"])
-
-    async def receive_json(self, content):
-        """Handle incoming WebSocket messages"""
-        command = content.get("command", None)
-        if command == "get_unread_count":
-            count = await self.get_unread_count()
-            await self.send_json({
-                "type": "unread_count",
-                "count": count
-            })
-
-    @database_sync_to_async
-    def get_unread_count(self):
-        """Get unread message count for current user"""
-        cache_key = f'unread_count_{self.scope["user"].id}'
-        count = cache.get(cache_key)
-        if count is None:
-            from .models import MessageReadStatus
-            count = MessageReadStatus.objects.filter(
-                user=self.scope["user"],
-                is_read=False
-            ).count()
-            cache.set(cache_key, count, 300)  # Cache for 5 minutes
-        return count
-class MessageError(Exception):
-    """Base exception class for messaging app errors"""
-    pass
-
-class RecipientError(MessageError):
-    """Exception raised for errors related to message recipients"""
-    pass
-
-class AttachmentError(MessageError):
-    """Exception raised for errors related to message attachments"""
-    pass
-
-class ThreadError(MessageError):
-    """Exception raised for errors related to message threading"""
-    pass from django import forms
-from django.db.models import Q
-from django.contrib.auth.models import User
-from submission.models import Submission
-from .models import Message, MessageAttachment
-
-class MessageForm(forms.ModelForm):
-    recipients = forms.ModelMultipleChoiceField(
-        queryset=User.objects.filter(is_active=True),
-        widget=forms.SelectMultiple(attrs={
-            'class': 'select2-user-field',
-            'data-placeholder': 'Select recipients...'
-        })
-    )
-    cc = forms.ModelMultipleChoiceField(
-        queryset=User.objects.filter(is_active=True),
-        required=False,
-        widget=forms.SelectMultiple(attrs={
-            'class': 'select2-user-field',
-            'data-placeholder': 'Select CC recipients...'
-        })
-    )
-    bcc = forms.ModelMultipleChoiceField(
-        queryset=User.objects.filter(is_active=True),
-        required=False,
-        widget=forms.SelectMultiple(attrs={
-            'class': 'select2-user-field',
-            'data-placeholder': 'Select BCC recipients...'
-        })
-    )
-    subject = forms.CharField(
-        max_length=255,
-        widget=forms.TextInput(attrs={'class': 'form-control'})
-    )
-    body = forms.CharField(
-        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 5})
-    )
-    related_submission = forms.ModelChoiceField(
-        queryset=Submission.objects.all(),
-        required=False,
-        widget=forms.Select(attrs={
-            'class': 'select2',
-            'data-placeholder': 'Link to a submission...'
-        })
-    )
-    attachment = forms.FileField(
-        required=False,
-        widget=forms.FileInput(attrs={'class': 'form-control'})
-    )
-
-    class Meta:
-        model = Message
-        fields = ['subject', 'body', 'recipients', 'cc', 'bcc', 'related_submission']
-
-    def clean(self):
-        cleaned_data = super().clean()
-        recipients = cleaned_data.get('recipients')
-        
-        if not recipients:
-            self.add_error('recipients', 'At least one recipient is required.')
-        
-        return cleaned_data
-
-    def __init__(self, *args, **kwargs):
-        user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
-        
-        if user:
-            # Exclude current user from recipients
-            excluded_user_queryset = User.objects.exclude(id=user.id).filter(is_active=True)
-            self.fields['recipients'].queryset = excluded_user_queryset
-            self.fields['cc'].queryset = excluded_user_queryset
-            self.fields['bcc'].queryset = excluded_user_queryset
-            
-            # Update related_submission queryset
-            if user.is_authenticated:
-                accessible_submissions = Submission.objects.filter(
-                    Q(primary_investigator=user) |
-                    Q(coinvestigators__user=user) |  # Changed to access user through CoInvestigator
-                    Q(research_assistants__user=user)
-                ).distinct()
-                self.fields['related_submission'].queryset = accessible_submissions
-
-        for field in self.fields:
-            if field not in ['recipients', 'cc', 'bcc', 'related_submission', 'attachment']:
-                self.fields[field].widget.attrs.update({'class': 'form-control'})
-
-class SearchForm(forms.Form):
-    q = forms.CharField(label='Search', max_length=100)# messaging/models.py
-
-from django.db import models
-from django.contrib.auth import get_user_model
-from django.utils import timezone
-from .validators import validate_file_size
-
-from django.conf import settings
-
-import uuid
-
-User = get_user_model()
-
-# messaging/models.py
-
-class MessageManager(models.Manager):
-    def delete(self):
-        # Prevent deletion, raise an exception
-        raise Exception("Messages cannot be deleted. Use archive instead.")
-
-def get_default_respond_by():
-    return timezone.now() + timezone.timedelta(weeks=2)
-
-class MessageAttachment(models.Model):
-    message = models.ForeignKey('Message', related_name='attachments', on_delete=models.CASCADE)
-    file = models.FileField(upload_to='message_attachments/')
-    filename = models.CharField(max_length=255)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg']
-
-    def __str__(self):
-        return self.filename
-
-    def save(self, *args, **kwargs):
-        if not self.filename:
-            self.filename = self.file.name.split('/')[-1]
-        super().save(*args, **kwargs)
-
-class Message(models.Model):
-    sender = models.ForeignKey(User, related_name='sent_messages', on_delete=models.CASCADE)
-    recipients = models.ManyToManyField(User, related_name='received_messages')
-    cc = models.ManyToManyField(User, related_name='cc_messages', blank=True)
-    bcc = models.ManyToManyField(User, related_name='bcc_messages', blank=True)
-    subject = models.CharField(max_length=255)
-    body = models.TextField()
-    study_name = models.CharField(max_length=255, blank=True, null=True)
-    respond_by = models.DateTimeField(default=get_default_respond_by, blank=True, null=True)
-    sent_at = models.DateTimeField(auto_now_add=True)
-    is_archived = models.BooleanField(default=False)
-    hashtags = models.CharField(max_length=255, blank=True, null=True)
-    thread_id = models.UUIDField(default=uuid.uuid4, editable=False, null=True, blank=True)
-    related_submission = models.ForeignKey(
-        'submission.Submission',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='related_messages'
-    )
-    objects = MessageManager()
-
-    def get_recipients_display(self):
-        """Returns a formatted string of recipient names."""
-        recipients = self.recipients.all()
-        if not recipients:
-            return "-"
-        
-        first_recipient = recipients.first()
-        first_name = first_recipient.get_full_name() or first_recipient.username
-        
-        if recipients.count() > 1:
-            return f"{first_name} +{recipients.count() - 1}"
-        return first_name
-
-    def get_all_recipients_display(self):
-        """Returns a comma-separated list of all recipient names."""
-        return ", ".join(
-            recipient.get_full_name() or recipient.username 
-            for recipient in self.recipients.all()
-        )
-
-    def delete(self, *args, **kwargs):
-        # Override delete method to archive instead
-        self.is_archived = True
-        self.save()
-
-    class Meta:
-        ordering = ['-sent_at']
-    
-    def __str__(self):
-        return self.subject
-
-class NotificationStatus(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    notification_key = models.CharField(max_length=255)
-    dismissed_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('user', 'notification_key')
-        
-class MessageReadStatus(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    message = models.ForeignKey(Message, related_name='read_statuses', on_delete=models.CASCADE)
-    is_read = models.BooleanField(default=False)
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.message.subject} - {'Read' if self.is_read else 'Unread'}"
-
-class Comment(models.Model):
-    message = models.ForeignKey(Message, related_name='comments', on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    body = models.TextField()
-    commented_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return f"Comment by {self.user.username} on {self.message.subject}"
-# messaging/signals.py
-
-from django.db.models.signals import post_save, m2m_changed
-from django.dispatch import receiver
-from .models import Message, MessageReadStatus
-
-@receiver(m2m_changed, sender=Message.recipients.through)
-def create_message_read_status(sender, instance, action, pk_set, **kwargs):
-    """Create read status for all recipients when they are added to a message"""
-    if action == "post_add" and pk_set:
-        for user_id in pk_set:
-            MessageReadStatus.objects.get_or_create(
-                message=instance,
-                user_id=user_id,
-                defaults={'is_read': False}
-            )from celery import shared_task
-from django.core.mail import get_connection, EmailMultiAlternatives
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags
-from django.conf import settings
-from .models import Message
-from django.contrib.auth import get_user_model
-
-User = get_user_model()
-
-@shared_task(bind=True, max_retries=3)
-def send_message_email_task(self, message_id):
-    """Celery task to send email notifications"""
-    try:
-        message = Message.objects.select_related('sender').prefetch_related(
-            'recipients', 'cc', 'bcc', 'attachments'
-        ).get(id=message_id)
-        
-        recipients_emails = [user.email for user in message.recipients.all()]
-        cc_emails = [user.email for user in message.cc.all()]
-        bcc_emails = [user.email for user in message.bcc.all()]
-        
-        if not any([recipients_emails, cc_emails, bcc_emails]):
-            return "No recipients to send email to."
-        
-        with get_connection() as connection:
-            # Prepare email content
-            html_content = render_to_string('messaging/email/message_notification.html', {
-                'message': message,
-                'sender': message.sender,
-                'view_url': f"{settings.SITE_URL}/messaging/message/{message.id}/",
-            })
-            text_content = strip_tags(html_content)
-            
-            # Create email message
-            email = EmailMultiAlternatives(
-                subject=message.subject,
-                body=text_content,
-                from_email=settings.EMAIL_HOST_USER,
-                to=recipients_emails,
-                cc=cc_emails,
-                bcc=bcc_emails,
-                connection=connection,
-                reply_to=[message.sender.email]
-            )
-            
-            # Attach HTML content
-            email.attach_alternative(html_content, "text/html")
-            
-            # Attach files
-            for attachment in message.attachments.all():
-                email.attach(attachment.filename, attachment.file.read())
-            
-            # Send email
-            email.send()
-            
-        return "Email sent successfully"
-        
-    except Exception as exc:
-        # Retry the task in case of failure
-        self.retry(exc=exc, countdown=60 * 5)  # Retry after 5 minutes
-
-# Signal to send email after message is created
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-
-@receiver(post_save, sender=Message)
-def handle_new_message(sender, instance, created, **kwargs):
-    """Handle new message creation and send email notifications"""
-    if created:
-        send_message_email_task.delay(instance.id)
-from django.urls import path
-from . import views
-
-app_name = 'messaging'
-
-urlpatterns = [
-    path('inbox/', views.inbox, name='inbox'),
-    path('sent/', views.sent_messages, name='sent_messages'),
-    path('compose/', views.compose_message, name='compose_message'),
-    path('compose_request/', views.ComposeMessageView.as_view(), name='compose'),
-    path('message/<int:message_id>/', views.view_message, name='view_message'),
-    path('reply/<int:message_id>/', views.reply, name='reply'),
-    path('reply-all/<int:message_id>/', views.reply_all, name='reply_all'),
-    path('forward/<int:message_id>/', views.forward, name='forward'),
-    path('search/', views.search_messages, name='search_messages'),
-    path('archive/', views.archive_message, name='archive_message'),
-    path('delete/', views.delete_messages, name='delete_messages'),
-    path('archived/', views.archived_messages, name='archived_messages'),
-    path('threads/', views.threads_inbox, name='threads_inbox'),
-    path('user-autocomplete/', views.user_autocomplete, name='user_autocomplete'),
-    path('submission-autocomplete/', views.submission_autocomplete, name='submission_autocomplete'),
-    path('dismiss-notification/', views.dismiss_notification, name='dismiss_notification'),
-    path('update-read-status/', views.update_read_status, name='update_read_status'),
-    path('archive-message/', views.archive_message, name='archive_message'),
-]
-from django.core.mail import get_connection, EmailMultiAlternatives
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags
-from django.conf import settings
-from typing import List, Optional
-from .models import Message
-
-def send_message_email(message: Message) -> None:
-    """Send email notification for a message to all recipients"""
-    with get_connection() as connection:
-        subject = message.subject
-        from_email = settings.EMAIL_HOST_USER
-        
-        # Prepare HTML content
-        html_content = render_to_string('messaging/email/message_notification.html', {
-            'message': message,
-            'sender': message.sender,
-            'view_url': f"{settings.SITE_URL}/messaging/view/{message.id}/",
-        })
-        text_content = strip_tags(html_content)
-        
-        # Create email message
-        email = EmailMultiAlternatives(
-            subject=subject,
-            body=text_content,
-            from_email=from_email,
-            to=[r.email for r in message.recipients.all()],
-            cc=[r.email for r in message.cc.all()],
-            bcc=[r.email for r in message.bcc.all()],
-            connection=connection,
-            reply_to=[message.sender.email]
-        )
-        
-        # Attach HTML content
-        email.attach_alternative(html_content, "text/html")
-        
-        # Attach files if any
-        for attachment in message.attachments.all():
-            email.attach_file(attachment.file.path)
-        
-        # Send email
-        email.send()# messaging/validators.py
-
-from django.core.exceptions import ValidationError
-
-def validate_file_size(value):
-    max_kb = 10240  # 10 MB
-    if value.size > max_kb * 1024:
-        raise ValidationError('Maximum file size is 10 MB')
-from django.shortcuts import render, get_object_or_404, redirect
-from django.http import JsonResponse
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth import get_user_model
-from django.db.models import Q, Count, Prefetch
-from django.contrib import messages
-from django.template.defaulttags import register
-from .models import Message, MessageReadStatus, Comment, MessageAttachment, NotificationStatus
-from .forms import MessageForm, SearchForm
-from submission.models import Submission
-from django.views.generic import CreateView
-from django.contrib.auth.mixins import LoginRequiredMixin
-
-
-User = get_user_model()
-
-@login_required
-def inbox(request):
-
-    messages_list = Message.objects.filter(
-        recipients=request.user, 
-        is_archived=False
-    ).order_by('-sent_at')
-    
-    # Add read status to the queryset
-    messages_list = messages_list.prefetch_related(
-        Prefetch(
-            'read_statuses',
-            queryset=MessageReadStatus.objects.filter(user=request.user),
-            to_attr='user_read_status'
-        )
-    )
-    
-    # Check if notification has been dismissed
-    notification_key = 'submission_2_confirmation'  # Use a unique key for each notification
-    notification_dismissed = NotificationStatus.objects.filter(
-        user=request.user,
-        notification_key=notification_key
-    ).exists()
-    
-    context = {
-        'messages': messages_list,
-        'show_notification': not notification_dismissed
-    }
-    return render(request, 'messaging/inbox.html', context)
-
-@login_required
-def dismiss_notification(request):
-    if request.method == 'POST':
-        notification_key = request.POST.get('notification_key')
-        NotificationStatus.objects.get_or_create(
-            user=request.user,
-            notification_key=notification_key
-        )
-        return JsonResponse({'status': 'success'})
-    return JsonResponse({'status': 'error'})
-
-    
-@login_required
-def sent_messages(request):
-    messages = Message.objects.filter(sender=request.user).order_by('-sent_at')
-    return render(request, 'messaging/sent_messages.html', {
-        'messages': messages,
-        'is_archived': False
-    })
-
-@login_required
-def view_message(request, message_id):
-    message = get_object_or_404(Message, id=message_id)
-    
-    # Update read status when viewing the message
-    read_status, created = MessageReadStatus.objects.get_or_create(
-        user=request.user,
-        message=message,
-        defaults={'is_read': True}
-    )
-    
-    if not read_status.is_read:
-        read_status.is_read = True
-        read_status.save()
-    
-    return render(request, 'messaging/view_message.html', {'message': message})
-
-@register.filter
-def get_read_status(message, user):
-    """
-    Check if a message has been read by the user.
-    Usage: {{ message|get_read_status:request.user }}
-    """
-    try:
-        # If we used prefetch_related with to_attr
-        read_statuses = getattr(message, 'user_read_status', None)
-        if read_statuses is not None:
-            return read_statuses[0].is_read if read_statuses else False
-    except (AttributeError, IndexError):
-        pass
-    
-    # Fallback to database query if not prefetched
-    return MessageReadStatus.objects.filter(
-        message=message,
-        user=user,
-        is_read=True
-    ).exists()
-
-@login_required
-def compose_message(request):
-    if request.method == 'POST':
-        form = MessageForm(request.POST, request.FILES, user=request.user)
-        if form.is_valid():
-            try:
-                message = form.save(commit=False)
-                message.sender = request.user
-                message.save()
-                
-                # Save many-to-many relationships after saving the message
-                form.save_m2m()
-                
-                print(f"Message created: {message.id}")  # Debug print
-                
-                # Check if read statuses were created
-                read_statuses = MessageReadStatus.objects.filter(message=message)
-                print(f"Read statuses created: {read_statuses.count()}")  # Debug print
-                
-                messages.success(request, 'Message sent successfully!')
-                return redirect('messaging:inbox')
-            except Exception as e:
-                print(f"Error sending message: {str(e)}")  # Debug print
-                messages.error(request, f'Error sending message: {str(e)}')
-        else:
-            print(f"Form errors: {form.errors}")  # Debug print
-            messages.error(request, 'Please correct the form errors.')
-    else:
-        form = MessageForm(user=request.user)
-    
-    return render(request, 'messaging/compose_message.html', {
-        'form': form
-    })
-
-@login_required
-def reply(request, message_id):
-    original_message = get_object_or_404(Message, id=message_id)
-    if request.method == 'POST':
-        form = MessageForm(request.POST)
-        if form.is_valid():
-            new_message = form.save(commit=False)
-            new_message.sender = request.user
-            new_message.thread_id = original_message.thread_id  # Use the same thread ID
-            new_message.save()
-            new_message.recipients.add(original_message.sender)
-            form.save_m2m()
-            messages.success(request, 'Reply sent successfully.')
-            return redirect('messaging:inbox')
-    else:
-        form = MessageForm(initial={
-            'subject': f"Re: {original_message.subject}",
-            'body': f"\n\nOn {original_message.sent_at}, {original_message.sender.get_full_name()} wrote:\n{original_message.body}",
-            'study_name': original_message.study_name,
-            'recipients': original_message.sender.username,
-        })
-    return render(request, 'messaging/compose_message.html', {'form': form, 'is_reply': True})
-
-@login_required
-def reply_all(request, message_id):
-    original_message = get_object_or_404(Message, id=message_id)
-    if request.method == 'POST':
-        form = MessageForm(request.POST)
-        if form.is_valid():
-            new_message = form.save(commit=False)
-            new_message.sender = request.user
-            new_message.thread_id = original_message.thread_id  # Use the same thread ID
-            new_message.save()
-            form.save_m2m()
-            messages.success(request, 'Reply to all sent successfully.')
-            return redirect('messaging:inbox')
-    else:
-        # Get all recipients excluding current user
-        all_recipients = list(original_message.recipients.exclude(id=request.user.id).values_list('username', flat=True))
-        # Add original sender to recipients list
-        if original_message.sender != request.user:
-            all_recipients.append(original_message.sender.username)
-        recipients_str = ', '.join(all_recipients)
-
-        form = MessageForm(initial={
-            'subject': f"Re: {original_message.subject}",
-            'body': f"\n\nOn {original_message.sent_at}, {original_message.sender.get_full_name()} wrote:\n{original_message.body}",
-            'study_name': original_message.study_name,
-            'recipients': recipients_str,
-            'cc': ', '.join([user.username for user in original_message.cc.all()]),
-        })
-    return render(request, 'messaging/compose_message.html', {'form': form, 'is_reply_all': True})
-
-@login_required
-def forward(request, message_id):
-    original_message = get_object_or_404(Message, id=message_id)
-    if request.method == 'POST':
-        form = MessageForm(request.POST)
-        if form.is_valid():
-            new_message = form.save(commit=False)
-            new_message.sender = request.user
-            new_message.thread_id = original_message.thread_id  # Use the same thread ID
-            new_message.save()
-            form.save_m2m()
-            messages.success(request, 'Message forwarded successfully.')
-            return redirect('messaging:inbox')
-    else:
-        form = MessageForm(initial={
-            'subject': f"Fwd: {original_message.subject}",
-            'body': f"\n\n---------- Forwarded message ----------\nFrom: {original_message.sender.get_full_name()}\nDate: {original_message.sent_at}\nSubject: {original_message.subject}\nTo: {', '.join([r.get_full_name() for r in original_message.recipients.all()])}\n\n{original_message.body}",
-            'study_name': original_message.study_name,
-        })
-    return render(request, 'messaging/compose_message.html', {'form': form, 'is_forward': True})
-
-@login_required
-def search_messages(request):
-    query = request.GET.get('q', '')
-    messages_list = []
-
-    if query:
-        messages_list = Message.objects.filter(
-            Q(recipients=request.user) | Q(sender=request.user),
-            Q(subject__icontains=query) | 
-            Q(body__icontains=query) |
-            Q(study_name__icontains=query)
-        ).distinct().order_by('-sent_at')
-
-    context = {
-        'messages': messages_list,
-        'query': query,
-    }
-    return render(request, 'messaging/search_results.html', context)
-
-
-
-@login_required
-def archive_message(request):
-    if request.method == 'POST':
-        message_ids = request.POST.getlist('selected_messages[]')
-        messages_to_archive = Message.objects.filter(
-            id__in=message_ids,
-            recipients=request.user
-        )
-        
-        messages_to_archive.update(is_archived=True)
-        
-        return JsonResponse({'status': 'success'})
-    return JsonResponse({'status': 'error'}, status=400)
-
-@login_required
-def delete_messages(request):
-    if request.method == 'POST':
-        message_ids = request.POST.getlist('selected_messages')
-        Message.objects.filter(id__in=message_ids, sender=request.user).delete()
-        messages.success(request, f"{len(message_ids)} messages deleted.")
-    return redirect('messaging:sent_messages')
-
-@login_required
-def archived_messages(request):
-    messages_list = Message.objects.filter(recipients=request.user, is_archived=True).order_by('-sent_at')
-    return render(request, 'messaging/archived_messages.html', {'messages': messages_list})
-
-@login_required
-def threads_inbox(request):
-    # Get all messages for the user
-    user_messages = Message.objects.filter(recipients=request.user)
-
-    # Group messages by thread_id and count them
-    threads = user_messages.values('thread_id').annotate(thread_count=Count('id')).filter(thread_count__gt=1)
-
-    # Get the first message of each thread
-    first_messages = Message.objects.filter(thread_id__in=[thread['thread_id'] for thread in threads]).order_by('sent_at')
-
-    context = {
-        'first_messages': first_messages,
-    }
-    return render(request, 'messaging/threads_inbox.html', context)
-
-@login_required
-def user_autocomplete(request):
-    """View for handling user autocomplete requests"""
-    term = request.GET.get('term', '')
-    users = User.objects.filter(
-        Q(userprofile__full_name__icontains=term) |
-        Q(email__icontains=term) |
-        Q(username__icontains=term)
-    ).distinct()[:10]
-
-    results = []
-    for user in users:
-        full_name = user.userprofile.full_name if hasattr(user, 'userprofile') else f"{user.first_name} {user.last_name}"
-        results.append({
-            'id': user.id,
-            'value': full_name,
-            'label': f"{full_name} ({user.email})"
-        })
-
-    return JsonResponse(results, safe=False)
-
-
-@login_required
-def submission_autocomplete(request):
-    """API endpoint for submission autocomplete"""
-    term = request.GET.get('term', '')
-    
-    submissions = Submission.objects.filter(
-        Q(title__icontains=term) |
-        Q(irb_number__icontains=term)
-    ).distinct()[:10]
-    
-    results = []
-    for submission in submissions:
-        results.append({
-            'id': submission.temporary_id,  # Use temporary_id instead of id
-            'title': submission.title,
-            'irb_number': submission.irb_number,
-            'text': f"{submission.title} (IRB: {submission.irb_number})" if submission.irb_number else submission.title
-        })
-    
-    return JsonResponse(results, safe=False)  # Return array directly like user_autocomplete
-
-class ComposeMessageView(LoginRequiredMixin, CreateView):
-    template_name = 'messaging/compose_message.html'
-    form_class = MessageForm
-    
-    def get_initial(self):
-        initial = super().get_initial()
-        
-        # Get URL parameters
-        recipient_id = self.request.GET.get('recipient')
-        submission_id = self.request.GET.get('submission')
-        
-        if recipient_id:
-            try:
-                recipient = User.objects.get(id=recipient_id)
-                initial['recipients'] = [{
-                    'id': recipient.id,
-                    'text': recipient.get_full_name() or recipient.email
-                }]
-            except User.DoesNotExist:
-                pass
-                
-        if submission_id:
-            try:
-                submission = Submission.objects.get(id=submission_id)
-                initial['related_submission'] = submission
-            except Submission.DoesNotExist:
-                pass
-                
-        return initial
-
-@login_required
-def update_read_status(request):
-    if request.method == 'POST':
-        message_ids = request.POST.getlist('message_ids[]')
-        is_read = request.POST.get('is_read') == 'true'
-        
-        for message_id in message_ids:
-            read_status, created = MessageReadStatus.objects.get_or_create(
-                user=request.user,
-                message_id=message_id,
-                defaults={'is_read': is_read}
-            )
-            if not created:
-                read_status.is_read = is_read
-                read_status.save()
-        
-        return JsonResponse({'status': 'success'})
-    return JsonResponse({'status': 'error'}, status=400)
-# messaging/__init__.py
-
-default_app_config = 'messaging.apps.MessagingConfig'{% extends 'users/base.html' %}
+# Contents from: .\templates\messaging\archived_messages.html
+{% extends 'users/base.html' %}
 {% load messaging_extras %}
 
 {% block title %}Archived Messages{% endblock %}
@@ -942,6 +56,9 @@ default_app_config = 'messaging.apps.MessagingConfig'{% extends 'users/base.html
     });
 </script>
 {% endblock %}
+
+
+# Contents from: .\templates\messaging\base_messaging.html
 {% extends 'base.html' %}
 {% load static %}
 
@@ -1149,20 +266,23 @@ $(document).ready(function() {
     }
 });
 </script>
-{% endblock %}{% extends 'users/base.html' %}
+{% endblock %}
+
+# Contents from: .\templates\messaging\compose_message.html
+{% extends 'users/base.html' %}
 {% load crispy_forms_tags %}
 
 {% block title %}Compose Message{% endblock %}
 
 {% block page_specific_css %}
 <style>
-    /* Select2 Bootstrap 5 Compatibility */
+    /* Adjusted styles for multiple file input */
     .select2-container--default .select2-selection--multiple,
     .select2-container--default .select2-selection--single {
         border: 1px solid #ced4da;
         border-radius: 0.25rem;
     }
-    
+
     .select2-container {
         width: 100% !important;
     }
@@ -1200,7 +320,7 @@ $(document).ready(function() {
                 <div class="card-body">
                     <form method="post" enctype="multipart/form-data" id="compose-form" novalidate>
                         {% csrf_token %}
-                        
+
                         {# Subject Field #}
                         {{ form.subject|as_crispy_field }}
 
@@ -1234,7 +354,14 @@ $(document).ready(function() {
                         <div class="mb-3">
                             <label for="id_attachment" class="form-label">Attachment</label>
                             {{ form.attachment }}
-                            <small class="text-muted d-block mt-1" id="file-name-display">Select a file to attach</small>
+                            {% if form.attachment.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.attachment.errors|join:", " }}
+                                </div>
+                            {% endif %}
+                            <small class="text-muted">
+                                Allowed file types: {{ form.attachment.field.widget.attrs.accept }}
+                            </small>
                         </div>
 
                         {# Submit Buttons #}
@@ -1351,18 +478,19 @@ $(document).ready(function() {
 
     // File attachment handling
     $('#id_attachment').on('change', function() {
-        var fileName = this.files[0]?.name || 'Select a file to attach';
+        var files = this.files;
+        var fileName = files[0] ? files[0].name : 'Select a file to attach';
         $('#file-name-display').text(fileName);
     });
 
     // Form submission handling
     $('#compose-form').on('submit', function(e) {
         e.preventDefault();
-        
+
         // Clear previous error states
         $('#recipients-error').hide();
         $('.is-invalid').removeClass('is-invalid');
-        
+
         // Validate recipients
         const recipients = $('#id_recipients').val();
         if (!recipients || recipients.length === 0) {
@@ -1384,7 +512,11 @@ $(document).ready(function() {
     });
 });
 </script>
-{% endblock %}{% extends 'users/base.html' %}
+{% endblock %}
+
+
+# Contents from: .\templates\messaging\inbox.html
+{% extends 'users/base.html' %}
 {% load static %}
 {% load messaging_extras %}
 {% load message_tags %}
@@ -1578,7 +710,8 @@ $(document).ready(function() {
                                         {% endif %}
                                     </a>
                                 </td>
-                                <td>{{ message.study_name|default:"-" }}</td>
+                                <td>{{ message.related_submission.title|default:"-" }}</td>
+
                                 <td data-order="{{ message.sent_at|date:'Y-m-d H:i:s' }}">
                                     {{ message.sent_at|date:"M d, Y" }}
                                     <br>
@@ -1703,7 +836,10 @@ $(document).ready(function() {
     updateActionButtons();
 });
 </script>
-{% endblock %}<!DOCTYPE html>
+{% endblock %}
+
+# Contents from: .\templates\messaging\message_notification.html
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
@@ -1799,7 +935,10 @@ $(document).ready(function() {
         <p>To respond to this message, please use the platform's messaging system.</p>
     </div>
 </body>
-</html>{% extends 'users/base.html' %}
+</html>
+
+# Contents from: .\templates\messaging\search_results.html
+{% extends 'users/base.html' %}
 {% load messaging_extras %}
 
 {% block title %}Search Results{% endblock %}
@@ -1858,6 +997,9 @@ $(document).ready(function() {
     });
 </script>
 {% endblock %}
+
+
+# Contents from: .\templates\messaging\sent_messages.html
 {# sent_messages.html #}
 {% extends 'users/base.html' %}
 {% load static %}
@@ -2045,7 +1187,7 @@ $(document).ready(function() {
                                 </a>
                             </td>
                             <td class="study-column">
-                                <span class="text-truncate">{{ message.study_name|default:"-" }}</span>
+                                <span class="text-truncate">{{ message.related_submission.title|default:"-" }}</span>
                             </td>
                             <td class="date-column" data-order="{{ message.sent_at|date:'Y-m-d H:i:s' }}">
                                 {{ message.sent_at|date:"M d, Y" }}
@@ -2152,7 +1294,10 @@ $(document).ready(function() {
     {% endif %}
 });
 </script>
-{% endblock %}{% extends 'users/base.html' %}
+{% endblock %}
+
+# Contents from: .\templates\messaging\threads_inbox.html
+{% extends 'users/base.html' %}
 {% load messaging_extras %}
 
 {% block title %}Threads Inbox{% endblock %}
@@ -2211,6 +1356,9 @@ $(document).ready(function() {
     });
 </script>
 {% endblock %}
+
+
+# Contents from: .\templates\messaging\view_message.html
 {% extends 'users/base.html' %}
 {% load static %}
 
@@ -2485,3 +1633,1689 @@ $(document).ready(function() {
 });
 </script>
 {% endblock %}
+
+# Contents from: .\__init__.py
+# messaging/__init__.py
+
+default_app_config = 'messaging.apps.MessagingConfig'
+
+# Contents from: .\admin.py
+from django.contrib import admin
+
+# Register your models here.
+
+
+# Contents from: .\apps.py
+from django.apps import AppConfig
+from django.template.library import Library
+
+class MessagingConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'messaging'
+
+    def ready(self):
+        import messaging.signals  # Import signals when app is ready
+
+
+
+# Contents from: .\checks.py
+from django.core.checks import Warning, register
+from django.conf import settings
+
+@register()
+def check_email_configuration(app_configs, **kwargs):
+    """
+    Check if email settings are properly configured
+    """
+    errors = []
+
+    # Check if email backend is configured
+    if not hasattr(settings, 'EMAIL_BACKEND'):
+        errors.append(
+            Warning(
+                'EMAIL_BACKEND is not configured.',
+                hint='Set EMAIL_BACKEND in your settings file.',
+                id='messaging.W001',
+            )
+        )
+
+    # Check if email host is configured
+    if not getattr(settings, 'EMAIL_HOST', None):
+        errors.append(
+            Warning(
+                'EMAIL_HOST is not configured.',
+                hint='Set EMAIL_HOST in your settings file.',
+                id='messaging.W002',
+            )
+        )
+
+    # Check if email credentials are configured for non-console backends
+    if getattr(settings, 'EMAIL_BACKEND', '') != 'django.core.mail.backends.console.EmailBackend':
+        if not getattr(settings, 'EMAIL_HOST_USER', None):
+            errors.append(
+                Warning(
+                    'EMAIL_HOST_USER is not configured.',
+                    hint='Set EMAIL_HOST_USER in your settings file.',
+                    id='messaging.W003',
+                )
+            )
+        if not getattr(settings, 'EMAIL_HOST_PASSWORD', None):
+            errors.append(
+                Warning(
+                    'EMAIL_HOST_PASSWORD is not configured.',
+                    hint='Set EMAIL_HOST_PASSWORD in your settings file.',
+                    id='messaging.W004',
+                )
+            )
+
+    return errors
+
+
+# Contents from: .\combine.py
+import os
+
+def get_files_recursively(directory, extensions):
+    """
+    Recursively get all files with specified extensions from directory and subdirectories
+    """
+    file_list = []
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if any(file.endswith(ext) for ext in extensions):
+                file_list.append(os.path.join(root, file))
+    return file_list
+
+def combine_files(output_file, file_list):
+    """
+    Combine contents of all files in file_list into output_file
+    """
+    with open(output_file, 'a', encoding='utf-8') as outfile:
+        for fname in file_list:
+            # Add a header comment to show which file's contents follow
+            outfile.write(f"\n\n# Contents from: {fname}\n")
+            try:
+                with open(fname, 'r', encoding='utf-8') as infile:
+                    for line in infile:
+                        outfile.write(line)
+            except Exception as e:
+                outfile.write(f"# Error reading file {fname}: {str(e)}\n")
+
+def main():
+    # Define the base directory (current directory in this case)
+    base_directory = "."
+    output_file = 'combined.py'
+    extensions = ('.py', '.html')
+
+    # Remove output file if it exists
+    if os.path.exists(output_file):
+        try:
+            os.remove(output_file)
+        except Exception as e:
+            print(f"Error removing existing {output_file}: {str(e)}")
+            return
+
+    # Get all files recursively
+    all_files = get_files_recursively(base_directory, extensions)
+    
+    # Sort files by extension and then by name
+    all_files.sort(key=lambda x: (os.path.splitext(x)[1], x))
+
+    # Add a header to the output file
+    with open(output_file, 'w', encoding='utf-8') as outfile:
+        outfile.write("# Combined Python and HTML files\n")
+        outfile.write(f"# Generated from directory: {os.path.abspath(base_directory)}\n")
+        outfile.write(f"# Total files found: {len(all_files)}\n\n")
+
+    # Combine all files
+    combine_files(output_file, all_files)
+    
+    print(f"Successfully combined {len(all_files)} files into {output_file}")
+    print("Files processed:")
+    for file in all_files:
+        print(f"  - {file}")
+
+if __name__ == "__main__":
+    main()
+
+# Contents from: .\consumers.py
+from channels.generic.websocket import AsyncJsonWebsocketConsumer
+from channels.db import database_sync_to_async
+from django.core.cache import cache
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class NotificationConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        if self.scope["user"].is_anonymous:
+            await self.close()
+        else:
+            await self.channel_layer.group_add(
+                f"user_{self.scope['user'].id}",
+                self.channel_name
+            )
+            await self.accept()
+
+    async def disconnect(self, close_code):
+        if not self.scope["user"].is_anonymous:
+            await self.channel_layer.group_discard(
+                f"user_{self.scope['user'].id}",
+                self.channel_name
+            )
+
+    async def notify(self, event):
+        """Send notification to WebSocket"""
+        await self.send_json(event["data"])
+
+    async def receive_json(self, content):
+        """Handle incoming WebSocket messages"""
+        command = content.get("command", None)
+        if command == "get_unread_count":
+            count = await self.get_unread_count()
+            await self.send_json({
+                "type": "unread_count",
+                "count": count
+            })
+
+    @database_sync_to_async
+    def get_unread_count(self):
+        """Get unread message count for current user"""
+        cache_key = f'unread_count_{self.scope["user"].id}'
+        count = cache.get(cache_key)
+        if count is None:
+            from .models import MessageReadStatus
+            count = MessageReadStatus.objects.filter(
+                user=self.scope["user"],
+                is_read=False
+            ).count()
+            cache.set(cache_key, count, 300)  # Cache for 5 minutes
+        return count
+
+
+# Contents from: .\exceptions.py
+class MessageError(Exception):
+    """Base exception class for messaging app errors"""
+    pass
+
+class RecipientError(MessageError):
+    """Exception raised for errors related to message recipients"""
+    pass
+
+class AttachmentError(MessageError):
+    """Exception raised for errors related to message attachments"""
+    pass
+
+class ThreadError(MessageError):
+    """Exception raised for errors related to message threading"""
+    pass 
+
+# Contents from: .\forms.py
+# messaging/forms.py
+
+from django import forms
+from django.db.models import Q
+from django.contrib.auth.models import User
+from submission.models import Submission
+from .models import Message, MessageAttachment
+from django.forms.widgets import FileInput
+from .validators import validate_file_size, validate_file_extension
+
+class MessageForm(forms.ModelForm):
+    recipients = forms.ModelMultipleChoiceField(
+        queryset=User.objects.filter(is_active=True),
+        widget=forms.SelectMultiple(attrs={
+            'class': 'select2-user-field',
+            'data-placeholder': 'Select recipients...'
+        })
+    )
+    cc = forms.ModelMultipleChoiceField(
+        queryset=User.objects.filter(is_active=True),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'select2-user-field',
+            'data-placeholder': 'Select CC recipients...'
+        })
+    )
+    bcc = forms.ModelMultipleChoiceField(
+        queryset=User.objects.filter(is_active=True),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'select2-user-field',
+            'data-placeholder': 'Select BCC recipients...'
+        })
+    )
+    subject = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    body = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 5})
+    )
+    related_submission = forms.ModelChoiceField(
+        queryset=Submission.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'select2',
+            'data-placeholder': 'Link to a submission...'
+        })
+    )
+    attachment = forms.FileField(
+        required=False,
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.pdf,.doc,.docx,.txt,.png,.jpg,.jpeg'
+        }),
+        validators=[validate_file_size, validate_file_extension]
+    )
+
+    class Meta:
+        model = Message
+        fields = ['subject', 'body', 'recipients', 'cc', 'bcc', 'related_submission']
+
+    def clean(self):
+        cleaned_data = super().clean()
+        recipients = cleaned_data.get('recipients')
+
+        if not recipients:
+            self.add_error('recipients', 'At least one recipient is required.')
+
+        return cleaned_data
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        if user:
+            # Exclude current user from recipients
+            excluded_user_queryset = User.objects.exclude(id=user.id).filter(is_active=True)
+            self.fields['recipients'].queryset = excluded_user_queryset
+            self.fields['cc'].queryset = excluded_user_queryset
+            self.fields['bcc'].queryset = excluded_user_queryset
+
+            # Include all submissions
+            self.fields['related_submission'].queryset = Submission.objects.all()
+
+        for field in self.fields:
+            if field not in ['recipients', 'cc', 'bcc', 'related_submission', 'attachment']:
+                self.fields[field].widget.attrs.update({'class': 'form-control'})
+
+    def clean_attachment(self):
+        attachment = self.cleaned_data.get('attachment')
+        if attachment:
+            # Check if file extension is allowed
+            ext = attachment.name.split('.')[-1].lower()
+            if ext not in MessageAttachment.ALLOWED_EXTENSIONS:
+                raise forms.ValidationError(f'Invalid file type. Allowed types are: {", ".join(MessageAttachment.ALLOWED_EXTENSIONS)}')
+        return attachment
+
+class SearchForm(forms.Form):
+    q = forms.CharField(label='Search', max_length=100)
+
+
+# Contents from: .\migrations\0001_initial.py
+# Generated by Django 5.1.2 on 2024-11-05 18:13
+
+import django.db.models.deletion
+import messaging.models
+import uuid
+from django.conf import settings
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+        ("submission", "0001_initial"),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name="Message",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("subject", models.CharField(max_length=255)),
+                ("body", models.TextField()),
+                ("study_name", models.CharField(blank=True, max_length=255, null=True)),
+                (
+                    "respond_by",
+                    models.DateTimeField(
+                        blank=True,
+                        default=messaging.models.get_default_respond_by,
+                        null=True,
+                    ),
+                ),
+                ("sent_at", models.DateTimeField(auto_now_add=True)),
+                ("is_archived", models.BooleanField(default=False)),
+                ("hashtags", models.CharField(blank=True, max_length=255, null=True)),
+                ("thread_id", models.UUIDField(default=uuid.uuid4, editable=False)),
+                (
+                    "bcc",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="bcc_messages",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "cc",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="cc_messages",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "recipients",
+                    models.ManyToManyField(
+                        related_name="received_messages", to=settings.AUTH_USER_MODEL
+                    ),
+                ),
+                (
+                    "related_submission",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="related_messages",
+                        to="submission.submission",
+                    ),
+                ),
+                (
+                    "sender",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="sent_messages",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+            ],
+            options={
+                "ordering": ["-sent_at"],
+            },
+        ),
+        migrations.CreateModel(
+            name="Comment",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("body", models.TextField()),
+                ("commented_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "message",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="comments",
+                        to="messaging.message",
+                    ),
+                ),
+            ],
+        ),
+        migrations.CreateModel(
+            name="MessageAttachment",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("file", models.FileField(upload_to="message_attachments/")),
+                ("filename", models.CharField(max_length=255)),
+                ("uploaded_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "message",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="attachments",
+                        to="messaging.message",
+                    ),
+                ),
+            ],
+        ),
+        migrations.CreateModel(
+            name="MessageReadStatus",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("is_read", models.BooleanField(default=False)),
+                (
+                    "message",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="read_statuses",
+                        to="messaging.message",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+            ],
+        ),
+    ]
+
+
+# Contents from: .\migrations\0002_alter_message_id.py
+# Generated by Django 5.1.2 on 2024-11-09 06:19
+
+import uuid
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("messaging", "0001_initial"),
+    ]
+
+    operations = [
+        migrations.AlterField(
+            model_name="message",
+            name="id",
+            field=models.UUIDField(
+                default=uuid.uuid4, editable=False, primary_key=True, serialize=False
+            ),
+        ),
+    ]
+
+
+# Contents from: .\migrations\0002_alter_message_thread_id.py
+# Generated by Django 5.1.2 on 2024-11-06 03:57
+
+import uuid
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("messaging", "0001_initial"),
+    ]
+
+    operations = [
+        migrations.AlterField(
+            model_name="message",
+            name="thread_id",
+            field=models.UUIDField(
+                blank=True, default=uuid.uuid4, editable=False, null=True
+            ),
+        ),
+    ]
+
+
+# Contents from: .\migrations\0003_messageattachment_content_type.py
+# Generated by Django 5.1.2 on 2024-11-08 00:04
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("messaging", "0002_alter_message_thread_id"),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name="messageattachment",
+            name="content_type",
+            field=models.CharField(default="application/octet-stream", max_length=100),
+        ),
+    ]
+
+
+# Contents from: .\migrations\0004_remove_messageattachment_content_type.py
+# Generated by Django 5.1.2 on 2024-11-08 00:05
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("messaging", "0003_messageattachment_content_type"),
+    ]
+
+    operations = [
+        migrations.RemoveField(
+            model_name="messageattachment",
+            name="content_type",
+        ),
+    ]
+
+
+# Contents from: .\migrations\0005_merge_20241109_0952.py
+# Generated by Django 5.1.2 on 2024-11-09 06:52
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("messaging", "0002_alter_message_id"),
+        ("messaging", "0004_remove_messageattachment_content_type"),
+    ]
+
+    operations = []
+
+
+# Contents from: .\migrations\0006_remove_message_hashtags_alter_message_id_and_more.py
+# Generated by Django 5.1.2 on 2024-11-09 07:07
+
+import messaging.validators
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("messaging", "0005_merge_20241109_0952"),
+    ]
+
+    operations = [
+        migrations.RemoveField(
+            model_name="message",
+            name="hashtags",
+        ),
+        migrations.AlterField(
+            model_name="message",
+            name="id",
+            field=models.BigAutoField(
+                auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+            ),
+        ),
+        migrations.AlterField(
+            model_name="messageattachment",
+            name="file",
+            field=models.FileField(
+                upload_to="message_attachments/",
+                validators=[messaging.validators.validate_file_size],
+            ),
+        ),
+    ]
+
+
+# Contents from: .\migrations\0007_message_hashtags_alter_messageattachment_file.py
+# Generated by Django 5.1.2 on 2024-11-09 07:09
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("messaging", "0006_remove_message_hashtags_alter_message_id_and_more"),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name="message",
+            name="hashtags",
+            field=models.CharField(blank=True, max_length=255, null=True),
+        ),
+        migrations.AlterField(
+            model_name="messageattachment",
+            name="file",
+            field=models.FileField(upload_to="message_attachments/"),
+        ),
+    ]
+
+
+# Contents from: .\migrations\0008_notificationstatus.py
+# Generated by Django 5.1.2 on 2024-11-09 07:30
+
+import django.db.models.deletion
+from django.conf import settings
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("messaging", "0007_message_hashtags_alter_messageattachment_file"),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name="NotificationStatus",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("notification_key", models.CharField(max_length=255)),
+                ("dismissed_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+            ],
+            options={
+                "unique_together": {("user", "notification_key")},
+            },
+        ),
+    ]
+
+
+# Contents from: .\migrations\0009_remove_message_study_name_and_more.py
+# Generated by Django 5.1.2 on 2024-11-09 18:15
+
+import messaging.validators
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("messaging", "0008_notificationstatus"),
+    ]
+
+    operations = [
+        migrations.RemoveField(
+            model_name="message",
+            name="study_name",
+        ),
+        migrations.AlterField(
+            model_name="messageattachment",
+            name="file",
+            field=models.FileField(
+                upload_to="message_attachments/",
+                validators=[
+                    messaging.validators.validate_file_size,
+                    messaging.validators.validate_file_extension,
+                ],
+            ),
+        ),
+    ]
+
+
+# Contents from: .\migrations\__init__.py
+
+
+# Contents from: .\models.py
+# messaging/models.py
+
+from django.db import models
+from django.contrib.auth import get_user_model
+from django.utils import timezone
+from .validators import validate_file_size, validate_file_extension  # Import validators
+
+import uuid
+
+User = get_user_model()
+
+class MessageManager(models.Manager):
+    def delete(self):
+        # Prevent deletion, raise an exception
+        raise Exception("Messages cannot be deleted. Use archive instead.")
+
+def get_default_respond_by():
+    return timezone.now() + timezone.timedelta(weeks=2)
+
+class MessageAttachment(models.Model):
+    message = models.ForeignKey('Message', related_name='attachments', on_delete=models.CASCADE)
+    file = models.FileField(
+        upload_to='message_attachments/',
+        validators=[validate_file_size, validate_file_extension]  # Apply validators
+    )
+    filename = models.CharField(max_length=255)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg']
+
+    def __str__(self):
+        return self.filename
+
+    def save(self, *args, **kwargs):
+        if not self.filename:
+            self.filename = self.file.name.split('/')[-1]
+        super().save(*args, **kwargs)
+
+class Message(models.Model):
+    sender = models.ForeignKey(User, related_name='sent_messages', on_delete=models.CASCADE)
+    recipients = models.ManyToManyField(User, related_name='received_messages')
+    cc = models.ManyToManyField(User, related_name='cc_messages', blank=True)
+    bcc = models.ManyToManyField(User, related_name='bcc_messages', blank=True)
+    subject = models.CharField(max_length=255)
+    body = models.TextField()
+    respond_by = models.DateTimeField(default=get_default_respond_by, blank=True, null=True)
+    sent_at = models.DateTimeField(auto_now_add=True)
+    is_archived = models.BooleanField(default=False)
+    hashtags = models.CharField(max_length=255, blank=True, null=True)
+    thread_id = models.UUIDField(default=uuid.uuid4, editable=False, null=True, blank=True)
+    related_submission = models.ForeignKey(
+        'submission.Submission',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='related_messages'
+    )
+    objects = MessageManager()
+
+    def get_recipients_display(self):
+        """Returns a formatted string of recipient names."""
+        recipients = self.recipients.all()
+        if not recipients:
+            return "-"
+
+        first_recipient = recipients.first()
+        first_name = first_recipient.get_full_name() or first_recipient.username
+
+        if recipients.count() > 1:
+            return f"{first_name} +{recipients.count() - 1}"
+        return first_name
+
+    def get_all_recipients_display(self):
+        """Returns a comma-separated list of all recipient names."""
+        return ", ".join(
+            recipient.get_full_name() or recipient.username
+            for recipient in self.recipients.all()
+        )
+
+    def delete(self, *args, **kwargs):
+        # Override delete method to archive instead
+        self.is_archived = True
+        self.save()
+
+    class Meta:
+        ordering = ['-sent_at']
+
+    def __str__(self):
+        return self.subject
+
+class NotificationStatus(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    notification_key = models.CharField(max_length=255)
+    dismissed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'notification_key')
+
+class MessageReadStatus(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    message = models.ForeignKey(Message, related_name='read_statuses', on_delete=models.CASCADE)
+    is_read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.message.subject} - {'Read' if self.is_read else 'Unread'}"
+
+class Comment(models.Model):
+    message = models.ForeignKey(Message, related_name='comments', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    body = models.TextField()
+    commented_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Comment by {self.user.username} on {self.message.subject}"
+
+
+# Contents from: .\signals.py
+# messaging/signals.py
+
+from django.db.models.signals import post_save, m2m_changed
+from django.dispatch import receiver
+from .models import Message, MessageReadStatus
+
+@receiver(m2m_changed, sender=Message.recipients.through)
+def create_message_read_status(sender, instance, action, pk_set, **kwargs):
+    """Create read status for all recipients when they are added to a message"""
+    if action == "post_add" and pk_set:
+        for user_id in pk_set:
+            MessageReadStatus.objects.get_or_create(
+                message=instance,
+                user_id=user_id,
+                defaults={'is_read': False}
+            )
+
+# Contents from: .\tasks.py
+from celery import shared_task
+from django.core.mail import get_connection, EmailMultiAlternatives
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+from django.conf import settings
+from .models import Message
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+@shared_task(bind=True, max_retries=3)
+def send_message_email_task(self, message_id):
+    """Celery task to send email notifications"""
+    try:
+        message = Message.objects.select_related('sender').prefetch_related(
+            'recipients', 'cc', 'bcc', 'attachments'
+        ).get(id=message_id)
+        
+        recipients_emails = [user.email for user in message.recipients.all()]
+        cc_emails = [user.email for user in message.cc.all()]
+        bcc_emails = [user.email for user in message.bcc.all()]
+        
+        if not any([recipients_emails, cc_emails, bcc_emails]):
+            return "No recipients to send email to."
+        
+        with get_connection() as connection:
+            # Prepare email content
+            html_content = render_to_string('messaging/email/message_notification.html', {
+                'message': message,
+                'sender': message.sender,
+                'view_url': f"{settings.SITE_URL}/messaging/message/{message.id}/",
+            })
+            text_content = strip_tags(html_content)
+            
+            # Create email message
+            email = EmailMultiAlternatives(
+                subject=message.subject,
+                body=text_content,
+                from_email=settings.EMAIL_HOST_USER,
+                to=recipients_emails,
+                cc=cc_emails,
+                bcc=bcc_emails,
+                connection=connection,
+                reply_to=[message.sender.email]
+            )
+            
+            # Attach HTML content
+            email.attach_alternative(html_content, "text/html")
+            
+            # Attach files
+            for attachment in message.attachments.all():
+                email.attach(attachment.filename, attachment.file.read())
+            
+            # Send email
+            email.send()
+            
+        return "Email sent successfully"
+        
+    except Exception as exc:
+        # Retry the task in case of failure
+        self.retry(exc=exc, countdown=60 * 5)  # Retry after 5 minutes
+
+# Signal to send email after message is created
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=Message)
+def handle_new_message(sender, instance, created, **kwargs):
+    """Handle new message creation and send email notifications"""
+    if created:
+        send_message_email_task.delay(instance.id)
+
+
+# Contents from: .\templatetags\__init__.py
+
+
+# Contents from: .\templatetags\message_tags.py
+from django import template
+from ..models import MessageReadStatus
+
+register = template.Library()
+
+@register.filter
+def get_read_status(message, user):
+    """
+    Check if a message has been read by the user.
+    Usage: {{ message|get_read_status:request.user }}
+    """
+    try:
+        # If we used prefetch_related with to_attr
+        read_statuses = getattr(message, 'user_read_status', None)
+        if read_statuses is not None:
+            return read_statuses[0].is_read if read_statuses else False
+    except (AttributeError, IndexError):
+        pass
+    
+    # Fallback to database query if not prefetched
+    return MessageReadStatus.objects.filter(
+        message=message,
+        user=user,
+        is_read=True
+    ).exists() 
+
+# Contents from: .\templatetags\messaging_extras.py
+from django import template
+from messaging.models import MessageReadStatus
+
+register = template.Library()
+
+@register.filter
+def get_read_status(message, user):
+    try:
+        status = MessageReadStatus.objects.get(message=message, user=user)
+        return status.is_read
+    except MessageReadStatus.DoesNotExist:
+        return False
+
+# Contents from: .\tests\__init__.py
+# messaging/tests/__init__.py
+# Empty file to mark directory as Python package
+
+# Contents from: .\tests\test_models.py
+# messaging/tests/test_models.py
+
+import pytest
+from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from messaging.models import Message, MessageReadStatus, MessageAttachment
+from submission.models import Submission
+
+User = get_user_model()
+
+pytestmark = pytest.mark.django_db
+
+class TestMessageModel:
+    @pytest.fixture
+    def setup_users(self):
+        # Create users with proper full names
+        self.sender = User.objects.create_user(
+            username='sender',
+            email='sender@test.com',
+            password='password',
+            first_name='Test',
+            last_name='Sender'
+        )
+        self.recipient = User.objects.create_user(
+            username='recipient',
+            email='recipient@test.com',
+            password='password',
+            first_name='Test',
+            last_name='Recipient'
+        )
+        
+        # Create a test submission
+        self.submission = Submission.objects.create(
+            title="Test Study",
+            primary_investigator=self.sender,
+            status='draft'
+        )
+
+    def test_message_read_status(self, setup_users):
+        message = Message.objects.create(
+            sender=self.sender,
+            subject="Test Message",
+            body="Test Body",
+            related_submission=self.submission
+        )
+        message.recipients.add(self.recipient)
+        
+        # Test read status
+        read_status = MessageReadStatus.objects.get(
+            user=self.recipient,
+            message=message
+        )
+        assert read_status is not None
+        assert read_status.is_read == False
+
+    def test_message_archive(self, setup_users):
+        message = Message.objects.create(
+            sender=self.sender,
+            subject="Test Message",
+            body="Test Body",
+            related_submission=self.submission
+        )
+        message.recipients.add(self.recipient)
+        
+        # Test archiving
+        message.delete()  # This should archive instead of delete
+        archived_message = Message.objects.get(id=message.id)
+        assert archived_message.is_archived == True
+
+    def test_get_recipients_display(self, setup_users):
+        message = Message.objects.create(
+            sender=self.sender,
+            subject="Test Message",
+            body="Test Body",
+            related_submission=self.submission
+        )
+        message.recipients.add(self.recipient)
+        
+        # Test recipients display
+        assert "Test Recipient" in message.get_all_recipients_display()
+
+
+class TestMessageAttachments:
+    @pytest.fixture
+    def setup_message(self):
+        # Create users with proper full names
+        self.sender = User.objects.create_user(
+            username='sender',
+            email='sender@test.com',
+            password='password',
+            first_name='Test',
+            last_name='Sender'
+        )
+        self.recipient = User.objects.create_user(
+            username='recipient',
+            email='recipient@test.com',
+            password='password',
+            first_name='Test',
+            last_name='Recipient'
+        )
+        
+        # Create a test submission
+        self.submission = Submission.objects.create(
+            title="Test Study",
+            primary_investigator=self.sender,
+            status='draft'
+        )
+        
+        self.message = Message.objects.create(
+            sender=self.sender,
+            subject="Test Message",
+            body="Test Body",
+            related_submission=self.submission
+        )
+        self.message.recipients.add(self.recipient)
+        return self.message
+
+    def test_attachment_creation(self, setup_message):
+        file_content = b'Test file content'
+        test_file = SimpleUploadedFile("test.txt", file_content)
+        
+        attachment = MessageAttachment.objects.create(
+            message=setup_message,
+            file=test_file,
+            filename='test.txt'
+        )
+        assert attachment.message == setup_message
+        assert attachment.filename == 'test.txt'
+
+    def test_attachment_with_message(self, setup_message):
+        file_content = b'Test file content'
+        test_file = SimpleUploadedFile("test.txt", file_content)
+        
+        attachment = MessageAttachment.objects.create(
+            message=setup_message,
+            file=test_file,
+            filename='test.txt'
+        )
+        
+        # Test relationship
+        assert setup_message.attachments.count() == 1
+        assert setup_message.attachments.first() == attachment
+
+# Contents from: .\tests\test_views.py
+# messaging/tests/test_views.py
+
+import pytest
+from django.test import Client
+from django.urls import reverse
+from django.contrib.auth import get_user_model
+from messaging.models import Message
+
+User = get_user_model()
+
+pytestmark = pytest.mark.django_db
+
+@pytest.fixture
+def client():
+    return Client()
+
+@pytest.fixture
+def authenticated_user():
+    return User.objects.create_user(
+        username='testuser',
+        email='test@test.com',
+        password='testpass123',
+        first_name='Test',
+        last_name='User'
+    )
+
+@pytest.fixture
+def authenticated_client(client, authenticated_user):
+    client.login(username='testuser', password='testpass123')
+    return client
+
+def test_inbox_view(authenticated_client):
+    """Test inbox view"""
+    response = authenticated_client.get(reverse('messaging:inbox'))
+    assert response.status_code == 200
+    assert 'messages' in response.context
+
+def test_compose_message_get(authenticated_client):
+    """Test compose message view - GET"""
+    response = authenticated_client.get(reverse('messaging:compose_message'))
+    assert response.status_code == 200
+    assert 'form' in response.context
+
+def test_compose_message_post(authenticated_client, authenticated_user):
+    """Test compose message view - POST"""
+    recipient = User.objects.create_user(
+        username='recipient',
+        email='recipient@test.com',
+        password='testpass123',
+        first_name='Test',
+        last_name='Recipient'
+    )
+    
+    data = {
+        'subject': 'Test Subject',
+        'body': 'Test Body',
+        'recipients': [recipient.id],
+    }
+    
+    response = authenticated_client.post(reverse('messaging:compose_message'), data)
+    assert response.status_code == 302  # Redirect after successful creation
+    
+    # Verify message was created
+    message = Message.objects.filter(subject='Test Subject').first()
+    assert message is not None
+    assert message.sender == authenticated_user
+    assert recipient in message.recipients.all()
+
+def test_view_message(authenticated_client, authenticated_user):
+    """Test viewing a specific message"""
+    message = Message.objects.create(
+        sender=authenticated_user,
+        subject='Test Subject',
+        body='Test Body'
+    )
+    message.recipients.add(authenticated_user)
+    
+    response = authenticated_client.get(
+        reverse('messaging:view_message', kwargs={'message_id': message.id})
+    )
+    assert response.status_code == 200
+    assert response.context['message'] == message
+
+# Contents from: .\urls.py
+from django.urls import path
+from . import views
+
+app_name = 'messaging'
+
+urlpatterns = [
+    path('inbox/', views.inbox, name='inbox'),
+    path('sent/', views.sent_messages, name='sent_messages'),
+    path('compose/', views.compose_message, name='compose_message'),
+    path('compose_request/', views.ComposeMessageView.as_view(), name='compose'),
+    path('message/<int:message_id>/', views.view_message, name='view_message'),
+    path('reply/<int:message_id>/', views.reply, name='reply'),
+    path('reply-all/<int:message_id>/', views.reply_all, name='reply_all'),
+    path('forward/<int:message_id>/', views.forward, name='forward'),
+    path('search/', views.search_messages, name='search_messages'),
+    path('archive/', views.archive_message, name='archive_message'),
+    path('delete/', views.delete_messages, name='delete_messages'),
+    path('archived/', views.archived_messages, name='archived_messages'),
+    path('threads/', views.threads_inbox, name='threads_inbox'),
+    path('user-autocomplete/', views.user_autocomplete, name='user_autocomplete'),
+    path('submission-autocomplete/', views.submission_autocomplete, name='submission_autocomplete'),
+    path('dismiss-notification/', views.dismiss_notification, name='dismiss_notification'),
+    path('update-read-status/', views.update_read_status, name='update_read_status'),
+    path('archive-message/', views.archive_message, name='archive_message'),
+]
+
+
+# Contents from: .\utils.py
+from django.core.mail import get_connection, EmailMultiAlternatives
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+from django.conf import settings
+from typing import List, Optional
+from .models import Message
+
+def send_message_email(message: Message) -> None:
+    """Send email notification for a message to all recipients"""
+    with get_connection() as connection:
+        subject = message.subject
+        from_email = settings.EMAIL_HOST_USER
+        
+        # Prepare HTML content
+        html_content = render_to_string('messaging/email/message_notification.html', {
+            'message': message,
+            'sender': message.sender,
+            'view_url': f"{settings.SITE_URL}/messaging/view/{message.id}/",
+        })
+        text_content = strip_tags(html_content)
+        
+        # Create email message
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content,
+            from_email=from_email,
+            to=[r.email for r in message.recipients.all()],
+            cc=[r.email for r in message.cc.all()],
+            bcc=[r.email for r in message.bcc.all()],
+            connection=connection,
+            reply_to=[message.sender.email]
+        )
+        
+        # Attach HTML content
+        email.attach_alternative(html_content, "text/html")
+        
+        # Attach files if any
+        for attachment in message.attachments.all():
+            email.attach_file(attachment.file.path)
+        
+        # Send email
+        email.send()
+
+# Contents from: .\validators.py
+# messaging/validators.py
+
+from django.core.exceptions import ValidationError
+import os
+
+def validate_file_size(value):
+    max_kb = 10240  # 10 MB
+    if value.size > max_kb * 1024:
+        raise ValidationError('Maximum file size is 10 MB.')
+
+def validate_file_extension(value):
+    ext = os.path.splitext(value.name)[1].lower()
+    valid_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.png', '.jpg', '.jpeg']
+    if ext not in valid_extensions:
+        raise ValidationError('Unsupported file extension.')
+
+
+# Contents from: .\views.py
+# messaging/views.py
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import get_user_model
+from django.db.models import Q, Count, Prefetch
+from django.contrib import messages
+from django.template.defaulttags import register
+from .models import Message, MessageReadStatus, Comment, MessageAttachment, NotificationStatus
+from .forms import MessageForm, SearchForm
+from submission.models import Submission
+from django.views.generic import CreateView
+from django.contrib.auth.mixins import LoginRequiredMixin
+
+User = get_user_model()
+
+@register.filter
+def get_read_status(message, user):
+    """
+    Check if a message has been read by the user.
+    Usage: {{ message|get_read_status:request.user }}
+    """
+    try:
+        # If we used prefetch_related with to_attr
+        read_statuses = getattr(message, 'user_read_status', None)
+        if read_statuses is not None:
+            return read_statuses[0].is_read if read_statuses else False
+    except (AttributeError, IndexError):
+        pass
+
+    # Fallback to database query if not prefetched
+    return MessageReadStatus.objects.filter(
+        message=message,
+        user=user,
+        is_read=True
+    ).exists()
+
+@login_required
+def inbox(request):
+    messages_list = Message.objects.filter(
+        recipients=request.user,
+        is_archived=False
+    ).order_by('-sent_at')
+
+    # Add read status to the queryset
+    messages_list = messages_list.prefetch_related(
+        Prefetch(
+            'read_statuses',
+            queryset=MessageReadStatus.objects.filter(user=request.user),
+            to_attr='user_read_status'
+        )
+    )
+
+    # Check if notification has been dismissed
+    notification_key = 'submission_2_confirmation'  # Use a unique key for each notification
+    notification_dismissed = NotificationStatus.objects.filter(
+        user=request.user,
+        notification_key=notification_key
+    ).exists()
+
+    context = {
+        'messages': messages_list,
+        'show_notification': not notification_dismissed
+    }
+    return render(request, 'messaging/inbox.html', context)
+
+@login_required
+def dismiss_notification(request):
+    if request.method == 'POST':
+        notification_key = request.POST.get('notification_key')
+        NotificationStatus.objects.get_or_create(
+            user=request.user,
+            notification_key=notification_key
+        )
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'error'})
+
+@login_required
+def compose_message(request):
+    if request.method == 'POST':
+        form = MessageForm(request.POST, request.FILES, user=request.user)
+        if form.is_valid():
+            try:
+                message = form.save(commit=False)
+                message.sender = request.user
+                message.save()
+                form.save_m2m()
+                
+                # Handle file attachments
+                if 'attachment' in request.FILES:
+                    attachment = MessageAttachment.objects.create(
+                        message=message,
+                        file=request.FILES['attachment'],
+                        filename=request.FILES['attachment'].name
+                    )
+                
+                messages.success(request, 'Message sent successfully!')
+                return redirect('messaging:inbox')
+            except Exception as e:
+                print(f"Error sending message: {str(e)}")  # Debug print
+                messages.error(request, f'Error sending message: {str(e)}')
+        else:
+            print(f"Form errors: {form.errors}")  # Debug print
+            messages.error(request, 'Please correct the form errors.')
+    else:
+        form = MessageForm(user=request.user)
+    
+    return render(request, 'messaging/compose_message.html', {
+        'form': form
+    })
+
+@login_required
+def sent_messages(request):
+    messages = Message.objects.filter(sender=request.user).order_by('-sent_at')
+    return render(request, 'messaging/sent_messages.html', {
+        'messages': messages,
+        'is_archived': False
+    })
+
+@login_required
+def reply(request, message_id):
+    original_message = get_object_or_404(Message, id=message_id)
+    if request.method == 'POST':
+        form = MessageForm(request.POST)
+        if form.is_valid():
+            new_message = form.save(commit=False)
+            new_message.sender = request.user
+            new_message.thread_id = original_message.thread_id  # Use the same thread ID
+            new_message.save()
+            new_message.recipients.add(original_message.sender)
+            form.save_m2m()
+            messages.success(request, 'Reply sent successfully.')
+            return redirect('messaging:inbox')
+    else:
+        form = MessageForm(initial={
+            'subject': f"Re: {original_message.subject}",
+            'body': f"\n\nOn {original_message.sent_at}, {original_message.sender.get_full_name()} wrote:\n{original_message.body}",
+            'study_name': original_message.study_name,
+            'recipients': original_message.sender.username,
+        })
+    return render(request, 'messaging/compose_message.html', {'form': form, 'is_reply': True})
+
+@login_required
+def reply_all(request, message_id):
+    original_message = get_object_or_404(Message, id=message_id)
+    if request.method == 'POST':
+        form = MessageForm(request.POST)
+        if form.is_valid():
+            new_message = form.save(commit=False)
+            new_message.sender = request.user
+            new_message.thread_id = original_message.thread_id  # Use the same thread ID
+            new_message.save()
+            form.save_m2m()
+            messages.success(request, 'Reply to all sent successfully.')
+            return redirect('messaging:inbox')
+    else:
+        # Get all recipients excluding current user
+        all_recipients = list(original_message.recipients.exclude(id=request.user.id).values_list('username', flat=True))
+        # Add original sender to recipients list
+        if original_message.sender != request.user:
+            all_recipients.append(original_message.sender.username)
+        recipients_str = ', '.join(all_recipients)
+
+        form = MessageForm(initial={
+            'subject': f"Re: {original_message.subject}",
+            'body': f"\n\nOn {original_message.sent_at}, {original_message.sender.get_full_name()} wrote:\n{original_message.body}",
+            'study_name': original_message.study_name,
+            'recipients': recipients_str,
+            'cc': ', '.join([user.username for user in original_message.cc.all()]),
+        })
+    return render(request, 'messaging/compose_message.html', {'form': form, 'is_reply_all': True})
+
+@login_required
+def forward(request, message_id):
+    original_message = get_object_or_404(Message, id=message_id)
+    if request.method == 'POST':
+        form = MessageForm(request.POST)
+        if form.is_valid():
+            new_message = form.save(commit=False)
+            new_message.sender = request.user
+            new_message.thread_id = original_message.thread_id  # Use the same thread ID
+            new_message.save()
+            form.save_m2m()
+            messages.success(request, 'Message forwarded successfully.')
+            return redirect('messaging:inbox')
+    else:
+        form = MessageForm(initial={
+            'subject': f"Fwd: {original_message.subject}",
+            'body': f"\n\n---------- Forwarded message ----------\nFrom: {original_message.sender.get_full_name()}\nDate: {original_message.sent_at}\nSubject: {original_message.subject}\nTo: {', '.join([r.get_full_name() for r in original_message.recipients.all()])}\n\n{original_message.body}",
+            'study_name': original_message.study_name,
+        })
+    return render(request, 'messaging/compose_message.html', {'form': form, 'is_forward': True})
+
+@login_required
+def search_messages(request):
+    query = request.GET.get('q', '')
+    messages_list = []
+
+    if query:
+        messages_list = Message.objects.filter(
+            Q(recipients=request.user) | Q(sender=request.user),
+            Q(subject__icontains=query) | 
+            Q(body__icontains=query) |
+            Q(study_name__icontains=query)
+        ).distinct().order_by('-sent_at')
+
+    context = {
+        'messages': messages_list,
+        'query': query,
+    }
+    return render(request, 'messaging/search_results.html', context)
+
+@login_required
+def archive_message(request):
+    if request.method == 'POST':
+        message_ids = request.POST.getlist('selected_messages[]')
+        messages_to_archive = Message.objects.filter(
+            id__in=message_ids,
+            recipients=request.user
+        )
+        
+        messages_to_archive.update(is_archived=True)
+        
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'error'}, status=400)
+
+@login_required
+def delete_messages(request):
+    if request.method == 'POST':
+        message_ids = request.POST.getlist('selected_messages')
+        Message.objects.filter(id__in=message_ids, sender=request.user).delete()
+        messages.success(request, f"{len(message_ids)} messages deleted.")
+    return redirect('messaging:sent_messages')
+
+@login_required
+def archived_messages(request):
+    messages_list = Message.objects.filter(recipients=request.user, is_archived=True).order_by('-sent_at')
+    return render(request, 'messaging/archived_messages.html', {'messages': messages_list})
+
+@login_required
+def threads_inbox(request):
+    # Get all messages for the user
+    user_messages = Message.objects.filter(recipients=request.user)
+
+    # Group messages by thread_id and count them
+    threads = user_messages.values('thread_id').annotate(thread_count=Count('id')).filter(thread_count__gt=1)
+
+    # Get the first message of each thread
+    first_messages = Message.objects.filter(thread_id__in=[thread['thread_id'] for thread in threads]).order_by('sent_at')
+
+    context = {
+        'first_messages': first_messages,
+    }
+    return render(request, 'messaging/threads_inbox.html', context)
+
+@login_required
+def user_autocomplete(request):
+    """View for handling user autocomplete requests"""
+    term = request.GET.get('term', '')
+    users = User.objects.filter(
+        Q(userprofile__full_name__icontains=term) |
+        Q(email__icontains=term) |
+        Q(username__icontains=term)
+    ).distinct()[:10]
+
+    results = []
+    for user in users:
+        full_name = user.userprofile.full_name if hasattr(user, 'userprofile') else f"{user.first_name} {user.last_name}"
+        results.append({
+            'id': user.id,
+            'value': full_name,
+            'label': f"{full_name} ({user.email})"
+        })
+
+    return JsonResponse(results, safe=False)
+
+@login_required
+def submission_autocomplete(request):
+    """API endpoint for submission autocomplete"""
+    term = request.GET.get('term', '')
+    
+    submissions = Submission.objects.filter(
+        Q(title__icontains=term) |
+        Q(irb_number__icontains=term)
+    ).distinct()[:10]
+    
+    results = []
+    for submission in submissions:
+        results.append({
+            'id': submission.temporary_id,  # Use temporary_id instead of id
+            'title': submission.title,
+            'irb_number': submission.irb_number,
+            'text': f"{submission.title} (IRB: {submission.irb_number})" if submission.irb_number else submission.title
+        })
+    
+    return JsonResponse(results, safe=False)  # Return array directly like user_autocomplete
+
+class ComposeMessageView(LoginRequiredMixin, CreateView):
+    template_name = 'messaging/compose_message.html'
+    form_class = MessageForm
+    
+    def get_initial(self):
+        initial = super().get_initial()
+        
+        # Get URL parameters
+        recipient_id = self.request.GET.get('recipient')
+        submission_id = self.request.GET.get('submission')
+        
+        if recipient_id:
+            try:
+                recipient = User.objects.get(id=recipient_id)
+                initial['recipients'] = [{
+                    'id': recipient.id,
+                    'text': recipient.get_full_name() or recipient.email
+                }]
+            except User.DoesNotExist:
+                pass
+                
+        if submission_id:
+            try:
+                submission = Submission.objects.get(id=submission_id)
+                initial['related_submission'] = submission
+            except Submission.DoesNotExist:
+                pass
+                
+        return initial
+
+@login_required
+def update_read_status(request):
+    if request.method == 'POST':
+        message_ids = request.POST.getlist('message_ids[]')
+        is_read = request.POST.get('is_read') == 'true'
+        
+        for message_id in message_ids:
+            read_status, created = MessageReadStatus.objects.get_or_create(
+                user=request.user,
+                message_id=message_id,
+                defaults={'is_read': is_read}
+            )
+            if not created:
+                read_status.is_read = is_read
+                read_status.save()
+        
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'error'}, status=400)
+
+@login_required
+def view_message(request, message_id):
+    message = get_object_or_404(Message, id=message_id)
+    
+    # Update read status when viewing the message
+    read_status, created = MessageReadStatus.objects.get_or_create(
+        user=request.user,
+        message=message,
+        defaults={'is_read': True}
+    )
+    
+    if not read_status.is_read:
+        read_status.is_read = True
+        read_status.save()
+    
+    return render(request, 'messaging/view_message.html', {'message': message})

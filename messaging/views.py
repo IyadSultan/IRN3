@@ -1,5 +1,3 @@
-# messaging/views.py
-
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
@@ -7,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q, Count, Prefetch
 from django.contrib import messages
 from django.template.defaulttags import register
+from django.conf import settings
 from .models import Message, MessageReadStatus, Comment, MessageAttachment, NotificationStatus
 from .forms import MessageForm, SearchForm
 from submission.models import Submission
@@ -14,6 +13,11 @@ from django.views.generic import CreateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 
 User = get_user_model()
+
+# Define default settings if not in settings.py
+MAX_ATTACHMENT_SIZE = getattr(settings, 'MAX_ATTACHMENT_SIZE', 10)  # 10 MB default
+ALLOWED_EXTENSIONS = getattr(settings, 'ALLOWED_ATTACHMENT_EXTENSIONS', 
+    ['.pdf', '.doc', '.docx', '.txt', '.xls', '.xlsx', '.jpg', '.jpeg', '.png'])
 
 @register.filter
 def get_read_status(message, user):
@@ -78,6 +82,36 @@ def dismiss_notification(request):
 
 @login_required
 def compose_message(request):
+    """
+    Enhanced compose message view with improved handling of attachments,
+    recipients, and form validation.
+    """
+    initial_data = {}
+    
+    # Handle URL parameters for pre-filled data
+    recipient_id = request.GET.get('to')
+    submission_id = request.GET.get('submission')
+    subject = request.GET.get('subject')
+    
+    if recipient_id:
+        try:
+            recipient = User.objects.get(id=recipient_id)
+            initial_data['recipients'] = [recipient]
+        except User.DoesNotExist:
+            messages.warning(request, "Specified recipient not found.")
+    
+    if submission_id:
+        try:
+            submission = Submission.objects.get(id=submission_id)
+            initial_data['related_submission'] = submission
+            if not subject:  # Auto-generate subject if none provided
+                initial_data['subject'] = f"RE: {submission.title}"
+        except Submission.DoesNotExist:
+            messages.warning(request, "Specified submission not found.")
+    
+    if subject:
+        initial_data['subject'] = subject
+
     if request.method == 'POST':
         form = MessageForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
@@ -87,110 +121,223 @@ def compose_message(request):
                 message.save()
                 form.save_m2m()
                 
-                # Handle file attachments
-                if 'attachment' in request.FILES:
-                    attachment = MessageAttachment.objects.create(
+                # Handle attachment
+                if form.cleaned_data.get('attachment'):
+                    MessageAttachment.objects.create(
                         message=message,
-                        file=request.FILES['attachment'],
-                        filename=request.FILES['attachment'].name
+                        file=form.cleaned_data['attachment'],
+                        filename=form.cleaned_data['attachment'].name
                     )
                 
-                messages.success(request, 'Message sent successfully!')
+                messages.success(request, 'Message sent successfully.')
                 return redirect('messaging:inbox')
+                
             except Exception as e:
-                print(f"Error sending message: {str(e)}")  # Debug print
                 messages.error(request, f'Error sending message: {str(e)}')
-        else:
-            print(f"Form errors: {form.errors}")  # Debug print
-            messages.error(request, 'Please correct the form errors.')
     else:
-        form = MessageForm(user=request.user)
-    
-    return render(request, 'messaging/compose_message.html', {
-        'form': form
-    })
+        form = MessageForm(user=request.user, initial=initial_data)
 
-@login_required
-def sent_messages(request):
-    messages = Message.objects.filter(sender=request.user).order_by('-sent_at')
-    return render(request, 'messaging/sent_messages.html', {
-        'messages': messages,
-        'is_archived': False
-    })
+    context = {
+        'form': form,
+        'max_attachment_size': MAX_ATTACHMENT_SIZE,
+        'allowed_extensions': ALLOWED_EXTENSIONS,
+        'is_compose': True,  # Flag for template rendering
+    }
+    
+    return render(request, 'messaging/compose_message.html', context)
 
 @login_required
 def reply(request, message_id):
+    """
+    Handle replying to a specific message.
+    """
     original_message = get_object_or_404(Message, id=message_id)
+    
     if request.method == 'POST':
-        form = MessageForm(request.POST)
+        form = MessageForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
-            new_message = form.save(commit=False)
-            new_message.sender = request.user
-            new_message.thread_id = original_message.thread_id  # Use the same thread ID
-            new_message.save()
-            new_message.recipients.add(original_message.sender)
-            form.save_m2m()
-            messages.success(request, 'Reply sent successfully.')
-            return redirect('messaging:inbox')
+            try:
+                new_message = form.save(commit=False)
+                new_message.sender = request.user
+                new_message.thread_id = original_message.thread_id or original_message.id
+                new_message.save()
+                
+                # Save many-to-many relationships
+                form.save_m2m()
+                
+                # Handle attachments
+                for attachment in request.FILES.getlist('attachment'):
+                    new_message.attachments.create(
+                        file=attachment,
+                        filename=attachment.name
+                    )
+                
+                messages.success(request, 'Reply sent successfully.')
+                return redirect('messaging:inbox')
+                
+            except Exception as e:
+                messages.error(request, f'Error sending reply: {str(e)}')
     else:
-        form = MessageForm(initial={
-            'subject': f"Re: {original_message.subject}",
-            'body': f"\n\nOn {original_message.sent_at}, {original_message.sender.get_full_name()} wrote:\n{original_message.body}",
-            'study_name': original_message.study_name,
-            'recipients': original_message.sender.username,
-        })
-    return render(request, 'messaging/compose_message.html', {'form': form, 'is_reply': True})
+        # Fix the reply body formatting
+        reply_body = (
+            "\n\n"
+            f"On {original_message.sent_at.strftime('%Y-%m-%d %H:%M')}, "
+            f"{original_message.sender.get_full_name()} wrote:\n"
+        )
+        # Add quoted message separately
+        quoted_lines = [f"> {line}" for line in original_message.body.splitlines()]
+        reply_body += "\n".join(quoted_lines)
+        
+        initial_data = {
+            'subject': f"Re: {original_message.subject}" if not original_message.subject.startswith('Re: ') else original_message.subject,
+            'body': reply_body,
+            'recipients': [original_message.sender],
+            'related_submission': original_message.related_submission
+        }
+        
+        form = MessageForm(user=request.user, initial=initial_data)
+    
+    context = {
+        'form': form,
+        'original_message': original_message,
+        'is_reply': True,
+        'max_attachment_size': 10,  # MB
+        'allowed_extensions': ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg']
+    }
+    
+    return render(request, 'messaging/compose_message.html', context)
 
 @login_required
 def reply_all(request, message_id):
+    """
+    Handle replying to all recipients of a message.
+    """
     original_message = get_object_or_404(Message, id=message_id)
+    
     if request.method == 'POST':
-        form = MessageForm(request.POST)
+        form = MessageForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
-            new_message = form.save(commit=False)
-            new_message.sender = request.user
-            new_message.thread_id = original_message.thread_id  # Use the same thread ID
-            new_message.save()
-            form.save_m2m()
-            messages.success(request, 'Reply to all sent successfully.')
-            return redirect('messaging:inbox')
+            try:
+                new_message = form.save(commit=False)
+                new_message.sender = request.user
+                new_message.thread_id = original_message.thread_id or original_message.id
+                new_message.save()
+                
+                form.save_m2m()
+                
+                # Handle attachments
+                for attachment in request.FILES.getlist('attachment'):
+                    new_message.attachments.create(
+                        file=attachment,
+                        filename=attachment.name
+                    )
+                
+                messages.success(request, 'Reply sent to all recipients.')
+                return redirect('messaging:inbox')
+                
+            except Exception as e:
+                messages.error(request, f'Error sending reply: {str(e)}')
     else:
         # Get all recipients excluding current user
-        all_recipients = list(original_message.recipients.exclude(id=request.user.id).values_list('username', flat=True))
-        # Add original sender to recipients list
+        recipients = list(original_message.recipients.exclude(id=request.user.id))
         if original_message.sender != request.user:
-            all_recipients.append(original_message.sender.username)
-        recipients_str = ', '.join(all_recipients)
-
-        form = MessageForm(initial={
-            'subject': f"Re: {original_message.subject}",
-            'body': f"\n\nOn {original_message.sent_at}, {original_message.sender.get_full_name()} wrote:\n{original_message.body}",
-            'study_name': original_message.study_name,
-            'recipients': recipients_str,
-            'cc': ', '.join([user.username for user in original_message.cc.all()]),
-        })
-    return render(request, 'messaging/compose_message.html', {'form': form, 'is_reply_all': True})
+            recipients.append(original_message.sender)
+            
+        # Fix the reply body formatting
+        reply_body = (
+            "\n\n"
+            f"On {original_message.sent_at.strftime('%Y-%m-%d %H:%M')}, "
+            f"{original_message.sender.get_full_name()} wrote:\n"
+        )
+        # Add quoted message separately
+        quoted_lines = [f"> {line}" for line in original_message.body.splitlines()]
+        reply_body += "\n".join(quoted_lines)
+        
+        initial_data = {
+            'subject': f"Re: {original_message.subject}" if not original_message.subject.startswith('Re: ') else original_message.subject,
+            'body': reply_body,
+            'recipients': recipients,
+            'cc': original_message.cc.all(),
+            'related_submission': original_message.related_submission
+        }
+        
+        form = MessageForm(user=request.user, initial=initial_data)
+    
+    context = {
+        'form': form,
+        'original_message': original_message,
+        'is_reply_all': True,
+        'max_attachment_size': 10,  # MB
+        'allowed_extensions': ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg']
+    }
+    
+    return render(request, 'messaging/compose_message.html', context)
 
 @login_required
 def forward(request, message_id):
+    """
+    Handle forwarding a message to new recipients.
+    """
     original_message = get_object_or_404(Message, id=message_id)
+    
     if request.method == 'POST':
-        form = MessageForm(request.POST)
+        form = MessageForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
-            new_message = form.save(commit=False)
-            new_message.sender = request.user
-            new_message.thread_id = original_message.thread_id  # Use the same thread ID
-            new_message.save()
-            form.save_m2m()
-            messages.success(request, 'Message forwarded successfully.')
-            return redirect('messaging:inbox')
+            try:
+                new_message = form.save(commit=False)
+                new_message.sender = request.user
+                new_message.save()
+                
+                form.save_m2m()
+                
+                # Copy original attachments
+                for attachment in original_message.attachments.all():
+                    new_message.attachments.create(
+                        file=attachment.file,
+                        filename=attachment.filename
+                    )
+                
+                # Add new attachments
+                for attachment in request.FILES.getlist('attachment'):
+                    new_message.attachments.create(
+                        file=attachment,
+                        filename=attachment.name
+                    )
+                
+                messages.success(request, 'Message forwarded successfully.')
+                return redirect('messaging:inbox')
+                
+            except Exception as e:
+                messages.error(request, f'Error forwarding message: {str(e)}')
     else:
-        form = MessageForm(initial={
-            'subject': f"Fwd: {original_message.subject}",
-            'body': f"\n\n---------- Forwarded message ----------\nFrom: {original_message.sender.get_full_name()}\nDate: {original_message.sent_at}\nSubject: {original_message.subject}\nTo: {', '.join([r.get_full_name() for r in original_message.recipients.all()])}\n\n{original_message.body}",
-            'study_name': original_message.study_name,
-        })
-    return render(request, 'messaging/compose_message.html', {'form': form, 'is_forward': True})
+        # Prepare forwarded message body
+        forward_body = (
+            f"\n\n"
+            f"---------- Forwarded message ----------\n"
+            f"From: {original_message.sender.get_full_name()}\n"
+            f"Date: {original_message.sent_at.strftime('%Y-%m-%d %H:%M')}\n"
+            f"Subject: {original_message.subject}\n"
+            f"To: {', '.join([r.get_full_name() for r in original_message.recipients.all()])}\n\n"
+            f"{original_message.body}"
+        )
+        
+        initial_data = {
+            'subject': f"Fwd: {original_message.subject}" if not original_message.subject.startswith('Fwd: ') else original_message.subject,
+            'body': forward_body,
+            'related_submission': original_message.related_submission
+        }
+        
+        form = MessageForm(user=request.user, initial=initial_data)
+    
+    context = {
+        'form': form,
+        'original_message': original_message,
+        'is_forward': True,
+        'max_attachment_size': 10,  # MB
+        'allowed_extensions': ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg']
+    }
+    
+    return render(request, 'messaging/compose_message.html', context)
 
 @login_required
 def search_messages(request):
@@ -234,6 +381,74 @@ def delete_messages(request):
     return redirect('messaging:sent_messages')
 
 @login_required
+def sent_messages(request):
+    """
+    View for displaying messages sent by the current user with enhanced filtering and sorting.
+    """
+    messages_list = Message.objects.filter(
+        sender=request.user,
+        is_archived=False
+    ).select_related(
+        'sender',
+        'related_submission'
+    ).prefetch_related(
+        'recipients',
+        'attachments'
+    ).order_by('-sent_at')
+    
+    # Get archive success message if it exists
+    archive_success = request.session.pop('archive_success', None)
+    if archive_success:
+        messages.success(request, archive_success)
+
+    context = {
+        'messages': messages_list,
+        'is_archived': False,
+        'view_type': 'sent',
+        'can_archive': True,
+    }
+    
+    return render(request, 'messaging/sent_messages.html', context)
+
+@login_required
+def archive_sent_messages(request):
+    """
+    Handler for archiving sent messages.
+    """
+    if request.method == 'POST':
+        message_ids = request.POST.getlist('selected_messages[]')
+        if not message_ids:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'No messages selected'
+            }, status=400)
+            
+        try:
+            messages_to_archive = Message.objects.filter(
+                id__in=message_ids,
+                sender=request.user
+            )
+            
+            count = messages_to_archive.count()
+            messages_to_archive.update(is_archived=True)
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': f'{count} message{"s" if count != 1 else ""} archived successfully'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)
+            
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    }, status=405)
+
+@login_required
 def archived_messages(request):
     messages_list = Message.objects.filter(recipients=request.user, is_archived=True).order_by('-sent_at')
     return render(request, 'messaging/archived_messages.html', {'messages': messages_list})
@@ -264,16 +479,16 @@ def user_autocomplete(request):
         Q(username__icontains=term)
     ).distinct()[:10]
 
-    results = []
-    for user in users:
-        full_name = user.userprofile.full_name if hasattr(user, 'userprofile') else f"{user.first_name} {user.last_name}"
-        results.append({
-            'id': user.id,
-            'value': full_name,
-            'label': f"{full_name} ({user.email})"
-        })
-
-    return JsonResponse(results, safe=False)
+    results = {
+        'results': [
+            {
+                'id': user.id,
+                'text': user.get_full_name() or user.email,
+                'email': user.email
+            } for user in users
+        ]
+    }
+    return JsonResponse(results)
 
 @login_required
 def submission_autocomplete(request):
@@ -285,16 +500,15 @@ def submission_autocomplete(request):
         Q(irb_number__icontains=term)
     ).distinct()[:10]
     
-    results = []
-    for submission in submissions:
-        results.append({
-            'id': submission.temporary_id,  # Use temporary_id instead of id
-            'title': submission.title,
-            'irb_number': submission.irb_number,
-            'text': f"{submission.title} (IRB: {submission.irb_number})" if submission.irb_number else submission.title
-        })
-    
-    return JsonResponse(results, safe=False)  # Return array directly like user_autocomplete
+    results = {
+        'results': [
+            {
+                'id': str(submission.pk),  # Use pk instead of id and convert to string
+                'text': f"{submission.title} (IRB: {submission.irb_number})" if submission.irb_number else submission.title
+            } for submission in submissions
+        ]
+    }
+    return JsonResponse(results)
 
 class ComposeMessageView(LoginRequiredMixin, CreateView):
     template_name = 'messaging/compose_message.html'
