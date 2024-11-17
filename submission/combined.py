@@ -1,6 +1,6 @@
 # Combined Python and HTML files
-# Generated from directory: C:\Users\isult\Dropbox\AI\Projects\IRN3\submission
-# Total files found: 48
+# Generated from directory: C:\Users\USER\Documents\IRN3\submission
+# Total files found: 53
 
 
 
@@ -83,8 +83,8 @@
                                 <tr>
                                     <td>{{ co.user.get_full_name }}</td>
                                     <td>
-                                        {% for role in co.roles.all %}
-                                            <span class="badge bg-secondary me-1">{{ role.name }}</span>
+                                        {% for role in co.get_role_display %}
+                                            <span class="badge bg-secondary me-1">{{ role }}</span>
                                         {% endfor %}
                                     </td>
                                     <td>
@@ -360,6 +360,101 @@
 </script>
 {% endblock %}
 
+# Contents from: .\templates\submission\archived_dashboard.html
+{% extends 'users/base.html' %}
+{% load static %}
+
+{% block title %}Archived Submissions{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Archived Submissions</h1>
+    <div class="mb-3">
+        <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>IRB Number</th>
+                    <th>Title</th>
+                    <th>Primary Investigator</th>
+                    <th>Status</th>
+                    <th>Version</th>
+                    <th>Archived Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for submission in submissions %}
+                <tr>
+                    <td>{{ submission.temporary_id }}</td>
+                    <td>{{ submission.irb_number|default:"N/A" }}</td>
+                    <td>{{ submission.title }}</td>
+                    <td>{{ submission.primary_investigator.get_full_name }}</td>
+                    <td>{{ submission.get_status_display }}</td>
+                    <td>{{ submission.version }}</td>
+                    <td>{{ submission.archived_at|date:"M d, Y H:i" }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info unarchive-submission" 
+                                data-submission-id="{{ submission.temporary_id }}"
+                                title="Unarchive Submission">
+                            <i class="fas fa-box-open"></i>
+                        </button>
+                        <a href="{% url 'submission:view_submission' submission.temporary_id %}" 
+                           class="btn btn-sm btn-secondary" 
+                           title="View Submission">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="{% url 'submission:download_submission_pdf' submission.temporary_id %}" 
+                           class="btn btn-sm btn-secondary" 
+                           title="Download PDF">
+                            <i class="fas fa-file-pdf"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" class="text-center">No archived submissions found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+<script>
+$(document).ready(function() {
+    $('.unarchive-submission').click(function() {
+        const submissionId = $(this).data('submission-id');
+        if (confirm('Are you sure you want to unarchive this submission?')) {
+            $.ajax({
+                url: `/submission/unarchive/${submissionId}/`,
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        location.reload();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error unarchiving submission:', error);
+                    alert('Failed to unarchive submission. Please try again.');
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}
+
 # Contents from: .\templates\submission\compare_versions.html
 {% extends 'users/base.html' %}
 
@@ -428,45 +523,26 @@
 {% endblock %}
 
 # Contents from: .\templates\submission\dashboard.html
-{% extends 'base.html' %}
+{% extends 'users/base.html' %}
 {% load static %}
 
-{% block extra_css %}
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.3/css/buttons.bootstrap4.min.css">
-<style>
-    .btn-green {
-        background-color: #28a745;
-        border-color: #28a745;
-        color: #fff;
-    }
-    .btn-green:hover {
-        background-color: #218838;
-        border-color: #1e7e34;
-        color: #fff;
-    }
-    
-    /* Status badge styles */
-    .badge-draft { background-color: #6c757d; }
-    .badge-submitted { background-color: #007bff; }
-    .badge-under_review { background-color: #ffc107; }
-    .badge-approved { background-color: #28a745; }
-    .badge-rejected { background-color: #dc3545; }
-    .badge-revisions_needed { background-color: #fd7e14; }
-</style>
-{% endblock %}
+{% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h2 class="mb-4">My Submissions</h2>
-
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="card-title mb-0">All Submissions</h3>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>My Submissions</h1>
+        <div class="btn-group">
             <a href="{% url 'submission:start_submission' %}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> Start New Submission
             </a>
+            <a href="{% url 'submission:archived_dashboard' %}" class="btn btn-secondary">
+                <i class="fas fa-archive"></i> View Archived
+            </a>
         </div>
+    </div>
+
+    <div class="card">
         <div class="card-body">
             <div class="table-responsive">
                 <table id="submissionsTable" class="table table-hover">
@@ -506,35 +582,32 @@
                                 <div class="btn-group">
                                     {% if submission.is_locked %}
                                         <a href="{% url 'submission:edit_submission' submission.temporary_id %}" 
-                                           class="btn btn-danger btn-sm" 
+                                           class="btn btn-sm btn-danger" 
                                            title="Submission Locked">
                                             <i class="fas fa-lock"></i>
                                         </a>
                                     {% else %}
                                         <a href="{% url 'submission:edit_submission' submission.temporary_id %}" 
-                                           class="btn btn-success btn-sm" 
+                                           class="btn btn-sm btn-success" 
                                            title="Edit Submission">
                                             <i class="fas fa-edit"></i>
                                         </a>
                                     {% endif %}
                                     <a href="{% url 'submission:version_history' submission.temporary_id %}" 
-                                       class="btn btn-info btn-sm" 
+                                       class="btn btn-sm btn-info" 
                                        title="Version History">
                                         <i class="fas fa-history"></i>
                                     </a>
-                                    <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id submission.actual_version %}" 
-                                       class="btn btn-secondary btn-sm" 
+                                    <a href="{% url 'submission:download_submission_pdf' submission.temporary_id %}" 
+                                       class="btn btn-sm btn-secondary" 
                                        title="Download PDF">
                                         <i class="fas fa-file-pdf"></i>
                                     </a>
-                                    
-                                    {% for form in submission.get_pending_investigator_forms %}
-                                        <a href="{% url 'submission:investigator_form' submission.temporary_id form.id %}"
-                                           class="btn btn-sm btn-warning"
-                                            title="Fill {{ form.name }}">
-                                                <i class="fas fa-file-signature"></i> Fill {{ form.name }}
-                                            </a>
-                                    {% endfor %}
+                                    <button class="btn btn-sm btn-warning archive-submission" 
+                                            data-submission-id="{{ submission.temporary_id }}"
+                                            title="Archive Submission">
+                                        <i class="fas fa-archive"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -552,25 +625,72 @@
 {% endblock %}
 
 {% block page_specific_js %}
+{{ block.super }}
 <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.2.3/js/dataTables.buttons.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.2.3/js/buttons.bootstrap4.min.js"></script>
 <script>
 $(document).ready(function() {
+    // Initialize DataTable
     $('#submissionsTable').DataTable({
-        dom: 'Bfrtip',
-        buttons: ['copy', 'excel', 'csv'],
-        order: [[6, "desc"]],
+        processing: true,
+        serverSide: false,
         pageLength: 10,
+        order: [[6, "desc"]],
         columnDefs: [
             { orderable: false, targets: 8 }
-        ],
-        processing: true,
-        serverSide: false
+        ]
+    });
+
+    // Archive submission handler
+    $('.archive-submission').click(function() {
+        const submissionId = $(this).data('submission-id');
+        if (confirm('Are you sure you want to archive this submission?')) {
+            $.ajax({
+                url: `/submission/archive/${submissionId}/`,
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        location.reload();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error archiving submission:', error);
+                    alert('Failed to archive submission. Please try again.');
+                }
+            });
+        }
     });
 });
 </script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .btn-group {
+        gap: 0.5rem;
+    }
+    
+    .status-badge {
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 0.9em;
+    }
+    
+    .status-badge i {
+        margin-right: 5px;
+    }
+
+    .table td {
+        vertical-align: middle;
+    }
+
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+    }
+</style>
 {% endblock %}
 
 # Contents from: .\templates\submission\dynamic_form.html
@@ -1437,6 +1557,114 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 {% endblock %}
 
+# Contents from: .\templates\submission\{# templates\submission\view_submission.html
+{# templates/submission/view_submission.html #}
+{% extends 'users/base.html' %}
+{% load static %}
+
+{% block title %}View Submission{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2>{{ submission.title }}</h2>
+            <h6 class="text-muted">ID: {{ submission.temporary_id }}</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>IRB Number:</strong> {{ submission.irb_number|default:"N/A" }}</p>
+                    <p><strong>Status:</strong> {{ submission.get_status_display }}</p>
+                    <p><strong>Version:</strong> {{ submission.version }}</p>
+                    <p><strong>Primary Investigator:</strong> {{ submission.primary_investigator.get_full_name }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Date Created:</strong> {{ submission.date_created|date:"M d, Y H:i" }}</p>
+                    <p><strong>Last Modified:</strong> {{ submission.last_modified|date:"M d, Y H:i" }}</p>
+                    {% if submission.is_archived %}
+                    <p><strong>Archived Date:</strong> {{ submission.archived_at|date:"M d, Y H:i" }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if versions %}
+            <div class="mt-4">
+                <h4>Version History</h4>
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Version</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for version in versions %}
+                        <tr>
+                            <td>{{ version.version }}</td>
+                            <td>{{ version.get_status_display }}</td>
+                            <td>{{ version.date|date:"M d, Y H:i" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+            
+            <div class="mt-4">
+                {% if submission.is_archived %}
+                <a href="{% url 'submission:archived_dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Archived
+                </a>
+                <button class="btn btn-info unarchive-submission" 
+                        data-submission-id="{{ submission.temporary_id }}">
+                    <i class="fas fa-box-open"></i> Unarchive Submission
+                </button>
+                {% else %}
+                <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+                {% endif %}
+                <a href="{% url 'submission:download_submission_pdf' submission.temporary_id %}" 
+                   class="btn btn-primary">
+                    <i class="fas fa-file-pdf"></i> Download PDF
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+{{ block.super }}
+<script>
+$(document).ready(function() {
+    $('.unarchive-submission').click(function() {
+        const submissionId = $(this).data('submission-id');
+        if (confirm('Are you sure you want to unarchive this submission?')) {
+            $.ajax({
+                url: `/submission/unarchive/${submissionId}/`,
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        window.location.href = "{% url 'submission:dashboard' %}";
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error unarchiving submission:', error);
+                    alert('Failed to unarchive submission. Please try again.');
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}
+
 # Contents from: .\__init__.py
 
 
@@ -1721,6 +1949,8 @@ class ResearchAssistantForm(forms.ModelForm):
         return instance
 
 
+from iRN.constants import COINVESTIGATOR_ROLES
+
 class CoInvestigatorForm(forms.ModelForm):
     investigator = forms.ModelChoiceField(
         queryset=User.objects.all(),
@@ -1731,8 +1961,8 @@ class CoInvestigatorForm(forms.ModelForm):
             'data-placeholder': 'Search for co-investigator...'
         })
     )
-    roles = forms.ModelMultipleChoiceField(
-        queryset=Role.objects.all(),
+    roles = forms.MultipleChoiceField(
+        choices=COINVESTIGATOR_ROLES,
         required=True,
         label="Roles",
         widget=forms.CheckboxSelectMultiple,
@@ -1769,20 +1999,17 @@ class CoInvestigatorForm(forms.ModelForm):
             raise forms.ValidationError("Please select a co-investigator.")
 
         if self.submission:
-            # Check if user is primary investigator
             if self.submission.primary_investigator == investigator:
                 raise forms.ValidationError(
                     "This user is already the primary investigator of this submission."
                 )
 
-            # Check if user is a research assistant
-            if ResearchAssistant.objects.filter(submission=self.submission, user=investigator).exists():
+            if self.submission.research_assistants.filter(user=investigator).exists():
                 raise forms.ValidationError(
                     "This user is already a research assistant of this submission."
                 )
 
-            # Check if user is already a co-investigator
-            if CoInvestigator.objects.filter(submission=self.submission, user=investigator).exists():
+            if self.submission.coinvestigators.filter(user=investigator).exists():
                 raise forms.ValidationError(
                     "This user is already a co-investigator of this submission."
                 )
@@ -1802,8 +2029,9 @@ class CoInvestigatorForm(forms.ModelForm):
             instance.submission = self.submission
         if commit:
             instance.save()
-            # Save the many-to-many relationships
-            self.save_m2m()
+            # Save roles as a list in the JSONField
+            instance.roles = list(self.cleaned_data['roles'])
+            instance.save()
         return instance
 
 def generate_django_form(dynamic_form):
@@ -2651,6 +2879,57 @@ class Migration(migrations.Migration):
     ]
 
 
+# Contents from: .\migrations\0011_submission_archived_at_submission_is_archived.py
+# Generated by Django 5.1.2 on 2024-11-13 18:03
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("submission", "0010_investigatorformsubmission"),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name="submission",
+            name="archived_at",
+            field=models.DateTimeField(blank=True, null=True),
+        ),
+        migrations.AddField(
+            model_name="submission",
+            name="is_archived",
+            field=models.BooleanField(default=False),
+        ),
+    ]
+
+
+# Contents from: .\migrations\0012_remove_coinvestigator_roles_coinvestigator_roles.py
+# Generated by Django 5.1.2 on 2024-11-13 18:40
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("submission", "0011_submission_archived_at_submission_is_archived"),
+    ]
+
+    operations = [
+        migrations.RemoveField(
+            model_name="coinvestigator",
+            name="roles",
+        ),
+        migrations.AddField(
+            model_name="coinvestigator",
+            name="roles",
+            field=models.JSONField(default=list),
+        ),
+    ]
+
+
 # Contents from: .\migrations\__init__.py
 
 
@@ -2720,6 +2999,20 @@ class Submission(models.Model):
     date_submitted = models.DateTimeField(blank=True, null=True)
     version = models.PositiveIntegerField(default=1)
     is_locked = models.BooleanField(default=False)
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
+
+    def archive(self, user=None):
+        """Archive the submission"""
+        self.is_archived = True
+        self.archived_at = timezone.now()
+        self.save(update_fields=['is_archived', 'archived_at'])
+
+    def unarchive(self, user=None):
+        """Unarchive the submission"""
+        self.is_archived = False
+        self.archived_at = None
+        self.save(update_fields=['is_archived', 'archived_at'])
 
     def __str__(self):
         return f"{self.title} (ID: {self.temporary_id}, Version: {self.version})"
@@ -2812,11 +3105,11 @@ from users.models import Role  # Add this import
 class CoInvestigator(models.Model):
     submission = models.ForeignKey(
         'Submission', 
-        related_name='coinvestigators',  # Add this related_name
+        related_name='coinvestigators',
         on_delete=models.CASCADE
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    roles = models.ManyToManyField(Role, related_name='coinvestigators')
+    roles = models.JSONField(default=list)  # Changed from ManyToManyField to JSONField
     can_edit = models.BooleanField(default=False)
     can_submit = models.BooleanField(default=False)
     can_view_communications = models.BooleanField(default=False)
@@ -2828,6 +3121,11 @@ class CoInvestigator(models.Model):
 
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.submission.temporary_id}"
+
+    def get_role_display(self):
+        """Return human-readable role names"""
+        role_dict = dict(COINVESTIGATOR_ROLES)
+        return [role_dict.get(role, role) for role in (self.roles or [])]
 
 from django.db import models
 from django.contrib.auth.models import User
@@ -3290,6 +3588,10 @@ urlpatterns = [
     path('compare-version/<int:submission_id>/<int:version>/', views.compare_version, name='compare_version'),
     path('investigator-form/<int:submission_id>/<int:form_id>/', views.investigator_form, name='investigator_form'),
     path('check-form-status/<int:submission_id>/', views.check_form_status, name='check_form_status'),
+    path('archived/', views.archived_dashboard, name='archived_dashboard'),
+    path('archive/<int:submission_id>/', views.archive_submission, name='archive_submission'),
+    path('unarchive/<int:submission_id>/', views.unarchive_submission, name='unarchive_submission'),
+    path('view/<int:submission_id>/', views.view_submission, name='view_submission'),
 ]
 
 
@@ -3644,21 +3946,14 @@ class PDFGenerator:
     def add_header(self):
         """Add header to the current page"""
         self.canvas.setFont("Helvetica-Bold", 16)
-        self.canvas.drawString(self.left_margin, self.y, "Intelligent Research Navigator (iRN) report")
+        self.canvas.drawString(self.left_margin, self.y, "Intelligent Research Navigator (iRN) Report")
         self.y -= self.line_height * 1.5
         
         self.canvas.setFont("Helvetica-Bold", 14)
         self.canvas.drawString(self.left_margin, self.y, f"{self.submission.title} - Version {self.version}")
         self.y -= self.line_height * 1.5
-        
-        self.canvas.setFont("Helvetica", 10)
-        self.canvas.drawString(self.left_margin, self.y, f"Date of printing: {timezone.now().strftime('%Y-%m-%d %H:%M')}")
-        self.y -= self.line_height
-        self.canvas.drawString(self.left_margin, self.y, f"Printed by: {self.user.get_full_name()}")
-        self.y -= self.line_height * 2
 
     def add_footer(self):
-        """Add footer to the current page"""
         footer_text = (
             "iRN is a property of the Artificial Intelligence and Data Innovation (AIDI) office "
             "in collaboration with the Office of Scientific Affairs (OSAR) office @ King Hussein "
@@ -3951,6 +4246,112 @@ if __name__ == "__main__":
 
     
 
+# Contents from: .\utils\validation.py
+# utils/validation.py
+
+from django import forms
+import json
+
+def get_validation_errors(submission):
+    """
+    Validate all forms in the submission and return any errors.
+    """
+    validation_errors = {}
+    
+    # Get all forms for this study type
+    for dynamic_form in submission.study_type.forms.order_by('order'):
+        django_form_class = generate_django_form(dynamic_form)
+        entries = FormDataEntry.objects.filter(
+            submission=submission, 
+            form=dynamic_form, 
+            version=submission.version
+        )
+        saved_data = {
+            f'form_{dynamic_form.id}-{entry.field_name}': entry.value
+            for entry in entries
+        }
+        
+        form_instance = django_form_class(data=saved_data, prefix=f'form_{dynamic_form.id}')
+        is_valid = True
+        errors = {}
+        
+        for field_name, field in form_instance.fields.items():
+            field_key = f'form_{dynamic_form.id}-{field_name}'
+            field_value = saved_data.get(field_key)
+            
+            if isinstance(field, forms.MultipleChoiceField):
+                try:
+                    if field.required and (not field_value or field_value == '[]'):
+                        is_valid = False
+                        errors[field_name] = ['This field is required']
+                except json.JSONDecodeError:
+                    is_valid = False
+                    errors[field_name] = ['Invalid value']
+            else:
+                if field.required and not field_value:
+                    is_valid = False
+                    errors[field_name] = ['This field is required']
+
+        if not is_valid:
+            validation_errors[dynamic_form.name] = errors
+
+    return validation_errors
+
+def check_certifications(user_profile):
+    """
+    Check if a user's certifications are valid.
+    """
+    issues = []
+    
+    if not user_profile.has_valid_gcp:
+        issues.append('GCP Certificate missing or expired')
+    if not user_profile.has_cv:
+        issues.append('CV missing')
+    if user_profile.role == 'KHCC investigator':
+        if not user_profile.has_qrc:
+            issues.append('QRC Certificate missing')
+        if not user_profile.has_ctc:
+            issues.append('CTC Certificate missing')
+    elif user_profile.role == 'Research Assistant/Coordinator':
+        if not user_profile.has_ctc:
+            issues.append('CTC Certificate missing')
+            
+    return issues
+
+def check_team_certifications(submission):
+    """
+    Check certifications for the entire research team.
+    """
+    certification_issues = {}
+    
+    # Check PI certifications
+    pi_issues = check_certifications(submission.primary_investigator.userprofile)
+    if pi_issues:
+        certification_issues['Primary Investigator'] = {
+            'name': submission.primary_investigator.get_full_name(),
+            'issues': pi_issues
+        }
+    
+    # Check Co-Investigator certifications
+    for coinv in submission.coinvestigators.all():
+        coinv_issues = check_certifications(coinv.user.userprofile)
+        if coinv_issues:
+            certification_issues[f'Co-Investigator'] = {
+                'name': coinv.user.get_full_name(),
+                'issues': coinv_issues
+            }
+    
+    # Check Research Assistant certifications
+    for ra in submission.research_assistants.all():
+        ra_issues = check_certifications(ra.user.userprofile)
+        if ra_issues:
+            certification_issues[f'Research Assistant'] = {
+                'name': ra.user.get_full_name(),
+                'issues': ra_issues
+            }
+    
+    return certification_issues
+
 # Contents from: .\views.py
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -4048,11 +4449,10 @@ def dashboard(request):
     from django.db.models import Max
     
     submissions = Submission.objects.filter(
-        primary_investigator=request.user
+        is_archived=False
     ).select_related(
-        'primary_investigator',
         'primary_investigator__userprofile'
-    )
+    ).order_by('-date_created')
     
     # Get the actual latest version for each submission from FormDataEntry
     for submission in submissions:
@@ -5167,3 +5567,60 @@ def check_form_status(request, submission_id):
 #          views.check_overdue_forms,
 #          name='check_overdue_forms'),
 # ]
+
+@login_required
+def archive_submission(request, submission_id):
+    """Archive a submission."""
+    submission = get_object_or_404(Submission, temporary_id=submission_id)
+    if request.method == 'POST':
+        try:
+            submission.is_archived = True
+            submission.archived_at = timezone.now()
+            submission.save(update_fields=['is_archived', 'archived_at'])
+            messages.success(request, f'Submission "{submission.title}" has been archived.')
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+
+@login_required
+def unarchive_submission(request, submission_id):
+    """Unarchive a submission."""
+    submission = get_object_or_404(Submission, temporary_id=submission_id)
+    if request.method == 'POST':
+        try:
+            submission.is_archived = False
+            submission.archived_at = None
+            submission.save(update_fields=['is_archived', 'archived_at'])
+            messages.success(request, f'Submission "{submission.title}" has been unarchived.')
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+
+@login_required
+def archived_dashboard(request):
+    """Display archived submissions dashboard."""
+    submissions = Submission.objects.filter(
+        is_archived=True
+    ).select_related(
+        'primary_investigator__userprofile'
+    ).order_by('-date_created')
+
+    return render(request, 'submission/archived_dashboard.html', {
+        'submissions': submissions,
+    })
+
+@login_required
+def view_submission(request, submission_id):
+    """View submission details."""
+    submission = get_object_or_404(Submission, temporary_id=submission_id)
+    if not has_edit_permission(request.user, submission):
+        messages.error(request, "You do not have permission to view this submission.")
+        return redirect('submission:dashboard')
+        
+    context = {
+        'submission': submission,
+        'versions': submission.version_histories.all().order_by('-version'),
+    }
+    return render(request, 'submission/view_submission.html', context)

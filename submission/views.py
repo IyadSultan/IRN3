@@ -329,6 +329,8 @@ def submission_form(request, submission_id, form_id):
     dynamic_form = get_object_or_404(DynamicForm, pk=form_id)
     action = request.POST.get('action')
 
+    previous_form = get_previous_form(submission, dynamic_form)
+
     def process_field_value(value, field_type):
         """Helper function to process field values based on field type."""
         if field_type == 'checkbox':
@@ -345,15 +347,15 @@ def submission_form(request, submission_id, form_id):
 
     if request.method == 'POST':
         # Handle navigation actions without form processing
-        if action in ['back', 'exit_no_save']:
-            if action == 'back':
-                previous_form = get_previous_form(submission, dynamic_form)
-                if previous_form:
-                    return redirect('submission:submission_form', 
-                                  submission_id=submission.temporary_id, 
-                                  form_id=previous_form.id)
-                return redirect('submission:add_coinvestigator', 
-                              submission_id=submission.temporary_id)
+        if action == 'back':
+            # If there's a previous form, go to it
+            if previous_form:
+                return redirect('submission:submission_form', 
+                              submission_id=submission.temporary_id, 
+                              form_id=previous_form.id)
+            # Otherwise go back to co-investigators
+            return redirect('submission:add_coinvestigator', 
+                          submission_id=submission.temporary_id)
             return redirect('submission:dashboard')
 
         # Create form instance without validation
@@ -441,7 +443,7 @@ def submission_form(request, submission_id, form_id):
         'form': form_instance,
         'submission': submission,
         'dynamic_form': dynamic_form,
-        'previous_form': get_previous_form(submission, dynamic_form),
+        'previous_form': previous_form, 
     }
     return render(request, 'submission/dynamic_form.html', context)
 

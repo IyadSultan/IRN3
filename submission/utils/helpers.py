@@ -36,8 +36,20 @@ def get_next_form(submission, current_form):
     except ValueError:
         return None
 
+
 def get_previous_form(submission, current_form):
     """Get the previous form in the submission process."""
-    return submission.study_type.forms.filter(
-        order__lt=current_form.order
-    ).order_by('-order').first()
+    # Get all forms for this study type in correct order
+    study_forms = list(submission.study_type.forms.order_by('order'))
+    
+    try:
+        # Find current form's index
+        current_index = study_forms.index(current_form)
+        
+        # If we're not at the first form, return the previous one
+        if current_index > 0:
+            return study_forms[current_index - 1]
+    except ValueError:
+        pass
+        
+    return None

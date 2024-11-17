@@ -1,3 +1,4 @@
+{# submission/dynamic_form.html #}
 {% extends 'users/base.html' %}
 {% load crispy_forms_tags %}
 
@@ -16,13 +17,15 @@
             <form method="post" novalidate>
                 {% csrf_token %}
                 {{ form|crispy }}
-                <!-- Or use {{ form.as_p }} if not using crispy_forms -->
                 <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
-                    {% if previous_form %}
                     <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
-                        <i class="fas fa-arrow-left"></i> Back
+                        <i class="fas fa-arrow-left"></i> 
+                        {% if previous_form %}
+                            Back to {{ previous_form.name }}
+                        {% else %}
+                            Back to Co-Investigators
+                        {% endif %}
                     </button>
-                    {% endif %}
                     <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
                         <i class="fas fa-times"></i> Exit without Saving
                     </button>
