@@ -631,6 +631,11 @@ def submission_review(request, submission_id):
         action = request.POST.get('action')
         
         if action == 'submit_final':
+            missing_certs = check_researcher_documents(submission)
+            if missing_certs:
+                messages.error(request, 'Cannot submit: All team members must have valid certificates uploaded in the system.')
+                return redirect('submission:submission_review', submission_id=submission_id)
+            
             if missing_documents or validation_errors:
                 messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
             else:
@@ -773,7 +778,8 @@ AIDI System
         'validation_errors': validation_errors,
         'documents': documents,
         'doc_form': doc_form,
-        'gpt_analysis': cache.get(f'gpt_analysis_{submission.temporary_id}_{submission.version}')
+        'gpt_analysis': cache.get(f'gpt_analysis_{submission.temporary_id}_{submission.version}'),
+        'can_submit': submission.can_user_submit(request.user), 
     }
 
     return render(request, 'submission/submission_review.html', context)

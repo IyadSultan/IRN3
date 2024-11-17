@@ -128,51 +128,68 @@ class PDFGenerator:
         # Co-Investigators with their roles
         co_investigators = self.submission.coinvestigators.all()
         if co_investigators:
-            self.y -= self.line_height/2
+            self.y -= self.line_height / 2
             self.write_wrapped_text("Co-Investigators:")
             for ci in co_investigators:
-                # Get all roles for this co-investigator
-                roles = ", ".join([role.name for role in ci.roles.all()])
-                
-                # Add permissions to roles if they exist
-                permissions = []
-                if ci.can_edit:
-                    permissions.append("Can Edit")
-                if ci.can_submit:
-                    permissions.append("Can Submit")
-                if ci.can_view_communications:
-                    permissions.append("Can View Communications")
-                
-                # Combine name, roles and permissions
-                co_inv_info = f"- {ci.user.get_full_name()}"
-                if roles:
-                    co_inv_info += f" (Roles: {roles})"
-                if permissions:
-                    co_inv_info += f" [Permissions: {', '.join(permissions)}]"
-                
-                self.write_wrapped_text(co_inv_info, x_offset=20)
+                try:
+                    # Get roles from JSONField
+                    roles = ci.get_role_display()  # This uses the model method to get formatted roles
+                    
+                    # Add permissions
+                    permissions = []
+                    if ci.can_edit:
+                        permissions.append("Can Edit")
+                    if ci.can_submit:
+                        permissions.append("Can Submit")
+                    if ci.can_view_communications:
+                        permissions.append("Can View Communications")
+                    
+                    # Combine name, roles and permissions
+                    co_inv_info = f"- {ci.user.get_full_name()}"
+                    if roles:
+                        co_inv_info += f" (Roles: {', '.join(roles)})"
+                    if permissions:
+                        co_inv_info += f" [Permissions: {', '.join(permissions)}]"
+                    
+                    self.write_wrapped_text(co_inv_info, x_offset=20)
+                    
+                except Exception as e:
+                    logger.error(f"Error processing co-investigator {ci.id}: {str(e)}")
+                    # Add error indication in PDF
+                    self.write_wrapped_text(
+                        f"- {ci.user.get_full_name()} (Error loading roles)",
+                        x_offset=20
+                    )
 
         # Research Assistants with their permissions
         research_assistants = self.submission.research_assistants.all()
         if research_assistants:
-            self.y -= self.line_height/2
+            self.y -= self.line_height / 2
             self.write_wrapped_text("Research Assistants:")
             for ra in research_assistants:
-                # Collect permissions
-                permissions = []
-                if ra.can_edit:
-                    permissions.append("Can Edit")
-                if ra.can_submit:
-                    permissions.append("Can Submit")
-                if ra.can_view_communications:
-                    permissions.append("Can View Communications")
-                
-                # Combine name and permissions
-                ra_info = f"- {ra.user.get_full_name()}"
-                if permissions:
-                    ra_info += f" [Permissions: {', '.join(permissions)}]"
-                
-                self.write_wrapped_text(ra_info, x_offset=20)
+                try:
+                    # Collect permissions
+                    permissions = []
+                    if ra.can_edit:
+                        permissions.append("Can Edit")
+                    if ra.can_submit:
+                        permissions.append("Can Submit")
+                    if ra.can_view_communications:
+                        permissions.append("Can View Communications")
+                    
+                    # Combine name and permissions
+                    ra_info = f"- {ra.user.get_full_name()}"
+                    if permissions:
+                        ra_info += f" [Permissions: {', '.join(permissions)}]"
+                    
+                    self.write_wrapped_text(ra_info, x_offset=20)
+                    
+                except Exception as e:
+                    logger.error(f"Error processing research assistant {ra.id}: {str(e)}")
+                    self.write_wrapped_text(
+                        f"- {ra.user.get_full_name()} (Error loading permissions)",
+                        x_offset=20
+                    )
 
     def format_field_value(self, value):
         """Format field value, handling special cases like JSON arrays"""

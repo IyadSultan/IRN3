@@ -1,6 +1,6 @@
 # Combined Python and HTML files
 # Generated from directory: C:\Users\USER\Documents\IRN3\submission
-# Total files found: 53
+# Total files found: 56
 
 
 
@@ -218,23 +218,9 @@
 {% endblock %}
 
 # Contents from: .\templates\submission\add_research_assistant.html
+{# submission/add_research_assistant.html #}
 {% extends 'users/base.html' %}
 {% load crispy_forms_tags %}
-
-{% block title %}Add Research Assistant{% endblock %}
-
-{% block page_specific_css %}
-<style>
-    /* Any additional page-specific styles */
-    .badge {
-        margin-right: 5px;
-    }
-    
-    .table td {
-        vertical-align: middle;
-    }
-</style>
-{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -252,7 +238,10 @@
                         <tr>
                             <th>Name</th>
                             <th>Permissions</th>
+                            <th>Date Added</th>
+                            {% if can_modify %}
                             <th>Actions</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -264,6 +253,8 @@
                                 {% if ra.can_submit %}<span class="badge bg-info">Submit</span>{% endif %}
                                 {% if ra.can_view_communications %}<span class="badge bg-warning">View Communications</span>{% endif %}
                             </td>
+                            <td>{{ ra.date_added|date:"M d, Y H:i" }}</td>
+                            {% if can_modify %}
                             <td>
                                 <form method="post" style="display: inline;">
                                     {% csrf_token %}
@@ -275,6 +266,7 @@
                                     </button>
                                 </form>
                             </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -282,6 +274,35 @@
             </div>
             {% endif %}
 
+            {% if permission_history %}
+            <div class="mb-4">
+                <h5>Recent Permission Changes:</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>User</th>
+                                <th>Change</th>
+                                <th>Changed By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in permission_history %}
+                            <tr>
+                                <td>{{ log.change_date|date:"M d, Y H:i" }}</td>
+                                <td>{{ log.user.get_full_name }}</td>
+                                <td>{{ log.get_change_description }}</td>
+                                <td>{{ log.changed_by.get_full_name }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if can_modify %}
             <form method="post" novalidate>
                 {% csrf_token %}
                 {{ form|crispy }}
@@ -289,24 +310,21 @@
                     <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
                         <i class="fas fa-arrow-left"></i> Back
                     </button>
-
                     <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
                         <i class="fas fa-times"></i> Exit without Saving
                     </button>
-
                     <button type="submit" name="action" value="save_exit" class="btn btn-primary me-md-2">
                         <i class="fas fa-save"></i> Save and Exit
                     </button>
-
                     <button type="submit" name="action" value="save_add_another" class="btn btn-info me-md-2">
                         <i class="fas fa-plus"></i> Add RA
                     </button>
-
                     <button type="submit" name="action" value="save_continue" class="btn btn-success">
                         <i class="fas fa-arrow-right"></i> Save and Continue
                     </button>
                 </div>
             </form>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -694,6 +712,7 @@ $(document).ready(function() {
 {% endblock %}
 
 # Contents from: .\templates\submission\dynamic_form.html
+{# submission/dynamic_form.html #}
 {% extends 'users/base.html' %}
 {% load crispy_forms_tags %}
 
@@ -712,13 +731,15 @@ $(document).ready(function() {
             <form method="post" novalidate>
                 {% csrf_token %}
                 {{ form|crispy }}
-                <!-- Or use {{ form.as_p }} if not using crispy_forms -->
                 <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
-                    {% if previous_form %}
                     <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
-                        <i class="fas fa-arrow-left"></i> Back
+                        <i class="fas fa-arrow-left"></i> 
+                        {% if previous_form %}
+                            Back to {{ previous_form.name }}
+                        {% else %}
+                            Back to Co-Investigators
+                        {% endif %}
                     </button>
-                    {% endif %}
                     <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
                         <i class="fas fa-times"></i> Exit without Saving
                     </button>
@@ -734,7 +755,6 @@ $(document).ready(function() {
     </div>
 </div>
 {% endblock %}
-
 
 # Contents from: .\templates\submission\edit_submission.html
 {% extends 'users/base.html' %}
@@ -1206,15 +1226,15 @@ $(document).ready(function() {
     </div>
 
     <!-- Co-Investigators Documents Check -->
-    {% if submission.coinvestigator_set.exists %}
+    {% if submission.coinvestigators.exists %}
     <div class="card mb-4">
         <div class="card-header">
             <h4>Co-Investigators Documents</h4>
         </div>
         <div class="card-body">
-            {% for coinv in submission.coinvestigator_set.all %}
+            {% for coinv in submission.coinvestigators.all %}
             <div class="mb-4">
-                <h6>{{ coinv.user.get_full_name }} - {{ coinv.role_in_study }}</h6>
+                <h6>{{ coinv.user.get_full_name }} - {{ coinv.get_roles_display }}</h6>
                 {% with profile=coinv.user.userprofile %}
                 <ul class="list-group">
                     <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
@@ -1228,7 +1248,6 @@ $(document).ready(function() {
                         <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
                         CV
                     </li>
-                    {% if profile.role == 'KHCC investigator' %}
                     <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
                         <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
                         QRC Certificate
@@ -1237,7 +1256,7 @@ $(document).ready(function() {
                         <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
                         CTC Certificate
                     </li>
-                    {% endif %}
+                    
                 </ul>
                 {% endwith %}
             </div>
@@ -1247,13 +1266,14 @@ $(document).ready(function() {
     {% endif %}
 
     <!-- Research Assistants Documents Check -->
-    {% if submission.researchassistant_set.exists %}
+    {% if submission.research_assistants.exists %}
+    <B>YES RA</B>
     <div class="card mb-4">
         <div class="card-header">
             <h4>Research Assistants Documents</h4>
         </div>
         <div class="card-body">
-            {% for ra in submission.researchassistant_set.all %}
+            {% for ra in submission.research_assistants.all %}
             <div class="mb-4">
                 <h6>{{ ra.user.get_full_name }}</h6>
                 {% with profile=ra.user.userprofile %}
@@ -1269,12 +1289,14 @@ $(document).ready(function() {
                         <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
                         CV
                     </li>
-                    {% if profile.role == 'Research Assistant/Coordinator' %}
+                    <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                        <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
+                        QRC Certificate
+                    </li>
                     <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
                         <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
                         CTC Certificate
                     </li>
-                    {% endif %}
                 </ul>
                 {% endwith %}
             </div>
@@ -1363,9 +1385,11 @@ $(document).ready(function() {
             <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
                 <i class="fas fa-arrow-left"></i> Back
             </button>
+            {% if can_submit %}
             <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
                 <i class="fas fa-times"></i> Exit without Saving
             </button>
+            {% endif %}
             <button type="submit" name="action" value="submit_final" class="btn btn-success">
                 <i class="fas fa-check"></i> Submit Final
             </button>
@@ -1682,6 +1706,9 @@ from .models import (
     StatusChoice,
     SystemSettings,
 )
+from .models import PermissionChangeLog
+
+
 
 @admin.register(Submission)
 class SubmissionAdmin(admin.ModelAdmin):
@@ -1741,6 +1768,17 @@ class StatusChoiceAdmin(admin.ModelAdmin):
     list_editable = ('is_active', 'order')
     search_fields = ('code', 'label')
     ordering = ('order',)
+
+
+
+
+@admin.register(PermissionChangeLog)
+class PermissionChangeLogAdmin(admin.ModelAdmin):
+    list_display = ('user', 'role', 'permission_type', 'new_value', 'changed_by', 'change_date')
+    list_filter = ('role', 'permission_type', 'change_date')
+    search_fields = ('user__username', 'user__first_name', 'user__last_name', 
+                    'changed_by__username', 'changed_by__first_name', 'changed_by__last_name')
+    date_hierarchy = 'change_date'
 
 # Contents from: .\apps.py
 from django.apps import AppConfig
@@ -2243,6 +2281,34 @@ class ResearchAnalyzer:
 
 # Contents from: .\management\commands\cleanup_version_history.py
  
+
+# Contents from: .\middleware.py
+# submission/middleware.py
+import logging
+from django.utils import timezone
+
+logger = logging.getLogger(__name__)
+
+class SubmissionAccessMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        
+        # Log submission access
+        if request.path.startswith('/submission/') and request.user.is_authenticated:
+            try:
+                submission_id = request.resolver_match.kwargs.get('submission_id')
+                if submission_id:
+                    logger.info(
+                        f"User {request.user.username} accessed submission {submission_id} "
+                        f"at {timezone.now()}"
+                    )
+            except Exception as e:
+                logger.error(f"Error in SubmissionAccessMiddleware: {str(e)}")
+                
+        return response
 
 # Contents from: .\migrations\0001_initial.py
 # Generated by Django 5.1.2 on 2024-11-04 01:29
@@ -2930,6 +2996,92 @@ class Migration(migrations.Migration):
     ]
 
 
+# Contents from: .\migrations\0013_permissionchangelog.py
+# Generated by Django 5.1.3 on 2024-11-17 02:21
+
+import django.db.models.deletion
+from django.conf import settings
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("submission", "0012_remove_coinvestigator_roles_coinvestigator_roles"),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name="PermissionChangeLog",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "permission_type",
+                    models.CharField(
+                        choices=[
+                            ("edit", "Edit"),
+                            ("submit", "Submit"),
+                            ("view_communications", "View Communications"),
+                        ],
+                        max_length=50,
+                    ),
+                ),
+                ("old_value", models.BooleanField()),
+                ("new_value", models.BooleanField()),
+                ("change_date", models.DateTimeField(auto_now_add=True)),
+                (
+                    "role",
+                    models.CharField(
+                        choices=[
+                            ("co_investigator", "Co-Investigator"),
+                            ("research_assistant", "Research Assistant"),
+                        ],
+                        max_length=50,
+                    ),
+                ),
+                ("notes", models.TextField(blank=True, null=True)),
+                (
+                    "changed_by",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="permission_changes_made",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "submission",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="submission.submission",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="permission_changes_received",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+            ],
+            options={
+                "verbose_name": "Permission Change Log",
+                "verbose_name_plural": "Permission Change Logs",
+                "ordering": ["-change_date"],
+            },
+        ),
+    ]
+
+
 # Contents from: .\migrations\__init__.py
 
 
@@ -3095,12 +3247,82 @@ class Submission(models.Model):
             if not set(investigators).issubset(set(submitted_users)):
                 return False
         return True
+    
+    def can_user_edit(self, user):
+        """Check if user can edit the submission."""
+        if user == self.primary_investigator:
+            return True
+            
+        coinv = self.coinvestigators.filter(user=user).first()
+        if coinv and coinv.can_edit:
+            return True
+            
+        ra = self.research_assistants.filter(user=user).first()
+        if ra and ra.can_edit:
+            return True
+            
+        return False
+
+    def can_user_submit(self, user):
+        """Check if user can submit the submission."""
+        if user == self.primary_investigator:
+            return True
+            
+        coinv = self.coinvestigators.filter(user=user).first()
+        if coinv and coinv.can_submit:
+            return True
+            
+        ra = self.research_assistants.filter(user=user).first()
+        if ra and ra.can_submit:
+            return True
+            
+        return False
+
+    def can_user_view_communications(self, user):
+        """Check if user can view submission communications."""
+        if user == self.primary_investigator:
+            return True
+            
+        coinv = self.coinvestigators.filter(user=user).first()
+        if coinv and coinv.can_view_communications:
+            return True
+            
+        ra = self.research_assistants.filter(user=user).first()
+        if ra and ra.can_view_communications:
+            return True
+            
+        return False
+
+    def get_user_role(self, user):
+        """Get user's role in the submission."""
+        if user == self.primary_investigator:
+            return 'Primary Investigator'
+            
+        coinv = self.coinvestigators.filter(user=user).first()
+        if coinv:
+            return 'Co-Investigator'
+            
+        ra = self.research_assistants.filter(user=user).first()
+        if ra:
+            return 'Research Assistant'
+            
+        return None
         
         
 
 from django.db import models
 from django.contrib.auth.models import User
 from users.models import Role  # Add this import
+
+
+
+from django.db import models
+from django.contrib.auth.models import User
+
+# submission/models.py
+from django.db import models
+from django.contrib.auth.models import User
+from iRN.constants import COINVESTIGATOR_ROLES
 
 class CoInvestigator(models.Model):
     submission = models.ForeignKey(
@@ -3109,7 +3331,7 @@ class CoInvestigator(models.Model):
         on_delete=models.CASCADE
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    roles = models.JSONField(default=list)  # Changed from ManyToManyField to JSONField
+    roles = models.JSONField(default=list)
     can_edit = models.BooleanField(default=False)
     can_submit = models.BooleanField(default=False)
     can_view_communications = models.BooleanField(default=False)
@@ -3127,13 +3349,73 @@ class CoInvestigator(models.Model):
         role_dict = dict(COINVESTIGATOR_ROLES)
         return [role_dict.get(role, role) for role in (self.roles or [])]
 
-from django.db import models
-from django.contrib.auth.models import User
-
+    def log_permission_changes(self, changed_by, is_new=False):
+        """Log changes to permissions."""
+        if is_new:
+            # Log initial permissions
+            for perm in ['can_edit', 'can_submit', 'can_view_communications']:
+                if getattr(self, perm):
+                    PermissionChangeLog.objects.create(
+                        submission=self.submission,
+                        user=self.user,
+                        changed_by=changed_by,
+                        permission_type=perm.replace('can_', ''),
+                        old_value=False,
+                        new_value=True,
+                        role='co_investigator',
+                        notes='Initial permission setting'
+                    )
+            # Log initial roles
+            if self.roles:
+                role_names = ', '.join(self.get_role_display())
+                PermissionChangeLog.objects.create(
+                    submission=self.submission,
+                    user=self.user,
+                    changed_by=changed_by,
+                    permission_type='roles',
+                    old_value=False,
+                    new_value=True,
+                    role='co_investigator',
+                    notes=f'Initial roles assigned: {role_names}'
+                )
+        else:
+            # Get the previous state
+            old_instance = CoInvestigator.objects.get(pk=self.pk)
+            
+            # Check for permission changes
+            for perm in ['can_edit', 'can_submit', 'can_view_communications']:
+                old_value = getattr(old_instance, perm)
+                new_value = getattr(self, perm)
+                
+                if old_value != new_value:
+                    PermissionChangeLog.objects.create(
+                        submission=self.submission,
+                        user=self.user,
+                        changed_by=changed_by,
+                        permission_type=perm.replace('can_', ''),
+                        old_value=old_value,
+                        new_value=new_value,
+                        role='co_investigator'
+                    )
+            
+            # Check for role changes
+            if set(old_instance.roles) != set(self.roles):
+                old_roles = ', '.join([dict(COINVESTIGATOR_ROLES).get(r, r) for r in (old_instance.roles or [])])
+                new_roles = ', '.join([dict(COINVESTIGATOR_ROLES).get(r, r) for r in (self.roles or [])])
+                PermissionChangeLog.objects.create(
+                    submission=self.submission,
+                    user=self.user,
+                    changed_by=changed_by,
+                    permission_type='roles',
+                    old_value=False,
+                    new_value=True,
+                    role='co_investigator',
+                    notes=f'Roles changed from: {old_roles} to: {new_roles}'
+                )
 class ResearchAssistant(models.Model):
     submission = models.ForeignKey(
         'Submission',
-        related_name='research_assistants',  # Add this related_name
+        related_name='research_assistants',
         on_delete=models.CASCADE
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -3147,6 +3429,60 @@ class ResearchAssistant(models.Model):
 
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.submission.temporary_id}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+    def log_permission_changes(self, changed_by, is_new=False):
+        """Log changes to permissions."""
+        if is_new:
+            # Log initial permissions
+            for perm in ['can_edit', 'can_submit', 'can_view_communications']:
+                if getattr(self, perm):
+                    PermissionChangeLog.objects.create(
+                        submission=self.submission,
+                        user=self.user,
+                        changed_by=changed_by,
+                        permission_type=perm.replace('can_', ''),
+                        old_value=False,
+                        new_value=True,
+                        role='research_assistant',
+                        notes='Initial permission setting'
+                    )
+        else:
+            # Get the previous state
+            old_instance = ResearchAssistant.objects.get(pk=self.pk)
+            
+            # Check for permission changes
+            for perm in ['can_edit', 'can_submit', 'can_view_communications']:
+                old_value = getattr(old_instance, perm)
+                new_value = getattr(self, perm)
+                
+                if old_value != new_value:
+                    PermissionChangeLog.objects.create(
+                        submission=self.submission,
+                        user=self.user,
+                        changed_by=changed_by,
+                        permission_type=perm.replace('can_', ''),
+                        old_value=old_value,
+                        new_value=new_value,
+                        role='research_assistant'
+                    )
+
+    def get_permissions_display(self):
+        """Get a list of current permissions for display."""
+        permissions = []
+        if self.can_edit:
+            permissions.append('Can Edit')
+        if self.can_submit:
+            permissions.append('Can Submit')
+        if self.can_view_communications:
+            permissions.append('Can View Communications')
+        return permissions if permissions else ['No special permissions']
+
+    def has_any_permissions(self):
+        """Check if the research assistant has any permissions."""
+        return any([self.can_edit, self.can_submit, self.can_view_communications])
 
 class FormDataEntry(models.Model):
     submission = models.ForeignKey(
@@ -3248,6 +3584,53 @@ class InvestigatorFormSubmission(models.Model):
 
     def __str__(self):
         return f"{self.investigator.get_full_name()} - {self.form.name} (v{self.version})"
+    
+
+class PermissionChangeLog(models.Model):
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        'auth.User', 
+        on_delete=models.CASCADE,
+        related_name='permission_changes_received'
+    )
+    changed_by = models.ForeignKey(
+        'auth.User', 
+        on_delete=models.CASCADE, 
+        related_name='permission_changes_made'
+    )
+    permission_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('edit', 'Edit'),
+            ('submit', 'Submit'),
+            ('view_communications', 'View Communications')
+        ]
+    )
+    old_value = models.BooleanField()
+    new_value = models.BooleanField()
+    change_date = models.DateTimeField(auto_now_add=True)
+    role = models.CharField(
+        max_length=50,
+        choices=[
+            ('co_investigator', 'Co-Investigator'),
+            ('research_assistant', 'Research Assistant')
+        ]
+    )
+    notes = models.TextField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-change_date']
+        verbose_name = 'Permission Change Log'
+        verbose_name_plural = 'Permission Change Logs'
+
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.permission_type} - {self.change_date}"
+
+    def get_change_description(self):
+        """Get a human-readable description of the change."""
+        action = 'granted' if self.new_value else 'removed'
+        return f"{self.permission_type.title()} permission {action} for {self.user.get_full_name()} " \
+               f"as {self.get_role_display()} by {self.changed_by.get_full_name()}"
 
 # Contents from: .\templatetags\__init__.py
 # Empty file, but needs to exist
@@ -3890,11 +4273,23 @@ def get_next_form(submission, current_form):
     except ValueError:
         return None
 
+
 def get_previous_form(submission, current_form):
     """Get the previous form in the submission process."""
-    return submission.study_type.forms.filter(
-        order__lt=current_form.order
-    ).order_by('-order').first()
+    # Get all forms for this study type in correct order
+    study_forms = list(submission.study_type.forms.order_by('order'))
+    
+    try:
+        # Find current form's index
+        current_index = study_forms.index(current_form)
+        
+        # If we're not at the first form, return the previous one
+        if current_index > 0:
+            return study_forms[current_index - 1]
+    except ValueError:
+        pass
+        
+    return None
 
 # Contents from: .\utils\pdf_generator.py
 import os
@@ -4027,51 +4422,68 @@ class PDFGenerator:
         # Co-Investigators with their roles
         co_investigators = self.submission.coinvestigators.all()
         if co_investigators:
-            self.y -= self.line_height/2
+            self.y -= self.line_height / 2
             self.write_wrapped_text("Co-Investigators:")
             for ci in co_investigators:
-                # Get all roles for this co-investigator
-                roles = ", ".join([role.name for role in ci.roles.all()])
-                
-                # Add permissions to roles if they exist
-                permissions = []
-                if ci.can_edit:
-                    permissions.append("Can Edit")
-                if ci.can_submit:
-                    permissions.append("Can Submit")
-                if ci.can_view_communications:
-                    permissions.append("Can View Communications")
-                
-                # Combine name, roles and permissions
-                co_inv_info = f"- {ci.user.get_full_name()}"
-                if roles:
-                    co_inv_info += f" (Roles: {roles})"
-                if permissions:
-                    co_inv_info += f" [Permissions: {', '.join(permissions)}]"
-                
-                self.write_wrapped_text(co_inv_info, x_offset=20)
+                try:
+                    # Get roles from JSONField
+                    roles = ci.get_role_display()  # This uses the model method to get formatted roles
+                    
+                    # Add permissions
+                    permissions = []
+                    if ci.can_edit:
+                        permissions.append("Can Edit")
+                    if ci.can_submit:
+                        permissions.append("Can Submit")
+                    if ci.can_view_communications:
+                        permissions.append("Can View Communications")
+                    
+                    # Combine name, roles and permissions
+                    co_inv_info = f"- {ci.user.get_full_name()}"
+                    if roles:
+                        co_inv_info += f" (Roles: {', '.join(roles)})"
+                    if permissions:
+                        co_inv_info += f" [Permissions: {', '.join(permissions)}]"
+                    
+                    self.write_wrapped_text(co_inv_info, x_offset=20)
+                    
+                except Exception as e:
+                    logger.error(f"Error processing co-investigator {ci.id}: {str(e)}")
+                    # Add error indication in PDF
+                    self.write_wrapped_text(
+                        f"- {ci.user.get_full_name()} (Error loading roles)",
+                        x_offset=20
+                    )
 
         # Research Assistants with their permissions
         research_assistants = self.submission.research_assistants.all()
         if research_assistants:
-            self.y -= self.line_height/2
+            self.y -= self.line_height / 2
             self.write_wrapped_text("Research Assistants:")
             for ra in research_assistants:
-                # Collect permissions
-                permissions = []
-                if ra.can_edit:
-                    permissions.append("Can Edit")
-                if ra.can_submit:
-                    permissions.append("Can Submit")
-                if ra.can_view_communications:
-                    permissions.append("Can View Communications")
-                
-                # Combine name and permissions
-                ra_info = f"- {ra.user.get_full_name()}"
-                if permissions:
-                    ra_info += f" [Permissions: {', '.join(permissions)}]"
-                
-                self.write_wrapped_text(ra_info, x_offset=20)
+                try:
+                    # Collect permissions
+                    permissions = []
+                    if ra.can_edit:
+                        permissions.append("Can Edit")
+                    if ra.can_submit:
+                        permissions.append("Can Submit")
+                    if ra.can_view_communications:
+                        permissions.append("Can View Communications")
+                    
+                    # Combine name and permissions
+                    ra_info = f"- {ra.user.get_full_name()}"
+                    if permissions:
+                        ra_info += f" [Permissions: {', '.join(permissions)}]"
+                    
+                    self.write_wrapped_text(ra_info, x_offset=20)
+                    
+                except Exception as e:
+                    logger.error(f"Error processing research assistant {ra.id}: {str(e)}")
+                    self.write_wrapped_text(
+                        f"- {ra.user.get_full_name()} (Error loading permissions)",
+                        x_offset=20
+                    )
 
     def format_field_value(self, value):
         """Format field value, handling special cases like JSON arrays"""
@@ -4246,6 +4658,60 @@ if __name__ == "__main__":
 
     
 
+# Contents from: .\utils\permissions.py
+# submission/utils/permissions.py
+from functools import wraps
+from django.shortcuts import redirect
+from django.contrib import messages
+from django.core.exceptions import PermissionDenied
+
+def check_submission_permission(action_type):
+    """
+    Decorator to check submission permissions for different action types.
+    action_type can be: 'edit', 'submit', 'view_communications'
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def _wrapped_view(request, submission_id, *args, **kwargs):
+            from submission.models import Submission
+            
+            try:
+                submission = Submission.objects.get(pk=submission_id)
+                
+                # Primary Investigator has all permissions
+                if request.user == submission.primary_investigator:
+                    return view_func(request, submission_id, *args, **kwargs)
+                
+                # Check Co-Investigator permissions
+                coinv = submission.coinvestigators.filter(user=request.user).first()
+                if coinv:
+                    if action_type == 'edit' and coinv.can_edit:
+                        return view_func(request, submission_id, *args, **kwargs)
+                    elif action_type == 'submit' and coinv.can_submit:
+                        return view_func(request, submission_id, *args, **kwargs)
+                    elif action_type == 'view_communications' and coinv.can_view_communications:
+                        return view_func(request, submission_id, *args, **kwargs)
+                
+                # Check Research Assistant permissions
+                ra = submission.research_assistants.filter(user=request.user).first()
+                if ra:
+                    if action_type == 'edit' and ra.can_edit:
+                        return view_func(request, submission_id, *args, **kwargs)
+                    elif action_type == 'submit' and ra.can_submit:
+                        return view_func(request, submission_id, *args, **kwargs)
+                    elif action_type == 'view_communications' and ra.can_view_communications:
+                        return view_func(request, submission_id, *args, **kwargs)
+                
+                messages.error(request, f"You don't have permission to {action_type} this submission.")
+                return redirect('submission:dashboard')
+                
+            except Submission.DoesNotExist:
+                messages.error(request, "Submission not found.")
+                return redirect('submission:dashboard')
+                
+        return _wrapped_view
+    return decorator
+
 # Contents from: .\utils\validation.py
 # utils/validation.py
 
@@ -4366,6 +4832,7 @@ from .utils import PDFGenerator, has_edit_permission, check_researcher_documents
 from .utils.pdf_generator import generate_submission_pdf
 from .gpt_analysis import ResearchAnalyzer
 from django.core.cache import cache
+from .utils.permissions import check_submission_permission
 
 from .models import (
     Submission,
@@ -4374,6 +4841,7 @@ from .models import (
     FormDataEntry,
     Document,
     VersionHistory,
+    PermissionChangeLog,
 )
 from .forms import (
     SubmissionForm,
@@ -4394,6 +4862,7 @@ from django.db.models import Q
 from django.db import transaction
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.db import IntegrityError
 
 def get_system_user():
     """Get or create the system user for automated messages."""
@@ -4544,9 +5013,18 @@ from .models import ResearchAssistant  # Add this import
 def add_research_assistant(request, submission_id):
     """Add or manage research assistants for a submission."""
     submission = get_object_or_404(Submission, pk=submission_id)
+    
+    # Check if user has permission to modify research assistants
+    if not submission.can_user_edit(request.user):
+        messages.error(request, "You don't have permission to modify research assistants.")
+        return redirect('submission:dashboard')
+
     if submission.is_locked:
         messages.error(request, "This submission is locked and cannot be edited.")
         return redirect('submission:dashboard')
+
+    # Initialize form variable
+    form = ResearchAssistantForm(submission=submission)
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -4556,6 +5034,17 @@ def add_research_assistant(request, submission_id):
             if assistant_id:
                 try:
                     assistant = ResearchAssistant.objects.get(id=assistant_id, submission=submission)
+                    # Log the deletion
+                    PermissionChangeLog.objects.create(
+                        submission=submission,
+                        user=assistant.user,
+                        changed_by=request.user,
+                        permission_type='removed',
+                        old_value=True,
+                        new_value=False,
+                        role='research_assistant',
+                        notes=f"Research Assistant removed from submission by {request.user.get_full_name()}"
+                    )
                     assistant.delete()
                     messages.success(request, 'Research assistant removed successfully.')
                 except ResearchAssistant.DoesNotExist:
@@ -4574,35 +5063,84 @@ def add_research_assistant(request, submission_id):
         if form.is_valid():
             assistant = form.cleaned_data.get('assistant')
             if assistant:
-                ResearchAssistant.objects.create(
-                    submission=submission,
-                    user=assistant,
-                    can_submit=form.cleaned_data.get('can_submit', False),
-                    can_edit=form.cleaned_data.get('can_edit', False),
-                    can_view_communications=form.cleaned_data.get('can_view_communications', False)
-                )
-                messages.success(request, 'Research assistant added successfully.')
-                
-                if action == 'save_exit':
-                    return redirect('submission:dashboard')
-                elif action == 'save_add_another':
-                    return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
-            else:
-                messages.error(request, 'Please select a research assistant.')
-    else:
-        form = ResearchAssistantForm()
+                try:
+                    with transaction.atomic():
+                        # Create new research assistant
+                        ra = ResearchAssistant(
+                            submission=submission,
+                            user=assistant,
+                            can_submit=form.cleaned_data.get('can_submit', False),
+                            can_edit=form.cleaned_data.get('can_edit', False),
+                            can_view_communications=form.cleaned_data.get('can_view_communications', False)
+                        )
+                        
+                        # Save first
+                        ra.save()
+                        
+                        # Then log permission changes
+                        ra.log_permission_changes(changed_by=request.user, is_new=True)
 
-    assistants = ResearchAssistant.objects.filter(submission=submission)
+                        # Create notification
+                        Message.objects.create(
+                            sender=get_system_user(),
+                            subject=f'Added as Research Assistant to {submission.title}',
+                            body=f"""
+You have been added as a Research Assistant to:
+
+Submission ID: {submission.temporary_id}
+Title: {submission.title}
+Principal Investigator: {submission.primary_investigator.get_full_name()}
+
+Your permissions:
+- Can Edit: {'Yes' if ra.can_edit else 'No'}
+- Can Submit: {'Yes' if ra.can_submit else 'No'}
+- Can View Communications: {'Yes' if ra.can_view_communications else 'No'}
+
+Please log in to view the submission.
+                            """.strip(),
+                            related_submission=submission
+                        ).recipients.add(assistant)
+
+                        messages.success(request, 'Research assistant added successfully.')
+                        
+                        if action == 'save_exit':
+                            return redirect('submission:dashboard')
+                        elif action == 'save_add_another':
+                            return redirect('submission:add_research_assistant', 
+                                         submission_id=submission.temporary_id)
+
+                except IntegrityError:
+                    messages.error(request, 'This user is already a research assistant for this submission.')
+                except Exception as e:
+                    logger.error(f"Error saving research assistant: {str(e)}")
+                    messages.error(request, f'Error adding research assistant: {str(e)}')
+
+    # Get research assistants with permission information
+    assistants = ResearchAssistant.objects.filter(submission=submission).select_related('user')
+    
+    # Get permission change history
+    permission_history = PermissionChangeLog.objects.filter(
+        submission=submission,
+        role='research_assistant'
+    ).select_related('user', 'changed_by').order_by('-change_date')[:10]
+
     return render(request, 'submission/add_research_assistant.html', {
         'form': form,
         'submission': submission,
-        'assistants': assistants
+        'assistants': assistants,
+        'permission_history': permission_history,
+        'can_modify': submission.can_user_edit(request.user)
     })
 
 @login_required
 def add_coinvestigator(request, submission_id):
     """Add or manage co-investigators for a submission."""
     submission = get_object_or_404(Submission, pk=submission_id)
+    
+    # Check if user has permission to modify co-investigators
+    if not submission.can_user_edit(request.user):
+        messages.error(request, "You don't have permission to modify co-investigators.")
+        return redirect('submission:dashboard')
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -4612,6 +5150,17 @@ def add_coinvestigator(request, submission_id):
             if coinvestigator_id:
                 try:
                     coinvestigator = CoInvestigator.objects.get(id=coinvestigator_id, submission=submission)
+                    # Log the deletion
+                    PermissionChangeLog.objects.create(
+                        submission=submission,
+                        user=coinvestigator.user,
+                        changed_by=request.user,
+                        permission_type='removed',
+                        old_value=True,
+                        new_value=False,
+                        role='co_investigator',
+                        notes=f"Co-investigator removed from submission by {request.user.get_full_name()}"
+                    )
                     coinvestigator.delete()
                     messages.success(request, 'Co-investigator removed successfully.')
                 except CoInvestigator.DoesNotExist:
@@ -4639,38 +5188,85 @@ def add_coinvestigator(request, submission_id):
             selected_roles = form.cleaned_data.get('roles')
             
             if investigator:
-                # Create the coinvestigator instance
-                coinvestigator = CoInvestigator.objects.create(
-                    submission=submission,
-                    user=investigator,
-                    can_submit=form.cleaned_data.get('can_submit', False),
-                    can_edit=form.cleaned_data.get('can_edit', False),
-                    can_view_communications=form.cleaned_data.get('can_view_communications', False)
-                )
-                
-                # Add the selected roles
-                if selected_roles:
-                    coinvestigator.roles.set(selected_roles)
-                
-                messages.success(request, 'Co-investigator added successfully.')
-                
-                if action == 'save_exit':
-                    return redirect('submission:dashboard')
-                elif action == 'save_add_another':
-                    return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
+                try:
+                    with transaction.atomic():
+                        # Create new co-investigator
+                        coinv = CoInvestigator(
+                            submission=submission,
+                            user=investigator,
+                            can_submit=form.cleaned_data.get('can_submit', False),
+                            can_edit=form.cleaned_data.get('can_edit', False),
+                            can_view_communications=form.cleaned_data.get('can_view_communications', False)
+                        )
+                        
+                        # Set roles (it's a list field, not M2M)
+                        coinv.roles = list(selected_roles)
+                        
+                        # Save first
+                        coinv.save()
+                        
+                        # Then log permission changes
+                        coinv.log_permission_changes(changed_by=request.user, is_new=True)
+
+                        # Create notification
+                        Message.objects.create(
+                            sender=get_system_user(),
+                            subject=f'Added as Co-Investigator to {submission.title}',
+                            body=f"""
+You have been added as a Co-Investigator to:
+
+Submission ID: {submission.temporary_id}
+Title: {submission.title}
+Principal Investigator: {submission.primary_investigator.get_full_name()}
+
+Your roles: {', '.join(coinv.get_role_display())}
+
+Your permissions:
+- Can Edit: {'Yes' if coinv.can_edit else 'No'}
+- Can Submit: {'Yes' if coinv.can_submit else 'No'}
+- Can View Communications: {'Yes' if coinv.can_view_communications else 'No'}
+
+Please log in to view the submission.
+                            """.strip(),
+                            related_submission=submission
+                        ).recipients.add(investigator)
+
+                        messages.success(request, 'Co-investigator added successfully.')
+                        
+                        if action == 'save_exit':
+                            return redirect('submission:dashboard')
+                        elif action == 'save_add_another':
+                            return redirect('submission:add_coinvestigator', 
+                                         submission_id=submission.temporary_id)
+
+                except IntegrityError:
+                    messages.error(request, 'This user is already a co-investigator for this submission.')
+                except Exception as e:
+                    logger.error(f"Error saving co-investigator: {str(e)}")
+                    messages.error(request, f'Error adding co-investigator: {str(e)}')
             else:
-                messages.error(request, 'Please select a co-investigator and specify their roles.')
+                messages.error(request, 'Please select a co-investigator.')
     else:
         form = CoInvestigatorForm()
 
     coinvestigators = CoInvestigator.objects.filter(submission=submission)
+    
+    # Get permission change history
+    permission_history = PermissionChangeLog.objects.filter(
+        submission=submission,
+        role='co_investigator'
+    ).select_related('user', 'changed_by').order_by('-change_date')[:10]
+
     return render(request, 'submission/add_coinvestigator.html', {
         'form': form,
         'submission': submission,
-        'coinvestigators': coinvestigators
+        'coinvestigators': coinvestigators,
+        'permission_history': permission_history,
+        'can_modify': submission.can_user_edit(request.user)
     })
 
 @login_required
+@check_submission_permission('edit')
 def submission_form(request, submission_id, form_id):
     """Handle dynamic form submission and display."""
     submission = get_object_or_404(Submission, temporary_id=submission_id)
@@ -4683,6 +5279,8 @@ def submission_form(request, submission_id, form_id):
 
     dynamic_form = get_object_or_404(DynamicForm, pk=form_id)
     action = request.POST.get('action')
+
+    previous_form = get_previous_form(submission, dynamic_form)
 
     def process_field_value(value, field_type):
         """Helper function to process field values based on field type."""
@@ -4700,15 +5298,15 @@ def submission_form(request, submission_id, form_id):
 
     if request.method == 'POST':
         # Handle navigation actions without form processing
-        if action in ['back', 'exit_no_save']:
-            if action == 'back':
-                previous_form = get_previous_form(submission, dynamic_form)
-                if previous_form:
-                    return redirect('submission:submission_form', 
-                                  submission_id=submission.temporary_id, 
-                                  form_id=previous_form.id)
-                return redirect('submission:add_coinvestigator', 
-                              submission_id=submission.temporary_id)
+        if action == 'back':
+            # If there's a previous form, go to it
+            if previous_form:
+                return redirect('submission:submission_form', 
+                              submission_id=submission.temporary_id, 
+                              form_id=previous_form.id)
+            # Otherwise go back to co-investigators
+            return redirect('submission:add_coinvestigator', 
+                          submission_id=submission.temporary_id)
             return redirect('submission:dashboard')
 
         # Create form instance without validation
@@ -4796,7 +5394,7 @@ def submission_form(request, submission_id, form_id):
         'form': form_instance,
         'submission': submission,
         'dynamic_form': dynamic_form,
-        'previous_form': get_previous_form(submission, dynamic_form),
+        'previous_form': previous_form, 
     }
     return render(request, 'submission/dynamic_form.html', context)
 
@@ -4804,6 +5402,7 @@ def submission_form(request, submission_id, form_id):
 # submission/views.py
 
 @login_required
+@check_submission_permission('submit')
 def submission_review(request, submission_id):
     submission = get_object_or_404(Submission, temporary_id=submission_id)
     
@@ -4995,7 +5594,8 @@ AIDI System
         'validation_errors': validation_errors,
         'documents': documents,
         'doc_form': doc_form,
-        'gpt_analysis': cache.get(f'gpt_analysis_{submission.temporary_id}_{submission.version}')
+        'gpt_analysis': cache.get(f'gpt_analysis_{submission.temporary_id}_{submission.version}'),
+        'can_submit': submission.can_user_submit(request.user), 
     }
 
     return render(request, 'submission/submission_review.html', context)

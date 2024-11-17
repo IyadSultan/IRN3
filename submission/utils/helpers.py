@@ -21,10 +21,63 @@ def has_edit_permission(user, submission):
 
         
     return False
-
 def check_researcher_documents(submission):
-    """Check if all required documents are present for researchers."""
-    missing_documents = []
+    """Check documents for all researchers involved in the submission"""
+    missing_documents = {}
+
+    # Check primary investigator's documents
+    pi_profile = submission.primary_investigator.userprofile
+    pi_missing = []
+    if not pi_profile.has_valid_gcp:
+        pi_missing.append('GCP Certificate (Expired or Missing)')
+    if not pi_profile.has_qrc:
+        pi_missing.append('QRC Certificate')
+    if not pi_profile.has_ctc:
+        pi_missing.append('CTC Certificate')
+    if not pi_profile.has_cv:
+        pi_missing.append('CV')
+    if pi_missing:
+        missing_documents['Primary Investigator'] = {
+            'name': pi_profile.full_name,
+            'documents': pi_missing
+        }
+
+    # Check co-investigators' documents
+    for coinv in submission.coinvestigators.all():
+        coinv_profile = coinv.user.userprofile
+        coinv_missing = []
+        if not coinv_profile.has_valid_gcp:
+            coinv_missing.append('GCP Certificate (Expired or Missing)')
+        if not coinv_profile.has_qrc:
+            coinv_missing.append('QRC Certificate')
+        if not coinv_profile.has_ctc:
+            coinv_missing.append('CTC Certificate')
+        if not coinv_profile.has_cv:
+            coinv_missing.append('CV')
+        if coinv_missing:
+            missing_documents[f'Co-Investigator: {coinv.role_in_study}'] = {
+                'name': coinv_profile.full_name,
+                'documents': coinv_missing
+            }
+
+    # Check research assistants' documents
+    for ra in submission.research_assistants.all():
+        ra_profile = ra.user.userprofile
+        ra_missing = []
+        if not ra_profile.has_valid_gcp:
+            ra_missing.append('GCP Certificate (Expired or Missing)')
+        if not ra_profile.has_qrc:
+            ra_missing.append('QRC Certificate')
+        if not ra_profile.has_ctc:
+            ra_missing.append('CTC Certificate')
+        if not ra_profile.has_cv:
+            ra_missing.append('CV')
+        if ra_missing:
+            missing_documents[f'Research Assistant'] = {
+                'name': ra_profile.full_name,
+                'documents': ra_missing
+            }
+
     return missing_documents
 
 

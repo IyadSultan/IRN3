@@ -43,15 +43,15 @@
     </div>
 
     <!-- Co-Investigators Documents Check -->
-    {% if submission.coinvestigator_set.exists %}
+    {% if submission.coinvestigators.exists %}
     <div class="card mb-4">
         <div class="card-header">
             <h4>Co-Investigators Documents</h4>
         </div>
         <div class="card-body">
-            {% for coinv in submission.coinvestigator_set.all %}
+            {% for coinv in submission.coinvestigators.all %}
             <div class="mb-4">
-                <h6>{{ coinv.user.get_full_name }} - {{ coinv.role_in_study }}</h6>
+                <h6>{{ coinv.user.get_full_name }} - {{ coinv.get_roles_display }}</h6>
                 {% with profile=coinv.user.userprofile %}
                 <ul class="list-group">
                     <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
@@ -65,7 +65,6 @@
                         <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
                         CV
                     </li>
-                    {% if profile.role == 'KHCC investigator' %}
                     <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
                         <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
                         QRC Certificate
@@ -74,7 +73,7 @@
                         <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
                         CTC Certificate
                     </li>
-                    {% endif %}
+                    
                 </ul>
                 {% endwith %}
             </div>
@@ -84,13 +83,13 @@
     {% endif %}
 
     <!-- Research Assistants Documents Check -->
-    {% if submission.researchassistant_set.exists %}
+    {% if submission.research_assistants.exists %}
     <div class="card mb-4">
         <div class="card-header">
             <h4>Research Assistants Documents</h4>
         </div>
         <div class="card-body">
-            {% for ra in submission.researchassistant_set.all %}
+            {% for ra in submission.research_assistants.all %}
             <div class="mb-4">
                 <h6>{{ ra.user.get_full_name }}</h6>
                 {% with profile=ra.user.userprofile %}
@@ -106,12 +105,14 @@
                         <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
                         CV
                     </li>
-                    {% if profile.role == 'Research Assistant/Coordinator' %}
+                    <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                        <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
+                        QRC Certificate
+                    </li>
                     <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
                         <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
                         CTC Certificate
                     </li>
-                    {% endif %}
                 </ul>
                 {% endwith %}
             </div>
@@ -200,10 +201,11 @@
             <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
                 <i class="fas fa-arrow-left"></i> Back
             </button>
-            {% if submission.can_user_submit request.user %}
+            {% if can_submit %}
             <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
                 <i class="fas fa-times"></i> Exit without Saving
             </button>
+            {% endif %}
             <button type="submit" name="action" value="submit_final" class="btn btn-success">
                 <i class="fas fa-check"></i> Submit Final
             </button>
@@ -252,9 +254,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const invalidCertificates = document.querySelectorAll('.list-group-item-danger');
             const hasInvalidCertificates = invalidCertificates.length > 0;
 
-            if (hasMissingDocs || hasValidationErrors || hasInvalidCertificates) {
+            if (hasInvalidCertificates) {
                 e.preventDefault();
-                alert('Cannot submit: Please ensure all mandatory fields are filled and all certificates are valid.');
+                alert('Cannot submit: All team members must have valid certificates (GCP, CV, QRC, CTC) before submission.');
+                return false;
+            }
+            
+            if (hasMissingDocs || hasValidationErrors) {
+                e.preventDefault();
+                alert('Cannot submit: Please ensure all mandatory fields are filled.');
                 return false;
             }
         }
