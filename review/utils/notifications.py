@@ -39,7 +39,7 @@ Please find the submission details attached to this message. Log in to the syste
 Best regards,
 iRN System
         """.strip(),
-        study_name=submission_title,
+        # study_name=submission_title,
         related_submission=review_request.submission
     )
 
@@ -78,7 +78,7 @@ def send_review_decline_notification(review_request, decliner, reason):
             'decliner': decliner.userprofile.full_name,
             'reason': reason,
         }),
-        study_name=review_request.submission.title,
+        # study_name=review_request.submission.title,
         related_submission=review_request.submission
     )
     message.recipients.add(review_request.requested_by)
@@ -103,7 +103,7 @@ Reason: {reason}
 
 Please review this request and respond accordingly.
         """.strip(),
-        study_name=review_request.submission.title,
+        # study_name=review_request.submission.title,
         related_submission=review_request.submission
     )
     message.recipients.add(review_request.requested_by)
@@ -132,7 +132,7 @@ Please find the detailed review report attached to this message.
 Best regards,
 iRN System
         """.strip(),
-        study_name=submission_title,
+        # study_name=submission_title,
         related_submission=review_request.submission
     )
     
@@ -175,7 +175,7 @@ Decision: {decision.replace('_', ' ').title()}
 Best regards,
 AIDI System
         """.strip(),
-        study_name=submission.title,
+        # study_name=submission.title,
         related_submission=submission
     )
     message.recipients.add(submission.primary_investigator)

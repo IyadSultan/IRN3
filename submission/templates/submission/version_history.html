@@ -22,9 +22,10 @@
                         <tr>
                             <td>{{ history.version }}</td>
                             <td>
-                                <span class="badge bg-{{ history.status|lower }}">
-                                    {{ history.get_status_display }}
+                                <span class="badge bg-{{ history.status|lower }} text-dark">
+                                    {{ history.status|title }}
                                 </span>
+                            </td>
                             </td>
                             <td>{{ history.date|date:"M d, Y H:i" }}</td>
                             <td>
