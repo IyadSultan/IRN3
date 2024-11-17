@@ -11,6 +11,9 @@ from .models import (
     StatusChoice,
     SystemSettings,
 )
+from .models import PermissionChangeLog
+
+
 
 @admin.register(Submission)
 class SubmissionAdmin(admin.ModelAdmin):
@@ -70,3 +73,14 @@ class StatusChoiceAdmin(admin.ModelAdmin):
     list_editable = ('is_active', 'order')
     search_fields = ('code', 'label')
     ordering = ('order',)
+
+
+
+
+@admin.register(PermissionChangeLog)
+class PermissionChangeLogAdmin(admin.ModelAdmin):
+    list_display = ('user', 'role', 'permission_type', 'new_value', 'changed_by', 'change_date')
+    list_filter = ('role', 'permission_type', 'change_date')
+    search_fields = ('user__username', 'user__first_name', 'user__last_name', 
+                    'changed_by__username', 'changed_by__first_name', 'changed_by__last_name')
+    date_hierarchy = 'change_date'

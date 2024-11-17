@@ -159,12 +159,82 @@ class Submission(models.Model):
             if not set(investigators).issubset(set(submitted_users)):
                 return False
         return True
+    
+    def can_user_edit(self, user):
+        """Check if user can edit the submission."""
+        if user == self.primary_investigator:
+            return True
+            
+        coinv = self.coinvestigators.filter(user=user).first()
+        if coinv and coinv.can_edit:
+            return True
+            
+        ra = self.research_assistants.filter(user=user).first()
+        if ra and ra.can_edit:
+            return True
+            
+        return False
+
+    def can_user_submit(self, user):
+        """Check if user can submit the submission."""
+        if user == self.primary_investigator:
+            return True
+            
+        coinv = self.coinvestigators.filter(user=user).first()
+        if coinv and coinv.can_submit:
+            return True
+            
+        ra = self.research_assistants.filter(user=user).first()
+        if ra and ra.can_submit:
+            return True
+            
+        return False
+
+    def can_user_view_communications(self, user):
+        """Check if user can view submission communications."""
+        if user == self.primary_investigator:
+            return True
+            
+        coinv = self.coinvestigators.filter(user=user).first()
+        if coinv and coinv.can_view_communications:
+            return True
+            
+        ra = self.research_assistants.filter(user=user).first()
+        if ra and ra.can_view_communications:
+            return True
+            
+        return False
+
+    def get_user_role(self, user):
+        """Get user's role in the submission."""
+        if user == self.primary_investigator:
+            return 'Primary Investigator'
+            
+        coinv = self.coinvestigators.filter(user=user).first()
+        if coinv:
+            return 'Co-Investigator'
+            
+        ra = self.research_assistants.filter(user=user).first()
+        if ra:
+            return 'Research Assistant'
+            
+        return None
         
         
 
 from django.db import models
 from django.contrib.auth.models import User
 from users.models import Role  # Add this import
+
+
+
+from django.db import models
+from django.contrib.auth.models import User
+
+# submission/models.py
+from django.db import models
+from django.contrib.auth.models import User
+from iRN.constants import COINVESTIGATOR_ROLES
 
 class CoInvestigator(models.Model):
     submission = models.ForeignKey(
@@ -173,7 +243,7 @@ class CoInvestigator(models.Model):
         on_delete=models.CASCADE
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    roles = models.JSONField(default=list)  # Changed from ManyToManyField to JSONField
+    roles = models.JSONField(default=list)
     can_edit = models.BooleanField(default=False)
     can_submit = models.BooleanField(default=False)
     can_view_communications = models.BooleanField(default=False)
@@ -191,13 +261,73 @@ class CoInvestigator(models.Model):
         role_dict = dict(COINVESTIGATOR_ROLES)
         return [role_dict.get(role, role) for role in (self.roles or [])]
 
-from django.db import models
-from django.contrib.auth.models import User
-
+    def log_permission_changes(self, changed_by, is_new=False):
+        """Log changes to permissions."""
+        if is_new:
+            # Log initial permissions
+            for perm in ['can_edit', 'can_submit', 'can_view_communications']:
+                if getattr(self, perm):
+                    PermissionChangeLog.objects.create(
+                        submission=self.submission,
+                        user=self.user,
+                        changed_by=changed_by,
+                        permission_type=perm.replace('can_', ''),
+                        old_value=False,
+                        new_value=True,
+                        role='co_investigator',
+                        notes='Initial permission setting'
+                    )
+            # Log initial roles
+            if self.roles:
+                role_names = ', '.join(self.get_role_display())
+                PermissionChangeLog.objects.create(
+                    submission=self.submission,
+                    user=self.user,
+                    changed_by=changed_by,
+                    permission_type='roles',
+                    old_value=False,
+                    new_value=True,
+                    role='co_investigator',
+                    notes=f'Initial roles assigned: {role_names}'
+                )
+        else:
+            # Get the previous state
+            old_instance = CoInvestigator.objects.get(pk=self.pk)
+            
+            # Check for permission changes
+            for perm in ['can_edit', 'can_submit', 'can_view_communications']:
+                old_value = getattr(old_instance, perm)
+                new_value = getattr(self, perm)
+                
+                if old_value != new_value:
+                    PermissionChangeLog.objects.create(
+                        submission=self.submission,
+                        user=self.user,
+                        changed_by=changed_by,
+                        permission_type=perm.replace('can_', ''),
+                        old_value=old_value,
+                        new_value=new_value,
+                        role='co_investigator'
+                    )
+            
+            # Check for role changes
+            if set(old_instance.roles) != set(self.roles):
+                old_roles = ', '.join([dict(COINVESTIGATOR_ROLES).get(r, r) for r in (old_instance.roles or [])])
+                new_roles = ', '.join([dict(COINVESTIGATOR_ROLES).get(r, r) for r in (self.roles or [])])
+                PermissionChangeLog.objects.create(
+                    submission=self.submission,
+                    user=self.user,
+                    changed_by=changed_by,
+                    permission_type='roles',
+                    old_value=False,
+                    new_value=True,
+                    role='co_investigator',
+                    notes=f'Roles changed from: {old_roles} to: {new_roles}'
+                )
 class ResearchAssistant(models.Model):
     submission = models.ForeignKey(
         'Submission',
-        related_name='research_assistants',  # Add this related_name
+        related_name='research_assistants',
         on_delete=models.CASCADE
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -211,6 +341,60 @@ class ResearchAssistant(models.Model):
 
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.submission.temporary_id}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+    def log_permission_changes(self, changed_by, is_new=False):
+        """Log changes to permissions."""
+        if is_new:
+            # Log initial permissions
+            for perm in ['can_edit', 'can_submit', 'can_view_communications']:
+                if getattr(self, perm):
+                    PermissionChangeLog.objects.create(
+                        submission=self.submission,
+                        user=self.user,
+                        changed_by=changed_by,
+                        permission_type=perm.replace('can_', ''),
+                        old_value=False,
+                        new_value=True,
+                        role='research_assistant',
+                        notes='Initial permission setting'
+                    )
+        else:
+            # Get the previous state
+            old_instance = ResearchAssistant.objects.get(pk=self.pk)
+            
+            # Check for permission changes
+            for perm in ['can_edit', 'can_submit', 'can_view_communications']:
+                old_value = getattr(old_instance, perm)
+                new_value = getattr(self, perm)
+                
+                if old_value != new_value:
+                    PermissionChangeLog.objects.create(
+                        submission=self.submission,
+                        user=self.user,
+                        changed_by=changed_by,
+                        permission_type=perm.replace('can_', ''),
+                        old_value=old_value,
+                        new_value=new_value,
+                        role='research_assistant'
+                    )
+
+    def get_permissions_display(self):
+        """Get a list of current permissions for display."""
+        permissions = []
+        if self.can_edit:
+            permissions.append('Can Edit')
+        if self.can_submit:
+            permissions.append('Can Submit')
+        if self.can_view_communications:
+            permissions.append('Can View Communications')
+        return permissions if permissions else ['No special permissions']
+
+    def has_any_permissions(self):
+        """Check if the research assistant has any permissions."""
+        return any([self.can_edit, self.can_submit, self.can_view_communications])
 
 class FormDataEntry(models.Model):
     submission = models.ForeignKey(
@@ -312,3 +496,50 @@ class InvestigatorFormSubmission(models.Model):
 
     def __str__(self):
         return f"{self.investigator.get_full_name()} - {self.form.name} (v{self.version})"
+    
+
+class PermissionChangeLog(models.Model):
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        'auth.User', 
+        on_delete=models.CASCADE,
+        related_name='permission_changes_received'
+    )
+    changed_by = models.ForeignKey(
+        'auth.User', 
+        on_delete=models.CASCADE, 
+        related_name='permission_changes_made'
+    )
+    permission_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('edit', 'Edit'),
+            ('submit', 'Submit'),
+            ('view_communications', 'View Communications')
+        ]
+    )
+    old_value = models.BooleanField()
+    new_value = models.BooleanField()
+    change_date = models.DateTimeField(auto_now_add=True)
+    role = models.CharField(
+        max_length=50,
+        choices=[
+            ('co_investigator', 'Co-Investigator'),
+            ('research_assistant', 'Research Assistant')
+        ]
+    )
+    notes = models.TextField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-change_date']
+        verbose_name = 'Permission Change Log'
+        verbose_name_plural = 'Permission Change Logs'
+
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.permission_type} - {self.change_date}"
+
+    def get_change_description(self):
+        """Get a human-readable description of the change."""
+        action = 'granted' if self.new_value else 'removed'
+        return f"{self.permission_type.title()} permission {action} for {self.user.get_full_name()} " \
+               f"as {self.get_role_display()} by {self.changed_by.get_full_name()}"

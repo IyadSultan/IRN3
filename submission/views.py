@@ -11,6 +11,7 @@ from .utils import PDFGenerator, has_edit_permission, check_researcher_documents
 from .utils.pdf_generator import generate_submission_pdf
 from .gpt_analysis import ResearchAnalyzer
 from django.core.cache import cache
+from .utils.permissions import check_submission_permission
 
 from .models import (
     Submission,
@@ -19,6 +20,7 @@ from .models import (
     FormDataEntry,
     Document,
     VersionHistory,
+    PermissionChangeLog,
 )
 from .forms import (
     SubmissionForm,
@@ -39,6 +41,7 @@ from django.db.models import Q
 from django.db import transaction
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.db import IntegrityError
 
 def get_system_user():
     """Get or create the system user for automated messages."""
@@ -189,9 +192,18 @@ from .models import ResearchAssistant  # Add this import
 def add_research_assistant(request, submission_id):
     """Add or manage research assistants for a submission."""
     submission = get_object_or_404(Submission, pk=submission_id)
+    
+    # Check if user has permission to modify research assistants
+    if not submission.can_user_edit(request.user):
+        messages.error(request, "You don't have permission to modify research assistants.")
+        return redirect('submission:dashboard')
+
     if submission.is_locked:
         messages.error(request, "This submission is locked and cannot be edited.")
         return redirect('submission:dashboard')
+
+    # Initialize form variable
+    form = ResearchAssistantForm(submission=submission)
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -201,6 +213,17 @@ def add_research_assistant(request, submission_id):
             if assistant_id:
                 try:
                     assistant = ResearchAssistant.objects.get(id=assistant_id, submission=submission)
+                    # Log the deletion
+                    PermissionChangeLog.objects.create(
+                        submission=submission,
+                        user=assistant.user,
+                        changed_by=request.user,
+                        permission_type='removed',
+                        old_value=True,
+                        new_value=False,
+                        role='research_assistant',
+                        notes=f"Research Assistant removed from submission by {request.user.get_full_name()}"
+                    )
                     assistant.delete()
                     messages.success(request, 'Research assistant removed successfully.')
                 except ResearchAssistant.DoesNotExist:
@@ -219,35 +242,84 @@ def add_research_assistant(request, submission_id):
         if form.is_valid():
             assistant = form.cleaned_data.get('assistant')
             if assistant:
-                ResearchAssistant.objects.create(
-                    submission=submission,
-                    user=assistant,
-                    can_submit=form.cleaned_data.get('can_submit', False),
-                    can_edit=form.cleaned_data.get('can_edit', False),
-                    can_view_communications=form.cleaned_data.get('can_view_communications', False)
-                )
-                messages.success(request, 'Research assistant added successfully.')
-                
-                if action == 'save_exit':
-                    return redirect('submission:dashboard')
-                elif action == 'save_add_another':
-                    return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
-            else:
-                messages.error(request, 'Please select a research assistant.')
-    else:
-        form = ResearchAssistantForm()
+                try:
+                    with transaction.atomic():
+                        # Create new research assistant
+                        ra = ResearchAssistant(
+                            submission=submission,
+                            user=assistant,
+                            can_submit=form.cleaned_data.get('can_submit', False),
+                            can_edit=form.cleaned_data.get('can_edit', False),
+                            can_view_communications=form.cleaned_data.get('can_view_communications', False)
+                        )
+                        
+                        # Save first
+                        ra.save()
+                        
+                        # Then log permission changes
+                        ra.log_permission_changes(changed_by=request.user, is_new=True)
 
-    assistants = ResearchAssistant.objects.filter(submission=submission)
+                        # Create notification
+                        Message.objects.create(
+                            sender=get_system_user(),
+                            subject=f'Added as Research Assistant to {submission.title}',
+                            body=f"""
+You have been added as a Research Assistant to:
+
+Submission ID: {submission.temporary_id}
+Title: {submission.title}
+Principal Investigator: {submission.primary_investigator.get_full_name()}
+
+Your permissions:
+- Can Edit: {'Yes' if ra.can_edit else 'No'}
+- Can Submit: {'Yes' if ra.can_submit else 'No'}
+- Can View Communications: {'Yes' if ra.can_view_communications else 'No'}
+
+Please log in to view the submission.
+                            """.strip(),
+                            related_submission=submission
+                        ).recipients.add(assistant)
+
+                        messages.success(request, 'Research assistant added successfully.')
+                        
+                        if action == 'save_exit':
+                            return redirect('submission:dashboard')
+                        elif action == 'save_add_another':
+                            return redirect('submission:add_research_assistant', 
+                                         submission_id=submission.temporary_id)
+
+                except IntegrityError:
+                    messages.error(request, 'This user is already a research assistant for this submission.')
+                except Exception as e:
+                    logger.error(f"Error saving research assistant: {str(e)}")
+                    messages.error(request, f'Error adding research assistant: {str(e)}')
+
+    # Get research assistants with permission information
+    assistants = ResearchAssistant.objects.filter(submission=submission).select_related('user')
+    
+    # Get permission change history
+    permission_history = PermissionChangeLog.objects.filter(
+        submission=submission,
+        role='research_assistant'
+    ).select_related('user', 'changed_by').order_by('-change_date')[:10]
+
     return render(request, 'submission/add_research_assistant.html', {
         'form': form,
         'submission': submission,
-        'assistants': assistants
+        'assistants': assistants,
+        'permission_history': permission_history,
+        'can_modify': submission.can_user_edit(request.user)
     })
 
 @login_required
 def add_coinvestigator(request, submission_id):
     """Add or manage co-investigators for a submission."""
     submission = get_object_or_404(Submission, pk=submission_id)
+    
+    # Check if user has permission to modify co-investigators
+    if not submission.can_user_edit(request.user):
+        messages.error(request, "You don't have permission to modify co-investigators.")
+        return redirect('submission:dashboard')
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -257,6 +329,17 @@ def add_coinvestigator(request, submission_id):
             if coinvestigator_id:
                 try:
                     coinvestigator = CoInvestigator.objects.get(id=coinvestigator_id, submission=submission)
+                    # Log the deletion
+                    PermissionChangeLog.objects.create(
+                        submission=submission,
+                        user=coinvestigator.user,
+                        changed_by=request.user,
+                        permission_type='removed',
+                        old_value=True,
+                        new_value=False,
+                        role='co_investigator',
+                        notes=f"Co-investigator removed from submission by {request.user.get_full_name()}"
+                    )
                     coinvestigator.delete()
                     messages.success(request, 'Co-investigator removed successfully.')
                 except CoInvestigator.DoesNotExist:
@@ -284,38 +367,85 @@ def add_coinvestigator(request, submission_id):
             selected_roles = form.cleaned_data.get('roles')
             
             if investigator:
-                # Create the coinvestigator instance
-                coinvestigator = CoInvestigator.objects.create(
-                    submission=submission,
-                    user=investigator,
-                    can_submit=form.cleaned_data.get('can_submit', False),
-                    can_edit=form.cleaned_data.get('can_edit', False),
-                    can_view_communications=form.cleaned_data.get('can_view_communications', False)
-                )
-                
-                # Add the selected roles
-                if selected_roles:
-                    coinvestigator.roles.set(selected_roles)
-                
-                messages.success(request, 'Co-investigator added successfully.')
-                
-                if action == 'save_exit':
-                    return redirect('submission:dashboard')
-                elif action == 'save_add_another':
-                    return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
+                try:
+                    with transaction.atomic():
+                        # Create new co-investigator
+                        coinv = CoInvestigator(
+                            submission=submission,
+                            user=investigator,
+                            can_submit=form.cleaned_data.get('can_submit', False),
+                            can_edit=form.cleaned_data.get('can_edit', False),
+                            can_view_communications=form.cleaned_data.get('can_view_communications', False)
+                        )
+                        
+                        # Set roles (it's a list field, not M2M)
+                        coinv.roles = list(selected_roles)
+                        
+                        # Save first
+                        coinv.save()
+                        
+                        # Then log permission changes
+                        coinv.log_permission_changes(changed_by=request.user, is_new=True)
+
+                        # Create notification
+                        Message.objects.create(
+                            sender=get_system_user(),
+                            subject=f'Added as Co-Investigator to {submission.title}',
+                            body=f"""
+You have been added as a Co-Investigator to:
+
+Submission ID: {submission.temporary_id}
+Title: {submission.title}
+Principal Investigator: {submission.primary_investigator.get_full_name()}
+
+Your roles: {', '.join(coinv.get_role_display())}
+
+Your permissions:
+- Can Edit: {'Yes' if coinv.can_edit else 'No'}
+- Can Submit: {'Yes' if coinv.can_submit else 'No'}
+- Can View Communications: {'Yes' if coinv.can_view_communications else 'No'}
+
+Please log in to view the submission.
+                            """.strip(),
+                            related_submission=submission
+                        ).recipients.add(investigator)
+
+                        messages.success(request, 'Co-investigator added successfully.')
+                        
+                        if action == 'save_exit':
+                            return redirect('submission:dashboard')
+                        elif action == 'save_add_another':
+                            return redirect('submission:add_coinvestigator', 
+                                         submission_id=submission.temporary_id)
+
+                except IntegrityError:
+                    messages.error(request, 'This user is already a co-investigator for this submission.')
+                except Exception as e:
+                    logger.error(f"Error saving co-investigator: {str(e)}")
+                    messages.error(request, f'Error adding co-investigator: {str(e)}')
             else:
-                messages.error(request, 'Please select a co-investigator and specify their roles.')
+                messages.error(request, 'Please select a co-investigator.')
     else:
         form = CoInvestigatorForm()
 
     coinvestigators = CoInvestigator.objects.filter(submission=submission)
+    
+    # Get permission change history
+    permission_history = PermissionChangeLog.objects.filter(
+        submission=submission,
+        role='co_investigator'
+    ).select_related('user', 'changed_by').order_by('-change_date')[:10]
+
     return render(request, 'submission/add_coinvestigator.html', {
         'form': form,
         'submission': submission,
-        'coinvestigators': coinvestigators
+        'coinvestigators': coinvestigators,
+        'permission_history': permission_history,
+        'can_modify': submission.can_user_edit(request.user)
     })
 
 @login_required
+@check_submission_permission('edit')
 def submission_form(request, submission_id, form_id):
     """Handle dynamic form submission and display."""
     submission = get_object_or_404(Submission, temporary_id=submission_id)
@@ -451,6 +581,7 @@ def submission_form(request, submission_id, form_id):
 # submission/views.py
 
 @login_required
+@check_submission_permission('submit')
 def submission_review(request, submission_id):
     submission = get_object_or_404(Submission, temporary_id=submission_id)
     
