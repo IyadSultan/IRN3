@@ -29,7 +29,7 @@
             --navbar-height: 56px;
             --shadow-sm: 0 2px 4px rgba(0,0,0,.1);
             --shadow-md: 0 4px 6px rgba(0,0,0,.1);
-            --transition-default: all 0.3s ease;
+            --transition-default: all 1s ease;
         }
 
         body {
@@ -37,6 +37,7 @@
             background-color: var(--background-color);
             color: var(--text-color);
             min-height: 100vh;
+            padding-top: var(--navbar-height); /* Add padding to account for fixed navbar */
         }
 
         /* Navbar Styles */
@@ -46,6 +47,10 @@
             height: var(--navbar-height);
             padding: 0 1rem;
             z-index: 1030;
+            position: fixed; /* Fix navbar to top */
+            top: 0;
+            right: 0;
+            left: 0;
         }
 
         .navbar-brand, .navbar-nav .nav-link {
@@ -200,7 +205,7 @@
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
-                transition: transform 0.3s ease;
+                transition: transform 1s ease;
             }
 
             .sidebar.show {
@@ -277,6 +282,7 @@
             <a class="navbar-brand" href="/">iRN System</a>
             
             <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+                <span class="me-3"><i class="fas fa-phone me-1"></i>For assistance call 3434</span>
                 {% if user.is_authenticated %}
                     <ul class="navbar-nav">
                         <li class="nav-item dropdown">
@@ -284,7 +290,7 @@
                                     id="userDropdown" 
                                     data-bs-toggle="dropdown" 
                                     aria-expanded="false">
-                                <span class="me-3"><i class="fas fa-phone me-1"></i>For assistance call 3434</span>
+                                
                                 <i class="fas fa-user me-1"></i>
                                 {{ user.get_full_name|default:user.username }}
                             </button>
