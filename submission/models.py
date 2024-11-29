@@ -65,6 +65,10 @@ class Submission(models.Model):
     is_locked = models.BooleanField(default=False)
     is_archived = models.BooleanField(default=False)
     archived_at = models.DateTimeField(null=True, blank=True)
+    show_in_irb = models.BooleanField(default=False, 
+        help_text="Toggle visibility for IRB members")
+    show_in_rc = models.BooleanField(default=False, 
+        help_text="Toggle visibility for RC members")
 
     def archive(self, user=None):
         """Archive the submission"""

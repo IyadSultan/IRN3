@@ -1,0 +1,228 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load review_tags %}
+
+{% block extra_css %}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.3/css/buttons.bootstrap4.min.css">
+<style>
+    .btn-green {
+        background-color: #28a745;
+        border-color: #28a745;
+        color: #fff;
+    }
+    .btn-green:hover {
+        background-color: #218838;
+        border-color: #1e7e34;
+        color: #fff;
+    }
+    
+    /* Custom toggle switch styles */
+    .form-switch {
+        padding-left: 2.5em;
+    }
+    
+    .form-check-input {
+        cursor: pointer;
+    }
+    
+    .visibility-toggles {
+        padding: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<script type="text/babel">
+// Define the ToggleSwitch component
+const ToggleSwitch = ({ submissionId, initialState = false, label = '', type = '' }) => {
+    const [isEnabled, setIsEnabled] = React.useState(initialState === 'true');
+    const [isLoading, setIsLoading] = React.useState(false);
+
+    const handleToggle = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch(`/review/submission/${submissionId}/toggle-visibility/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `toggle_type=${type}&csrfmiddlewaretoken=${document.querySelector('[name=csrfmiddlewaretoken]').value}`
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setIsEnabled(data.visible);
+            }
+        } catch (error) {
+            console.error('Error toggling visibility:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="form-check form-switch mb-2">
+            <input
+                className="form-check-input"
+                type="checkbox"
+                checked={isEnabled}
+                onChange={handleToggle}
+                disabled={isLoading}
+                id={`switch-${type}-${submissionId}`}
+            />
+            <label className="form-check-label ms-2" htmlFor={`switch-${type}-${submissionId}`}>
+                {label}
+            </label>
+        </div>
+    );
+};
+
+// Define the VisibilityToggles component
+const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) => {
+    return (
+        <div className="d-flex flex-column">
+            <ToggleSwitch 
+                submissionId={submissionId} 
+                initialState={initialIrbState} 
+                label="IRB" 
+                type="irb" 
+            />
+            <ToggleSwitch 
+                submissionId={submissionId} 
+                initialState={initialRcState} 
+                label="RC" 
+                type="rc" 
+            />
+        </div>
+    );
+};
+</script>
+
+<div class="container">
+    <h2 class="mb-4">OSAR Dashboard</h2>
+
+    <!-- Submissions Needing Review -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title mb-0">Submissions Needing Review</h3>
+        </div>
+        <div class="card-body">
+            {% if osar_submissions %}
+                <div class="table-responsive">
+                    <table id="osarSubmissionsTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Submission Date</th>
+                                <th>Primary Investigator</th>
+                                <th>Study Type</th>
+                                <th>Status</th>
+                                <th>Visibility</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for submission in osar_submissions %}
+                            <tr>
+                                <td>{{ submission.title }}</td>
+                                <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
+                                <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ submission.study_type }}</td>
+                                <td>{{ submission.get_status_display }}</td>
+                                <td>
+                                    <div id="toggle-container-{{ submission.temporary_id }}" class="visibility-toggles"></div>
+                                    <script type="text/babel">
+                                        {
+                                            const container = document.getElementById('toggle-container-{{ submission.temporary_id }}');
+                                            const root = ReactDOM.createRoot(container);
+                                            root.render(
+                                                <VisibilityToggles 
+                                                    submissionId="{{ submission.temporary_id }}"
+                                                    initialIrbState="{{ submission.show_in_irb|yesno:'true,false' }}"
+                                                    initialRcState="{{ submission.show_in_rc|yesno:'true,false' }}"
+                                                />
+                                            );
+                                        }
+                                    </script>
+                                </td>
+                                <td>
+                                    <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="mb-0">No submissions currently need review.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- OSAR Reviews -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title mb-0">My OSAR Reviews</h3>
+        </div>
+        <div class="card-body">
+            {% if osar_reviews %}
+                <div class="table-responsive">
+                    <table id="osarReviewsTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Primary Investigator</th>
+                                <th>Requested By</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for review in osar_reviews %}
+                            <tr>
+                                <td>{{ review.submission.title }}</td>
+                                <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ review.requested_by.userprofile.full_name }}</td>
+                                <td>{{ review.get_status_display }}</td>
+                                <td>
+                                    {% if review.requested_to == user or review.requested_by == user %}
+                                        <a href="{% url 'review:view_review' review.id %}" class="btn btn-info btn-sm">View Review</a>
+                                    {% endif %}
+                                    {% if review.requested_to == user and review.status == 'pending' %}
+                                        <a href="{% url 'review:submit_review' review.id %}" class="btn btn-primary btn-sm">Submit Review</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="mb-0">No OSAR reviews assigned.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+<script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.3/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.3/js/buttons.bootstrap4.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Initialize DataTables
+    $('#osarSubmissionsTable').DataTable({
+        order: [[1, 'desc']],
+        pageLength: 10
+    });
+    $('#osarReviewsTable').DataTable({
+        order: [[1, 'desc']],
+        pageLength: 10
+    });
+});
+</script>
+{% endblock %}

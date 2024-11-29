@@ -20,38 +20,9 @@ FIELD_TYPES = [
 class StudyType(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
-    requires_irb = models.BooleanField(
-        default=True,  # This ensures new study types get this value by default
-        help_text="Requires IRB review",
-        verbose_name="Requires IRB"
-    )
-    requires_research_council = models.BooleanField(
-        default=True,
-        help_text="Requires CR review",
-        verbose_name="Requires CR"
-    )
-    requires_aharpp = models.BooleanField(
-        default=True,
-        help_text="Requires AHRRP review",
-        verbose_name="Requires AHRRP"
-    )
-
-    class Meta:
-        verbose_name = "Study Type"
-        verbose_name_plural = "Study Types"
 
     def __str__(self):
         return self.name
-
-    def save(self, *args, **kwargs):
-        # This ensures the fields are set to True when saving
-        if not self.pk:  # Only for new study types
-            self.requires_irb = True
-            self.requires_research_council = True
-            self.requires_aharpp = True
-        super().save(*args, **kwargs)
-   
-
 
 class DynamicForm(models.Model):
     name = models.CharField(max_length=255)

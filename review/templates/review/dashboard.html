@@ -20,9 +20,206 @@
 {% endblock %}
 
 {% block content %}
-
 <div class="container">
     <h2 class="mb-4">Review Dashboard</h2>
+    <div class="container">
+        {% if is_irb_member %}
+        <!-- IRB Dashboard -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title mb-0">IRB Review Queue</h3>
+            </div>
+            <div class="card-body">
+                {% if irb_submissions %}
+                    <div class="table-responsive">
+                        <table id="irbSubmissionsTable" class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Submission Date</th>
+                                    <th>Primary Investigator</th>
+                                    <th>Study Type</th>
+                                    <th>Status</th>
+                                    <th>Visibility</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for submission in irb_submissions %}
+                                <tr>
+                                    <td>{{ submission.title }}</td>
+                                    <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
+                                    <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                    <td>{{ submission.study_type }}</td>
+                                    <td>{{ submission.get_status_display }}</td>
+                                    <td>
+                                        <button class="toggle-visibility-btn btn {% if submission.show_in_irb %}btn-success{% else %}btn-secondary{% endif %}"
+                                                data-submission-id="{{ submission.id }}"
+                                                data-toggle-type="irb">
+                                            Toggle IRB
+                                        </button>
+                                        <button class="toggle-visibility-btn btn {% if submission.show_in_rc %}btn-success{% else %}btn-secondary{% endif %}"
+                                                data-submission-id="{{ submission.id }}"
+                                                data-toggle-type="rc">
+                                            Toggle RC
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'review:review_summary' submission.pk %}" 
+                                           class="btn btn-success btn-sm">View Details</a>
+                                        {% if submission.status == 'under_review' %}
+                                            <a href="{% url 'review:process_decision' submission.pk %}" 
+                                               class="btn btn-primary btn-sm">Make Decision</a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0">No submissions requiring IRB review.</p>
+                {% endif %}
+            </div>
+        </div>
+    
+        <!-- IRB Review Requests -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title mb-0">My IRB Reviews</h3>
+            </div>
+            <div class="card-body">
+                {% if irb_reviews %}
+                    <div class="table-responsive">
+                        <table id="irbReviewsTable" class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Primary Investigator</th>
+                                    <th>Requested By</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for review in irb_reviews %}
+                                <tr>
+                                    <td>{{ review.submission.title }}</td>
+                                    <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
+                                    <td>{{ review.requested_by.userprofile.full_name }}</td>
+                                    <td>{{ review.get_status_display }}</td>
+                                    <td>
+                                        {% if review.requested_to == user or review.requested_by == user %}
+                                            <a href="{% url 'review:view_review' review.id %}" 
+                                               class="btn btn-info btn-sm">View Review</a>
+                                        {% endif %}
+                                        {% if review.requested_to == user and review.status == 'pending' %}
+                                            <a href="{% url 'review:submit_review' review.id %}" 
+                                               class="btn btn-primary btn-sm">Submit Review</a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0">No IRB reviews assigned.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    
+        {% if is_rc_member %}
+        <!-- RC Dashboard -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title mb-0">RC Review Queue</h3>
+            </div>
+            <div class="card-body">
+                {% if rc_submissions %}
+                    <div class="table-responsive">
+                        <table id="rcSubmissionsTable" class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Submission Date</th>
+                                    <th>Primary Investigator</th>
+                                    <th>Study Type</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for submission in rc_submissions %}
+                                <tr>
+                                    <td>{{ submission.title }}</td>
+                                    <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
+                                    <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                    <td>{{ submission.study_type }}</td>
+                                    <td>{{ submission.get_status_display }}</td>
+                                    <td>
+                                        <a href="{% url 'review:review_summary' submission.pk %}" 
+                                           class="btn btn-success btn-sm">View Details</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0">No submissions requiring RC review.</p>
+                {% endif %}
+            </div>
+        </div>
+    
+        <!-- RC Review Requests -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title mb-0">My RC Reviews</h3>
+            </div>
+            <div class="card-body">
+                {% if rc_reviews %}
+                    <div class="table-responsive">
+                        <table id="rcReviewsTable" class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Primary Investigator</th>
+                                    <th>Requested By</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for review in rc_reviews %}
+                                <tr>
+                                    <td>{{ review.submission.title }}</td>
+                                    <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
+                                    <td>{{ review.requested_by.userprofile.full_name }}</td>
+                                    <td>{{ review.get_status_display }}</td>
+                                    <td>
+                                        {% if review.requested_to == user or review.requested_by == user %}
+                                            <a href="{% url 'review:view_review' review.id %}" 
+                                               class="btn btn-info btn-sm">View Review</a>
+                                        {% endif %}
+                                        {% if review.requested_to == user and review.status == 'pending' %}
+                                            <a href="{% url 'review:submit_review' review.id %}" 
+                                               class="btn btn-primary btn-sm">Submit Review</a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0">No RC reviews assigned.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
 
     {# OSAR Member Dashboard #}
     {% if is_osar_member %}
@@ -595,38 +792,27 @@
 $(document).ready(function() {
     // Initialize DataTables for all tables
     const tableConfigs = {
-        submissionsNeedingReview: {
+        irbSubmissionsTable: {
             order: [[1, 'desc']]
         },
-        forwardedReviews: {
+        irbReviewsTable: {
             dom: 'Bfrtip',
             buttons: ['copy', 'excel', 'csv'],
             order: [[1, 'desc']]
         },
-        pendingIRBDecisions: {
+        rcSubmissionsTable: {
             order: [[1, 'desc']]
         },
-        departmentSubmissions: {
-            order: [[1, 'desc']]
-        },
-        aahrppSubmissions: {
-            order: [[1, 'desc']]
-        },
-        pendingReviews: {
+        rcReviewsTable: {
             dom: 'Bfrtip',
             buttons: ['copy', 'excel', 'csv'],
-            order: [[3, 'asc']]
-        },
-        completedReviews: {
-            dom: 'Bfrtip',
-            buttons: ['copy', 'excel', 'csv'],
-            order: [[3, 'desc']]
+            order: [[1, 'desc']]
         }
     };
 
     // Initialize all tables with their specific configurations
     Object.keys(tableConfigs).forEach(tableId => {
-        const table = $(`#${tableId}Table`);
+        const table = $(`#${tableId}`);
         if (table.length) {
             table.DataTable({
                 processing: true,
@@ -635,6 +821,34 @@ $(document).ready(function() {
                 ...tableConfigs[tableId]
             });
         }
+    });
+
+    // Handle toggle visibility buttons
+    $('.toggle-visibility-btn').on('click', function(e) {
+        e.preventDefault();
+        
+        const btn = $(this);
+        const submissionId = btn.data('submission-id');
+        const toggleType = btn.data('toggle-type');
+        
+        $.ajax({
+            url: `/review/submission/${submissionId}/toggle-visibility/`,
+            method: 'POST',
+            data: {
+                toggle_type: toggleType,
+                csrfmiddlewaretoken: $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                if (response.visible) {
+                    btn.removeClass('btn-secondary').addClass('btn-success');
+                } else {
+                    btn.removeClass('btn-success').addClass('btn-secondary');
+                }
+            },
+            error: function(xhr) {
+                alert('Error toggling visibility');
+            }
+        });
     });
 });
 </script>
