@@ -23,10 +23,10 @@
 <div class="container">
     <h2 class="mb-4">RC Dashboard</h2>
     
-    <!-- RC Review Queue -->
+    <!-- Submissions Needing Review -->
     <div class="card mb-4">
         <div class="card-header">
-            <h3 class="card-title mb-0">RC Review Queue</h3>
+            <h3 class="card-title mb-0">Submissions Needing Review</h3>
         </div>
         <div class="card-body">
             {% if rc_submissions %}
@@ -36,6 +36,7 @@
                             <tr>
                                 <th>Title</th>
                                 <th>Submission Date</th>
+                                <th>Days Since Submission</th>
                                 <th>Primary Investigator</th>
                                 <th>Study Type</th>
                                 <th>Status</th>
@@ -47,12 +48,13 @@
                             <tr>
                                 <td>{{ submission.title }}</td>
                                 <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
+                                <td>{{ submission.date_submitted|timesince_in_days }}</td>
                                 <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
                                 <td>{{ submission.study_type }}</td>
                                 <td>{{ submission.get_status_display }}</td>
                                 <td>
-                                    <a href="{% url 'review:review_summary' submission.pk %}" 
-                                       class="btn btn-success btn-sm">View Details</a>
+                                    <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -60,7 +62,7 @@
                     </table>
                 </div>
             {% else %}
-                <p class="mb-0">No submissions requiring RC review.</p>
+                <p class="mb-0">No submissions currently need review.</p>
             {% endif %}
         </div>
     </div>

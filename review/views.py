@@ -876,23 +876,55 @@ class UpdateSubmissionStatusView(LoginRequiredMixin, UserPassesTestMixin, View):
 
 @login_required
 def irb_dashboard(request):
-    if not request.user.is_irb_member:
-        return redirect('review:dashboard')
+    if not request.user.groups.filter(name='IRB').exists():
+        return redirect('review:review_dashboard')
+    
     context = {
-        'irb_submissions': get_irb_submissions(),
-        'pending_irb_decisions': get_pending_irb_decisions(),
-        'irb_reviews': get_irb_reviews(request.user),
+        'irb_submissions': Submission.objects.filter(
+            status='submitted'
+        ).select_related(
+            'primary_investigator__userprofile'
+        ),
+        'pending_irb_decisions': Submission.objects.filter(
+            status='pending_irb_decision'
+        ).select_related(
+            'primary_investigator__userprofile'
+        ),
+        'irb_reviews': ReviewRequest.objects.filter(
+            Q(requested_to__groups__name='IRB') | Q(requested_by__groups__name='IRB'),
+            Q(requested_to=request.user) | Q(requested_by=request.user)
+        ).select_related(
+            'submission__primary_investigator__userprofile',
+            'requested_by',
+            'requested_to'
+        ).distinct(),
     }
     return render(request, 'review/irb_dashboard.html', context)
 
 @login_required
 def rc_dashboard(request):
-    if not request.user.is_rc_member:
-        return redirect('review:dashboard')
+    if not request.user.groups.filter(name='RC').exists():
+        return redirect('review:review_dashboard')
+    
     context = {
-        'rc_submissions': get_rc_submissions(),
-        'department_submissions': get_department_submissions(request.user),
-        'rc_reviews': get_rc_reviews(request.user),
+        'rc_submissions': Submission.objects.filter(
+            status='submitted'
+        ).select_related(
+            'primary_investigator__userprofile'
+        ),
+        'department_submissions': Submission.objects.filter(
+            primary_investigator__userprofile__department=request.user.userprofile.department
+        ).select_related(
+            'primary_investigator__userprofile'
+        ),
+        'rc_reviews': ReviewRequest.objects.filter(
+            Q(requested_to__groups__name='RC') | Q(requested_by__groups__name='RC'),
+            Q(requested_to=request.user) | Q(requested_by=request.user)
+        ).select_related(
+            'submission__primary_investigator__userprofile',
+            'requested_by',
+            'requested_to'
+        ).distinct(),
     }
     return render(request, 'review/rc_dashboard.html', context)
 

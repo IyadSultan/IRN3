@@ -23,10 +23,10 @@
 <div class="container">
     <h2 class="mb-4">IRB Dashboard</h2>
     
-    <!-- IRB Review Queue -->
+    <!-- Submissions Needing Review -->
     <div class="card mb-4">
         <div class="card-header">
-            <h3 class="card-title mb-0">IRB Review Queue</h3>
+            <h3 class="card-title mb-0">Submissions Needing Review</h3>
         </div>
         <div class="card-body">
             {% if irb_submissions %}
@@ -36,10 +36,10 @@
                             <tr>
                                 <th>Title</th>
                                 <th>Submission Date</th>
+                                <th>Days Since Submission</th>
                                 <th>Primary Investigator</th>
                                 <th>Study Type</th>
                                 <th>Status</th>
-                                <th>Visibility</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -48,27 +48,15 @@
                             <tr>
                                 <td>{{ submission.title }}</td>
                                 <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
+                                <td>{{ submission.date_submitted|timesince_in_days }}</td>
                                 <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
                                 <td>{{ submission.study_type }}</td>
                                 <td>{{ submission.get_status_display }}</td>
                                 <td>
-                                    <button class="toggle-visibility-btn btn {% if submission.show_in_irb %}btn-success{% else %}btn-secondary{% endif %}"
-                                            data-submission-id="{{ submission.id }}"
-                                            data-toggle-type="irb">
-                                        Toggle IRB
-                                    </button>
-                                    <button class="toggle-visibility-btn btn {% if submission.show_in_rc %}btn-success{% else %}btn-secondary{% endif %}"
-                                            data-submission-id="{{ submission.id }}"
-                                            data-toggle-type="rc">
-                                        Toggle RC
-                                    </button>
-                                </td>
-                                <td>
-                                    <a href="{% url 'review:review_summary' submission.pk %}" 
-                                       class="btn btn-success btn-sm">View Details</a>
-                                    {% if submission.status == 'under_review' %}
-                                        <a href="{% url 'review:process_decision' submission.pk %}" 
-                                           class="btn btn-primary btn-sm">Make Decision</a>
+                                    <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
+                                    {% if not submission.irb_number %}
+                                        <a href="{% url 'review:assign_irb' submission.pk %}" class="btn btn-info btn-sm">Assign IRB</a>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -77,7 +65,7 @@
                     </table>
                 </div>
             {% else %}
-                <p class="mb-0">No submissions requiring IRB review.</p>
+                <p class="mb-0">No submissions currently need review.</p>
             {% endif %}
         </div>
     </div>
