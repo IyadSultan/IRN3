@@ -59,7 +59,7 @@ class TestPDFGenerator(TestCase):
             temporary_id=12345,
             title='Test Submission',
             study_type=self.study_type,
-            irb_number='IRB123',
+            khcc_number='IRB123',
             status='draft',
             primary_investigator=self.pi_user,
             date_created=timezone.now(),

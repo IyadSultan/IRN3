@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Assign IRB Number</h2>
+    <h2>Assign KHCC #</h2>
     <div class="card">
         <div class="card-body">
             <h5 class="card-title">{{ submission.title }}</h5>
@@ -11,18 +11,18 @@
             <form method="post">
                 {% csrf_token %}
                 <div class="mb-3">
-                    <label for="irb_number" class="form-label">IRB Number</label>
+                    <label for="khcc_number" class="form-label">KHCC #</label>
                     <input type="text" 
                            class="form-control" 
-                           id="irb_number" 
-                           name="irb_number" 
+                           id="khcc_number" 
+                           name="khcc_number" 
                            value="{{ suggested_irb }}"
                            required>
                     <div class="form-text">Suggested format: YYYY-XXX</div>
                 </div>
                 
                 <div class="mt-3">
-                    <button type="submit" class="btn btn-primary">Assign IRB Number</button>
+                    <button type="submit" class="btn btn-primary">Assign KHCC #</button>
                     <a href="{% url 'review:review_summary' submission.temporary_id %}" 
                        class="btn btn-secondary">Cancel</a>
                 </div>

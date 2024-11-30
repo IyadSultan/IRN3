@@ -397,7 +397,7 @@
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>IRB Number</th>
+                    <th>KHCC #</th>
                     <th>Title</th>
                     <th>Primary Investigator</th>
                     <th>Status</th>
@@ -567,7 +567,7 @@ $(document).ready(function() {
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>IRB Number</th>
+                            <th>KHCC #</th>
                             <th>Title</th>
                             <th>Primary Investigator</th>
                             <th>Status</th>
@@ -1604,7 +1604,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6">
-                    <p><strong>IRB Number:</strong> {{ submission.irb_number|default:"N/A" }}</p>
+                    <p><strong>KHCC #:</strong> {{ submission.irb_number|default:"N/A" }}</p>
                     <p><strong>Status:</strong> {{ submission.get_status_display }}</p>
                     <p><strong>Version:</strong> {{ submission.version }}</p>
                     <p><strong>Primary Investigator:</strong> {{ submission.primary_investigator.get_full_name }}</p>
@@ -4546,7 +4546,7 @@ class PDFGenerator:
         basic_info = [
             f"Submission ID: {self.submission.temporary_id}",
             f"Study Type: {self.submission.study_type}",
-            f"IRB Number: {self.submission.irb_number or 'Not provided'}",
+            f"KHCC #: {self.submission.irb_number or 'Not provided'}",
             f"Status: {self.submission.get_status_display()}",
             f"Date Created: {self.submission.date_created.strftime('%Y-%m-%d')}",
             f"Date Submitted: {self.submission.date_submitted.strftime('%Y-%m-%d') if self.submission.date_submitted else 'Not submitted'}",

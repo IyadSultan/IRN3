@@ -55,9 +55,6 @@
                                 <td>
                                     <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
                                     <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
-                                    {% if not submission.irb_number %}
-                                        <a href="{% url 'review:assign_irb' submission.pk %}" class="btn btn-info btn-sm">Assign IRB</a>
-                                    {% endif %}
                                     <a href="{% url 'review:view_notepad' submission.pk 'IRB' %}" class="btn btn-info btn-sm">
                                         <i class="fas fa-sticky-note"></i> Notepad
                                     </a>

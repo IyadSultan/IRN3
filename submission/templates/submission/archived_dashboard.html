@@ -16,7 +16,7 @@
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>IRB Number</th>
+                    <th>KHCC #</th>
                     <th>Title</th>
                     <th>Primary Investigator</th>
                     <th>Status</th>
@@ -29,7 +29,7 @@
                 {% for submission in submissions %}
                 <tr>
                     <td>{{ submission.temporary_id }}</td>
-                    <td>{{ submission.irb_number|default:"N/A" }}</td>
+                    <td>{{ submission.khcc_number|default:"N/A" }}</td>
                     <td>{{ submission.title }}</td>
                     <td>{{ submission.primary_investigator.get_full_name }}</td>
                     <td>{{ submission.get_status_display }}</td>

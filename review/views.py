@@ -657,7 +657,7 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
             'can_make_decision': user.groups.filter(name='IRB Coordinator').exists(),
             'can_download_pdf': True,  # Can be modified based on specific requirements
             'can_assign_irb': (user.groups.filter(name='IRB').exists() and 
-                             not self.submission.irb_number),
+                             not self.submission.khcc_number),
             'is_osar': user.groups.filter(name='OSAR').exists(),
             'is_rc': user.groups.filter(name='RC').exists(),
             'is_irb': user.groups.filter(name='IRB').exists(),
@@ -839,21 +839,21 @@ class UserAutocompleteView(View):
 
 
 ######################
-# Assign IRB Number
-# URL: path('submission/<int:submission_id>/assign-irb/', AssignIRBNumberView.as_view(), name='assign_irb'),
+# Assign KHCC #
+# URL: path('submission/<int:submission_id>/assign-irb/', AssignKHCCNumberView.as_view(), name='assign_irb'),
 ######################
 
-class AssignIRBNumberView(LoginRequiredMixin, View):
-    template_name = 'review/assign_irb_number.html'
+class AssignKHCCNumberView(LoginRequiredMixin, View):
+    template_name = 'review/assign_khcc_number.html'
 
     def dispatch(self, request, *args, **kwargs):
-        if not request.user.groups.filter(name='IRB').exists():
-            messages.error(request, "You don't have permission to assign IRB numbers.")
+        if not request.user.groups.filter(name='OSAR').exists():
+            messages.error(request, "You don't have permission to assign KHCC #s.")
             return redirect('review:review_dashboard')
         
         self.submission = get_object_or_404(Submission, pk=kwargs['submission_id'])
-        if self.submission.irb_number:
-            messages.warning(request, "This submission already has an IRB number.")
+        if self.submission.khcc_number:
+            messages.warning(request, "This submission already has a KHCC #.")
             return redirect('review:review_summary', submission_id=self.submission.id)
             
         return super().dispatch(request, *args, **kwargs)
@@ -861,25 +861,25 @@ class AssignIRBNumberView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         context = {
             'submission': self.submission,
-            'suggested_irb': self._generate_irb_number()
+            'suggested_irb': self._generate_khcc_number()
         }
         return render(request, self.template_name, context)
 
     def post(self, request, *args, **kwargs):
-        irb_number = request.POST.get('irb_number', '').strip()
+        khcc_number = request.POST.get('khcc_number', '').strip()
         
-        if not irb_number:
-            messages.error(request, "IRB number is required.")
+        if not khcc_number:
+            messages.error(request, "KHCC # is required.")
             return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
 
         # Check uniqueness
-        if Submission.objects.filter(irb_number=irb_number).exists():
-            messages.error(request, "This IRB number is already in use. Please try another.")
+        if Submission.objects.filter(khcc_number=khcc_number).exists():
+            messages.error(request, "This KHCC # is already in use. Please try another.")
             return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
 
         try:
             with transaction.atomic():
-                self.submission.irb_number = irb_number
+                self.submission.khcc_number = khcc_number
                 self.submission.save()
 
                 # Get all users who need to be notified
@@ -902,8 +902,8 @@ class AssignIRBNumberView(LoginRequiredMixin, View):
                 # Send notification to each user
                 system_user = get_system_user()
                 message_content = f"""
-                An IRB number has been assigned to the submission "{self.submission.title}".
-                IRB Number: {irb_number}
+                An KHCC # has been assigned to the submission "{self.submission.title}".
+                KHCC #: {khcc_number}
                 """
 
                 for user in users_to_notify:
@@ -916,7 +916,7 @@ class AssignIRBNumberView(LoginRequiredMixin, View):
                         message = Message.objects.create(
                             sender=system_user,
                             body=message_content,
-                            subject=f"IRB Number Assigned - {self.submission.title}",
+                            subject=f"KHCC # Assigned - {self.submission.title}",
                             related_submission=self.submission
                         )
                         message.recipients.set([user])  # Use set() method for many-to-many relationship
@@ -926,25 +926,25 @@ class AssignIRBNumberView(LoginRequiredMixin, View):
                         print(f"Debug - Error type: {type(e)}")
                         raise  # Re-raise the exception to trigger the outer error handling
 
-                messages.success(request, f"IRB number {irb_number} has been assigned successfully.")
+                messages.success(request, f"KHCC # {khcc_number} has been assigned successfully.")
                 return redirect('review:review_summary', submission_id=self.submission.temporary_id)
 
         except Exception as e:
-            messages.error(request, f"Error assigning IRB number: {str(e)}")
+            messages.error(request, f"Error assigning KHCC #: {str(e)}")
             return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
 
-    def _generate_irb_number(self):
-        """Generate a suggested IRB number format: YYYY-XXX"""
+    def _generate_khcc_number(self):
+        """Generate a suggested KHCC # format: YYYY-XXX"""
         year = timezone.now().year
         
         # Get the highest number for this year
         latest_irb = Submission.objects.filter(
-            irb_number__startswith=f"{year}-"
-        ).order_by('-irb_number').first()
+            khcc_number__startswith=f"{year}-"
+        ).order_by('-khcc_number').first()
 
-        if latest_irb and latest_irb.irb_number:
+        if latest_irb and latest_irb.khcc_number:
             try:
-                number = int(latest_irb.irb_number.split('-')[1]) + 1
+                number = int(latest_irb.khcc_number.split('-')[1]) + 1
             except (IndexError, ValueError):
                 number = 1
         else:

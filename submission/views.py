@@ -1049,14 +1049,14 @@ def submission_autocomplete(request):
         Q(coinvestigators__user=user) |
         Q(research_assistants__user=user),
         Q(title__icontains=term) |
-        Q(irb_number__icontains=term)
+        Q(khcc_number__icontains=term)
     ).distinct()[:10]
 
     results = []
     for submission in submissions:
         label = f"{submission.title}"
-        if submission.irb_number:
-            label += f" (IRB: {submission.irb_number})"
+        if submission.khcc_number:
+            label += f" (IRB: {submission.khcc_number})"
         results.append({
             'id': submission.temporary_id,
             'text': label

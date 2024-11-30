@@ -14,7 +14,7 @@ from .views import (
     ProcessIRBDecisionView,
     SubmissionVersionsView,
     download_review_pdf,
-    AssignIRBNumberView,
+    AssignKHCCNumberView,
     osar_dashboard,
     irb_dashboard,
     rc_dashboard,
@@ -47,7 +47,7 @@ urlpatterns = [
     path('user-autocomplete/', user_autocomplete, name='user-autocomplete'),
     path('submission/<int:submission_id>/versions/', SubmissionVersionsView.as_view(), name='submission_versions'),
     path('review/<int:review_request_id>/pdf/', download_review_pdf, name='download_review_pdf'),
-    path('submission/<int:submission_id>/assign-irb/', AssignIRBNumberView.as_view(), name='assign_irb'),
+    path('submission/<int:submission_id>/assign-irb/', AssignKHCCNumberView.as_view(), name='assign_irb'),
 
 
     path('irb-dashboard/', irb_dashboard, name='irb_dashboard'),

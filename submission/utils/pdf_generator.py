@@ -109,7 +109,7 @@ class PDFGenerator:
         basic_info = [
             f"Submission ID: {self.submission.temporary_id}",
             f"Study Type: {self.submission.study_type}",
-            f"IRB Number: {self.submission.irb_number or 'Not provided'}",
+            f"KHCC #: {self.submission.khcc_number or 'Not provided'}",
             f"Status: {self.submission.get_status_display()}",
             f"Date Created: {self.submission.date_created.strftime('%Y-%m-%d')}",
             f"Date Submitted: {self.submission.date_submitted.strftime('%Y-%m-%d') if self.submission.date_submitted else 'Not submitted'}",

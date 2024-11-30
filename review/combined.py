@@ -155,7 +155,7 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Assign IRB Number</h2>
+    <h2>Assign KHCC #</h2>
     <div class="card">
         <div class="card-body">
             <h5 class="card-title">{{ submission.title }}</h5>
@@ -164,7 +164,7 @@
             <form method="post">
                 {% csrf_token %}
                 <div class="mb-3">
-                    <label for="irb_number" class="form-label">IRB Number</label>
+                    <label for="irb_number" class="form-label">KHCC #</label>
                     <input type="text" 
                            class="form-control" 
                            id="irb_number" 
@@ -175,7 +175,7 @@
                 </div>
                 
                 <div class="mt-3">
-                    <button type="submit" class="btn btn-primary">Assign IRB Number</button>
+                    <button type="submit" class="btn btn-primary">Assign KHCC #</button>
                     <a href="{% url 'review:review_summary' submission.temporary_id %}" 
                        class="btn btn-secondary">Cancel</a>
                 </div>
@@ -1824,7 +1824,7 @@ $(document).ready(function() {
             <span class="field-label">Study Type:</span> {{ review.review_request.submission.study_type }}
         </div>
         <div class="field">
-            <span class="field-label">IRB Number:</span> {{ review.review_request.submission.irb_number|default:"Not provided" }}
+            <span class="field-label">KHCC #:</span> {{ review.review_request.submission.irb_number|default:"Not provided" }}
         </div>
     </div>
 
@@ -4263,7 +4263,7 @@ from .views import (
     ProcessIRBDecisionView,
     SubmissionVersionsView,
     download_review_pdf,
-    AssignIRBNumberView,
+    AssignKHCCNumberView,
     osar_dashboard,
     irb_dashboard,
     rc_dashboard,
@@ -4296,7 +4296,7 @@ urlpatterns = [
     path('user-autocomplete/', user_autocomplete, name='user-autocomplete'),
     path('submission/<int:submission_id>/versions/', SubmissionVersionsView.as_view(), name='submission_versions'),
     path('review/<int:review_request_id>/pdf/', download_review_pdf, name='download_review_pdf'),
-    path('submission/<int:submission_id>/assign-irb/', AssignIRBNumberView.as_view(), name='assign_irb'),
+    path('submission/<int:submission_id>/assign-irb/', AssignKHCCNumberView.as_view(), name='assign_irb'),
 
 
     path('irb-dashboard/', irb_dashboard, name='irb_dashboard'),
@@ -5551,21 +5551,21 @@ class UserAutocompleteView(View):
 
 
 ######################
-# Assign IRB Number
-# URL: path('submission/<int:submission_id>/assign-irb/', AssignIRBNumberView.as_view(), name='assign_irb'),
+# Assign KHCC #
+# URL: path('submission/<int:submission_id>/assign-irb/', AssignKHCCNumberView.as_view(), name='assign_irb'),
 ######################
 
-class AssignIRBNumberView(LoginRequiredMixin, View):
+class AssignKHCCNumberView(LoginRequiredMixin, View):
     template_name = 'review/assign_irb_number.html'
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.groups.filter(name='IRB').exists():
-            messages.error(request, "You don't have permission to assign IRB numbers.")
+            messages.error(request, "You don't have permission to assign KHCC #s.")
             return redirect('review:review_dashboard')
         
         self.submission = get_object_or_404(Submission, pk=kwargs['submission_id'])
         if self.submission.irb_number:
-            messages.warning(request, "This submission already has an IRB number.")
+            messages.warning(request, "This submission already has an KHCC #.")
             return redirect('review:review_summary', submission_id=self.submission.id)
             
         return super().dispatch(request, *args, **kwargs)
@@ -5581,12 +5581,12 @@ class AssignIRBNumberView(LoginRequiredMixin, View):
         irb_number = request.POST.get('irb_number', '').strip()
         
         if not irb_number:
-            messages.error(request, "IRB number is required.")
+            messages.error(request, "KHCC # is required.")
             return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
 
         # Check uniqueness
         if Submission.objects.filter(irb_number=irb_number).exists():
-            messages.error(request, "This IRB number is already in use. Please try another.")
+            messages.error(request, "This KHCC # is already in use. Please try another.")
             return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
 
         try:
@@ -5614,8 +5614,8 @@ class AssignIRBNumberView(LoginRequiredMixin, View):
                 # Send notification to each user
                 system_user = get_system_user()
                 message_content = f"""
-                An IRB number has been assigned to the submission "{self.submission.title}".
-                IRB Number: {irb_number}
+                An KHCC # has been assigned to the submission "{self.submission.title}".
+                KHCC #: {irb_number}
                 """
 
                 for user in users_to_notify:
@@ -5628,7 +5628,7 @@ class AssignIRBNumberView(LoginRequiredMixin, View):
                         message = Message.objects.create(
                             sender=system_user,
                             body=message_content,
-                            subject=f"IRB Number Assigned - {self.submission.title}",
+                            subject=f"KHCC # Assigned - {self.submission.title}",
                             related_submission=self.submission
                         )
                         message.recipients.set([user])  # Use set() method for many-to-many relationship
@@ -5638,15 +5638,15 @@ class AssignIRBNumberView(LoginRequiredMixin, View):
                         print(f"Debug - Error type: {type(e)}")
                         raise  # Re-raise the exception to trigger the outer error handling
 
-                messages.success(request, f"IRB number {irb_number} has been assigned successfully.")
+                messages.success(request, f"KHCC # {irb_number} has been assigned successfully.")
                 return redirect('review:review_summary', submission_id=self.submission.temporary_id)
 
         except Exception as e:
-            messages.error(request, f"Error assigning IRB number: {str(e)}")
+            messages.error(request, f"Error assigning KHCC #: {str(e)}")
             return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
 
     def _generate_irb_number(self):
-        """Generate a suggested IRB number format: YYYY-XXX"""
+        """Generate a suggested KHCC # format: YYYY-XXX"""
         year = timezone.now().year
         
         # Get the highest number for this year

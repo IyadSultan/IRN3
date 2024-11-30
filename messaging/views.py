@@ -497,14 +497,14 @@ def submission_autocomplete(request):
     
     submissions = Submission.objects.filter(
         Q(title__icontains=term) |
-        Q(irb_number__icontains=term)
+        Q(khcc_number__icontains=term)
     ).distinct()[:10]
     
     results = {
         'results': [
             {
                 'id': str(submission.pk),  # Use pk instead of id and convert to string
-                'text': f"{submission.title} (IRB: {submission.irb_number})" if submission.irb_number else submission.title
+                'text': f"{submission.title} (IRB: {submission.khcc_number})" if submission.khcc_number else submission.title
             } for submission in submissions
         ]
     }

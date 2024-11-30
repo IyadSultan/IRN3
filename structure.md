@@ -116,7 +116,7 @@ STATUS_CHOICES = [
 
 class Submission(models.Model):
     temporary_id = models.AutoField(primary_key=True)
-    irb_number = models.CharField(max_length=20, blank=True, null=True)
+    khcc_number = models.CharField(max_length=20, blank=True, null=True)
     title = models.CharField(max_length=255)
     primary_investigator = models.ForeignKey(
         User, related_name='primary_investigations', on_delete=models.CASCADE

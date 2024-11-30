@@ -17,11 +17,11 @@ from .models import PermissionChangeLog
 
 @admin.register(Submission)
 class SubmissionAdmin(admin.ModelAdmin):
-    list_display = ('temporary_id', 'title', 'primary_investigator', 'irb_number', 'status', 'date_created', 'is_locked')
-    search_fields = ('title', 'primary_investigator__username', 'irb_number')
+    list_display = ('temporary_id', 'title', 'primary_investigator', 'khcc_number', 'status', 'date_created', 'is_locked')
+    search_fields = ('title', 'primary_investigator__username', 'khcc_number')
     list_filter = ('status', 'study_type', 'is_locked')
     ordering = ('-date_created',)
-    fields = ('title', 'study_type', 'primary_investigator', 'irb_number', 'status', 'date_created', 'last_modified', 'is_locked')
+    fields = ('title', 'study_type', 'primary_investigator', 'khcc_number', 'status', 'date_created', 'last_modified', 'is_locked')
     readonly_fields = ('date_created', 'last_modified')
 
 @admin.register(CoInvestigator)

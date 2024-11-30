@@ -118,6 +118,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <th>Primary Investigator</th>
                                 <th>Study Type</th>
                                 <th>Status</th>
+                                <th>KHCC #</th>
                                 <th>Visibility</th>
                                 <th>Actions</th>
                             </tr>
@@ -130,6 +131,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
                                 <td>{{ submission.study_type }}</td>
                                 <td>{{ submission.get_status_display }}</td>
+                                <td>{{ submission.khcc_number|default:"-" }}</td>
                                 <td>
                                     <div id="toggle-container-{{ submission.temporary_id }}" class="visibility-toggles"></div>
                                     <script type="text/babel">
@@ -149,6 +151,9 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <td>
                                     <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
                                     <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
+                                    {% if not submission.khcc_number %}
+                                        <a href="{% url 'review:assign_irb' submission.pk %}" class="btn btn-info btn-sm">Assign KHCC #</a>
+                                    {% endif %}
                                     <a href="{% url 'review:view_notepad' submission.pk 'OSAR' %}" class="btn btn-info btn-sm">
                                         <i class="fas fa-sticky-note"></i> Notepad
                                     </a>

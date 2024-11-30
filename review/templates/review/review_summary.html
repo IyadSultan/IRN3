@@ -13,8 +13,8 @@
             <p><strong>Primary Investigator:</strong> {{ submission.primary_investigator.userprofile.full_name }}</p>
             <p><strong>Study Type:</strong> {{ submission.study_type }}</p>
             <p><strong>Submission Date:</strong> {{ submission.date_submitted|date:"F d, Y" }}</p>
-            {% if submission.irb_number %}
-                <p><strong>IRB Number:</strong> {{ submission.irb_number }}</p>
+            {% if submission.khcc_number %}
+                <p><strong>KHCC #:</strong> {{ submission.khcc_number }}</p>
             {% endif %}
             <p><strong>Days Since Submission:</strong> {{ stats.days_since_submission }}</p>
         </div>

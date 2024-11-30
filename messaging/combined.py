@@ -345,7 +345,7 @@ $(document).ready(function() {
 
                         {# Related Study Field #}
                         {{ form.related_submission|as_crispy_field }}
-                        <small class="text-muted d-block mt-1 mb-3">Search by study title or IRB number</small>
+                        <small class="text-muted d-block mt-1 mb-3">Search by study title or KHCC #</small>
 
                         {# Message Body #}
                         {{ form.body|as_crispy_field }}
