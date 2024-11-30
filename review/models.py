@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from submission.models import Submission, get_status_choices
+from submission.models import Submission
 from forms_builder.models import DynamicForm
 from datetime import datetime
 from django.core.cache import cache

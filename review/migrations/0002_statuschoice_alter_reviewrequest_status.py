@@ -3,6 +3,15 @@
 import submission.models
 from django.db import migrations, models
 
+# Define the review status choices directly in the migration
+REVIEW_STATUS_CHOICES = [
+    ('pending', 'Pending'),
+    ('declined', 'Declined'),
+    ('completed', 'Completed'),
+    ('overdue', 'Overdue'),
+    ('extended', 'Extended'),
+    ('request_withdrawn', 'Request Withdrawn'),
+]
 
 class Migration(migrations.Migration):
 
@@ -38,9 +47,9 @@ class Migration(migrations.Migration):
             model_name="reviewrequest",
             name="status",
             field=models.CharField(
-                choices=submission.models.get_status_choices,
-                default="pending",
+                choices=REVIEW_STATUS_CHOICES,
                 max_length=50,
+                default='pending'
             ),
         ),
     ]

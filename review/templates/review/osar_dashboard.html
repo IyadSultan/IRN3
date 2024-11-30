@@ -29,6 +29,18 @@
     .visibility-toggles {
         padding: 0.5rem;
     }
+
+    /* Filter section styles */
+    .filter-section {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 0.25rem;
+    }
+    
+    .filter-section select {
+        min-width: 200px;
+    }
 </style>
 {% endblock %}
 
@@ -102,11 +114,27 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
 <div class="container">
     <h2 class="mb-4">OSAR Dashboard</h2>
     
-    <!-- Submissions Needing Review -->
+    <!-- Submissions Section -->
     <div class="card mb-4">
         <div class="card-header">
-            <h3 class="card-title mb-0">Submissions Needing Review</h3>
+            <h3 class="card-title mb-0">Submissions</h3>
         </div>
+        
+        <!-- Add Filter Section -->
+        <div class="filter-section">
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <label for="statusFilter" class="form-label">Filter by Status:</label>
+                    <select id="statusFilter" class="form-select">
+                        <option value="">All Statuses</option>
+                        {% for status, label in submission_status_choices %}
+                            <option value="{{ status }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <div class="card-body">
             {% if osar_submissions %}
                 <div class="table-responsive">
@@ -164,7 +192,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                     </table>
                 </div>
             {% else %}
-                <p class="mb-0">No submissions currently need review.</p>
+                <p class="mb-0">No submissions found.</p>
             {% endif %}
         </div>
     </div>
@@ -222,14 +250,37 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
 <script src="https://cdn.datatables.net/buttons/2.2.3/js/buttons.bootstrap4.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Initialize DataTables
-    $('#osarSubmissionsTable').DataTable({
+    // Initialize DataTables with all features
+    var submissionsTable = $('#osarSubmissionsTable').DataTable({
         order: [[1, 'desc']],
-        pageLength: 10
+        pageLength: 10,
+        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
+        dom: 'Blfrtip',
+        buttons: ['copy', 'excel', 'pdf']
     });
+
+    // Add custom status filter functionality
+    $('#statusFilter').on('change', function() {
+        var selectedStatus = $(this).val();
+        
+        // Clear existing filter
+        submissionsTable.column(4).search('').draw();
+        
+        // Apply new filter if a status is selected
+        if (selectedStatus) {
+            // Create a regex that matches the status text case-insensitively
+            var searchRegex = selectedStatus.replace(/_/g, ' ');
+            submissionsTable.column(4).search(searchRegex, true, false).draw();
+        }
+    });
+
+    // Initialize OSAR reviews table
     $('#osarReviewsTable').DataTable({
         order: [[1, 'desc']],
-        pageLength: 10
+        pageLength: 10,
+        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
+        dom: 'Blfrtip',
+        buttons: ['copy', 'excel', 'pdf']
     });
 });
 </script>

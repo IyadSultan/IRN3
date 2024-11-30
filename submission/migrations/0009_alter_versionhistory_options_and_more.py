@@ -2,6 +2,7 @@
 
 import submission.models
 from django.db import migrations, models
+from iRN.constants import get_submission_status_choices
 
 
 class Migration(migrations.Migration):
@@ -28,7 +29,7 @@ class Migration(migrations.Migration):
             model_name="versionhistory",
             name="status",
             field=models.CharField(
-                choices=submission.models.get_status_choices, max_length=50
+                choices=get_submission_status_choices, max_length=50
             ),
         ),
         migrations.AlterField(

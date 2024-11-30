@@ -40,6 +40,7 @@ from .utils.notifications import (
     send_irb_decision_notification
 )
 from .utils.pdf_generator import generate_review_pdf
+from iRN.constants import SUBMISSION_STATUS_CHOICES
 
 
 
@@ -217,6 +218,11 @@ class CreateReviewRequestView(LoginRequiredMixin, PermissionRequiredMixin, Creat
                 self.object.submission_version = self.submission.version
                 self.object.save()
                 form.save_m2m()
+
+                # Update submission status to 'under_review'
+                if self.submission.status == 'submitted':
+                    self.submission.status = 'under_review'
+                    self.submission.save(update_fields=['status'])
 
                 # Generate the absolute URL for the review
                 review_url = self.request.build_absolute_uri(
@@ -1093,11 +1099,11 @@ def rc_dashboard(request):
 def osar_dashboard(request):
     if not request.user.groups.filter(name='OSAR').exists():
         return redirect('review:review_dashboard')
+    
     context = {
-        'osar_submissions': Submission.objects.filter(
-            status='submitted'
-        ).select_related(
-            'primary_investigator__userprofile'
+        'osar_submissions': Submission.objects.all().select_related(
+            'primary_investigator__userprofile',
+            'study_type'
         ),
         'osar_reviews': ReviewRequest.objects.filter(
             Q(requested_to__groups__name='OSAR') | Q(requested_by__groups__name='OSAR'),
@@ -1107,6 +1113,7 @@ def osar_dashboard(request):
             'requested_by',
             'requested_to'
         ).distinct(),
+        'submission_status_choices': SUBMISSION_STATUS_CHOICES,
     }
     return render(request, 'review/osar_dashboard.html', context)
 

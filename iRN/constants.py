@@ -1,5 +1,6 @@
 from django.core.cache import cache
 from django.apps import apps
+from django.db import OperationalError
 
 def get_status_choices():
     """Get status choices for review requests."""
@@ -53,3 +54,28 @@ COINVESTIGATOR_ROLES = [
     ('CONSULTANT', 'Consultant'),
     ('OTHER', 'Other'),
 ]
+
+SUBMISSION_STATUS_CHOICES = [
+    ('draft', 'Draft'),
+    ('submitted', 'Submitted'),
+    ('under_review', 'Under Review'),
+    ('rejected', 'Rejected'),
+    ('accepted', 'Accepted'),
+    ('revision_requested', 'Revision Requested'),
+    ('closed', 'Closed'),
+]
+
+def get_submission_status_choices():
+    """Get status choices for submissions."""
+    DEFAULT_CHOICES = SUBMISSION_STATUS_CHOICES
+    
+    try:
+        choices = cache.get('submission_status_choices')
+        if not choices:
+            StatusChoice = apps.get_model('submission', 'StatusChoice')
+            choices = list(StatusChoice.objects.filter(is_active=True).values_list('code', 'label'))
+            if choices:
+                cache.set('submission_status_choices', choices)
+        return choices or DEFAULT_CHOICES
+    except (OperationalError, LookupError):
+        return DEFAULT_CHOICES

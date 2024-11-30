@@ -7,25 +7,7 @@ from django.utils import timezone
 from django.core.cache import cache
 from django.db.utils import OperationalError
 from django.apps import apps
-
-def get_status_choices():
-    DEFAULT_CHOICES = [
-        ('draft', 'Draft'),
-        ('submitted', 'Submitted'),
-        
-        
-    ]
-    
-    try:
-        choices = cache.get('status_choices')
-        if not choices:
-            StatusChoice = apps.get_model('submission', 'StatusChoice')
-            choices = list(StatusChoice.objects.filter(is_active=True).values_list('code', 'label'))
-            if choices:
-                cache.set('status_choices', choices)
-        return choices or DEFAULT_CHOICES
-    except (OperationalError, LookupError):
-        return DEFAULT_CHOICES
+from iRN.constants import get_submission_status_choices
 
 class StatusChoice(models.Model):
     code = models.CharField(max_length=50, unique=True)
@@ -55,7 +37,7 @@ class Submission(models.Model):
     study_type = models.ForeignKey(StudyType, on_delete=models.SET_NULL, null=True)
     status = models.CharField(
         max_length=50,
-        choices=get_status_choices,
+        choices=get_submission_status_choices,
         default='draft'
     )
     date_created = models.DateTimeField(auto_now_add=True)
@@ -492,7 +474,7 @@ class VersionHistory(models.Model):
     version = models.PositiveIntegerField()
     status = models.CharField(
         max_length=50,
-        choices=get_status_choices
+        choices=get_submission_status_choices
     )
     date = models.DateTimeField()
 
