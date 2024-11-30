@@ -1,19 +1,33 @@
-{# review/templates/review/review_summary.html #}
 {% extends 'base.html' %}
-
-{% block title %}Review Summary - {{ submission.title }}{% endblock %}
 
 {% block content %}
 <div class="container">
     <h2>Review Summary for {{ submission.title }}</h2>
     
-    {% if review_requests %}
-        <div class="card">
+    <!-- Basic Submission Info -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>Submission Details</h3>
+        </div>
+        <div class="card-body">
+            <p><strong>Primary Investigator:</strong> {{ submission.primary_investigator.userprofile.full_name }}</p>
+            <p><strong>Study Type:</strong> {{ submission.study_type }}</p>
+            <p><strong>Submission Date:</strong> {{ submission.date_submitted|date:"F d, Y" }}</p>
+            {% if submission.irb_number %}
+                <p><strong>IRB Number:</strong> {{ submission.irb_number }}</p>
+            {% endif %}
+            <p><strong>Days Since Submission:</strong> {{ stats.days_since_submission }}</p>
+        </div>
+    </div>
+
+    <!-- Review Requests Section -->
+    {% if has_reviews %}
+        <div class="card mb-4">
             <div class="card-header">
                 <h3>Review Requests and Submissions</h3>
             </div>
             <div class="card-body">
-                <table class="table" id="reviewSummaryTable">
+                <table class="table">
                     <thead>
                         <tr>
                             <th>Reviewer</th>
@@ -25,125 +39,79 @@
                     </thead>
                     <tbody>
                         {% for request in review_requests %}
-                        <tr>
-                            <td>{{ request.requested_to.userprofile.full_name }}</td>
-                            <td>{{ request.requested_by.userprofile.full_name }}</td>
-                            <td>{{ request.status }}</td>
-                            <td>
-                                {% if request.review_set.first %}
-                                    {{ request.review_set.first.date_submitted }}
-                                {% else %}
-                                    Not submitted
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if request.review_set.first %}
-                                    <a href="{% url 'review:view_review' review_request_id=request.id %}" 
-                                       class="btn btn-info btn-sm">View Review</a>
-                                    <a href="{% url 'review:download_review_pdf' review_request_id=request.id %}" 
-                                       class="btn btn-primary btn-sm">
-                                        <i class="fas fa-file-pdf"></i> PDF
-                                    </a>
-                                {% else %}
-                                    <span class="text-muted">Review pending</span>
-                                {% endif %}
-                            </td>
-                        </tr>
+                            <!-- Review request rows -->
+                            <tr>
+                                <td>{{ request.requested_to.userprofile.full_name }}</td>
+                                <td>{{ request.requested_by.userprofile.full_name }}</td>
+                                <td>{{ request.status }}</td>
+                                <td>
+                                    {% if request.review_set.first %}
+                                        {{ request.review_set.first.date_submitted|date }}
+                                    {% else %}
+                                        Not submitted
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <!-- Action buttons -->
+                                    {% if request.review_set.first %}
+                                        <a href="{% url 'review:view_review' review_request_id=request.id %}" 
+                                           class="btn btn-info btn-sm">View Review</a>
+                                    {% else %}
+                                        <span class="text-muted">Review pending</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
+    {% else %}
+        <div class="alert alert-info">
+            No review requests have been created yet.
+            {% if can_create_review %}
+                <a href="{% url 'review:create_review_request' submission.pk %}" 
+                   class="btn btn-primary btn-sm ml-2">Create Review Request</a>
+            {% endif %}
+        </div>
+    {% endif %}
 
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3>Submission Versions</h3>
-            </div>
-            <div class="card-body">
-                <table class="table" id="submissionVersionTable">
-                    <thead>
-                        <tr>
-                            <th>Version</th>
-                            <th>Submission Date</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for version in version_histories %}
+    <!-- Submission Versions Section -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h3>Submission Versions</h3>
+        </div>
+        <div class="card-body">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Version</th>
+                        <th>Submission Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for version in version_histories %}
                         <tr>
                             <td>{{ version.version }}</td>
-                            <td>{{ version.date }}</td>
+                            <td>{{ version.date|date }}</td>
                             <td>
                                 {% if can_download_pdf %}
-                                    {% url 'submission:download_submission_pdf_version' submission_id=submission.temporary_id version=version.version as pdf_url %}
-                                    {% if pdf_url %}
-                                        <a href="{{ pdf_url }}" class="btn btn-primary btn-sm">
-                                            <i class="fas fa-file-pdf"></i> Download PDF
-                                        </a>
-                                    {% else %}
-                                        <button class="btn btn-secondary btn-sm" disabled>
-                                            <i class="fas fa-file-pdf"></i> PDF Not Available
-                                        </button>
-                                    {% endif %}
-                                {% else %}
-                                    <button class="btn btn-secondary btn-sm" disabled>
-                                        <i class="fas fa-lock"></i> No Permission
-                                    </button>
+                                    <a href="{% url 'submission:download_submission_pdf_version' submission_id=submission.temporary_id version=version.version %}" 
+                                       class="btn btn-primary btn-sm">
+                                        <i class="fas fa-file-pdf"></i> Download PDF
+                                    </a>
                                 {% endif %}
                             </td>
                         </tr>
-                        {% empty %}
+                    {% empty %}
                         <tr>
-                            <td colspan="3" class="text-center">No submission versions available.</td>
+                            <td colspan="3" class="text-center">No version history available.</td>
                         </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-
-        {% if can_make_decision %}
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h3>Make IRB Decision</h3>
-                </div>
-                <div class="card-body">
-                    <form method="post" action="{% url 'review:process_decision' submission.id %}">
-                        {% csrf_token %}
-                        <div class="form-group">
-                            <label for="decision">Decision:</label>
-                            <select name="decision" id="decision" class="form-control" required>
-                                <option value="approved">Approved</option>
-                                <option value="revision_required">Revision Required</option>
-                                <option value="rejected">Rejected</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="comments">Comments:</label>
-                            <textarea name="comments" id="comments" class="form-control" rows="4"></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Submit Decision</button>
-                    </form>
-                </div>
-            </div>
-        {% endif %}
-    {% else %}
-        <p>No review requests have been created yet.</p>
-    {% endif %}
+    </div>
 </div>
-
-{% block page_specific_js %}
-<script>
-$(document).ready(function() {
-    $('#reviewSummaryTable').DataTable({
-        pageLength: 10,
-        order: [[1, 'desc']]
-    });
-    $('#submissionVersionTable').DataTable({
-        pageLength: 10,
-        order: [[1, 'desc']]
-    });
-});
-</script>
-{% endblock %}
 {% endblock %}

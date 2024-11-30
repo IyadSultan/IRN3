@@ -575,56 +575,155 @@ class ViewReviewView(LoginRequiredMixin, TemplateView):
 # URL: path('submission/<int:submission_id>/summary/', ReviewSummaryView.as_view(), name='review_summary'),
 ######################
 
-class ReviewSummaryView(LoginRequiredMixin, TemplateView):
+class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View for displaying a comprehensive summary of a submission's reviews.
+    Handles permissions and provides detailed context for different user roles.
+    """
     template_name = 'review/review_summary.html'
 
-    def dispatch(self, request, *args, **kwargs):
-        self.submission = get_object_or_404(
-            Submission.objects.prefetch_related('version_histories', 'review_requests'),
-            pk=kwargs['submission_id']
-        )
-        if not self.has_permission(request.user, self.submission):
-            messages.error(request, "You don't have permission to view this review summary.")
-            return redirect('review:review_dashboard')
-        return super().dispatch(request, *args, **kwargs)
+    def test_func(self):
+        """
+        Verify if the current user has permission to view this submission's details.
+        Permissions are based on user roles and submission ownership.
+        """
+        submission_id = self.kwargs.get('submission_id')
+        self.submission = get_object_or_404(Submission, pk=submission_id)
+        user = self.request.user
 
-    def has_permission(self, user, submission):
-        # Check if user is primary investigator, requested_by, or requested_to on any review request
-        is_pi = user == submission.primary_investigator
-        is_requested_by = submission.review_requests.filter(requested_by=user).exists()
-        is_requested_to = submission.review_requests.filter(requested_to=user).exists()
-        is_irb_member = user.groups.filter(name='IRB').exists()
+        # OSAR members can view all submissions
+        if user.groups.filter(name='OSAR').exists():
+            return True
+
+        # IRB members can view all submissions
+        if user.groups.filter(name='IRB').exists():
+            return True
+
+        # RC members can view any submission in their department
+        if user.groups.filter(name='RC').exists():
+            return user.userprofile.department == self.submission.primary_investigator.userprofile.department
+
+        # Check if user is directly involved with the submission
+        return user in [
+            self.submission.primary_investigator,
+            *self.submission.coinvestigators.all(),
+            *self.submission.research_assistants.all()
+        ]
+
+    def handle_no_permission(self):
+        """
+        Handle cases where permission is denied.
+        Provides appropriate redirect based on user role.
+        """
+        messages.error(self.request, "You don't have permission to view this submission's details.")
         
-        return any([is_pi, is_requested_by, is_requested_to, is_irb_member])
+        # Route to appropriate dashboard based on user role
+        user = self.request.user
+        if user.groups.filter(name='OSAR').exists():
+            return redirect('review:osar_dashboard')
+        elif user.groups.filter(name='RC').exists():
+            return redirect('review:rc_dashboard')
+        elif user.groups.filter(name='IRB').exists():
+            return redirect('review:irb_dashboard')
+        else:
+            return redirect('submission:dashboard')
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        review_requests = ReviewRequest.objects.filter(
+    def get_review_requests(self):
+        """
+        Get all review requests for the submission with related data.
+        """
+        return ReviewRequest.objects.filter(
             submission=self.submission
         ).select_related(
             'requested_to__userprofile',
-            'requested_by__userprofile'
+            'requested_by__userprofile',
+            'submission__primary_investigator__userprofile'
         ).prefetch_related(
             'review_set',
             'review_set__formresponse_set__form'
-        )
+        ).order_by('-created_at')
 
-        # Get version histories ordered by version number
-        version_histories = self.submission.version_histories.all().order_by('-version')
+    def get_version_histories(self):
+        """
+        Get submission version histories ordered by version.
+        """
+        return self.submission.version_histories.all().order_by('-version')
 
-        # Check if user can download PDFs
-        can_download_pdf = True
+    def get_user_permissions(self, user):
+        """
+        Determine user-specific permissions for the view.
+        """
+        return {
+            'can_make_decision': user.groups.filter(name='IRB Coordinator').exists(),
+            'can_download_pdf': True,  # Can be modified based on specific requirements
+            'can_assign_irb': (user.groups.filter(name='IRB').exists() and 
+                             not self.submission.irb_number),
+            'is_osar': user.groups.filter(name='OSAR').exists(),
+            'is_rc': user.groups.filter(name='RC').exists(),
+            'is_irb': user.groups.filter(name='IRB').exists(),
+            'can_create_review': any([
+                user.groups.filter(name=role).exists() 
+                for role in ['OSAR', 'IRB', 'RC']
+            ])
+        }
 
-        context.update({
+    def get_submission_stats(self, review_requests):
+        """
+        Calculate submission-related statistics.
+        """
+        return {
+            'total_reviews': review_requests.count(),
+            'completed_reviews': review_requests.filter(status='completed').count(),
+            'pending_reviews': review_requests.filter(status='pending').count(),
+            'days_since_submission': (timezone.now().date() - 
+                                    self.submission.date_submitted.date()).days
+        }
+
+    def get(self, request, *args, **kwargs):
+        """
+        Handle GET requests for the review summary view.
+        Shows submission history even if no reviews exist yet.
+        """
+        if not self.test_func():
+            return self.handle_no_permission()
+
+        # Get submission history data
+        version_histories = self.get_version_histories()
+        user_permissions = self.get_user_permissions(request.user)
+        
+        # Get review data if any exists
+        review_requests = self.get_review_requests()
+        submission_stats = self.get_submission_stats(review_requests) if review_requests.exists() else {
+            'total_reviews': 0,
+            'completed_reviews': 0,
+            'pending_reviews': 0,
+            'days_since_submission': (timezone.now().date() - 
+                                    self.submission.date_submitted.date()).days
+        }
+
+        # Check for active reviews
+        has_active_reviews = review_requests.filter(
+            status__in=['pending', 'in_progress']
+        ).exists() if review_requests.exists() else False
+
+        context = {
             'submission': self.submission,
             'review_requests': review_requests,
             'version_histories': version_histories,
-            'can_make_decision': self.request.user.groups.filter(name='IRB Coordinator').exists(),
-            'can_download_pdf': can_download_pdf
-        })
-        return context
+            'stats': submission_stats,
+            'has_active_reviews': has_active_reviews,
+            'has_reviews': review_requests.exists(),
+            **user_permissions
+        }
 
+        return render(request, self.template_name, context)
 
+    def post(self, request, *args, **kwargs):
+        """
+        Handle POST requests (if any specific actions are needed).
+        Currently redirects to GET as this is primarily a view-only page.
+        """
+        return self.get(request, *args, **kwargs)
 ######################
 # Process IRB Decision
 # URL: path('submission/<int:submission_id>/decision/', ProcessIRBDecisionView.as_view(), name='process_decision'),
