@@ -125,6 +125,12 @@ class Review(models.Model):
     date_submitted = models.DateTimeField(auto_now_add=True)
     is_archived = models.BooleanField(default=False)
 
+    class Meta:
+        permissions = [
+            ("view_any_review", "Can view any review regardless of assignment"),
+            ("change_submission_status", "Can change submission status"),
+        ]
+
     def __str__(self):
         return f"Review by {self.reviewer} for {self.submission}"
 
@@ -140,7 +146,6 @@ class FormResponse(models.Model):
 
     def __str__(self):
         return f"Response to {self.form} for {self.review}"
-
 
 
 

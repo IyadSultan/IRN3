@@ -8,6 +8,7 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
@@ -44,6 +45,12 @@ from django.contrib.auth import get_user_model
 # URL: path('', ReviewDashboardView.as_view(), name='review_dashboard'),
 ######################
 
+from django.views.generic import TemplateView
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db.models import Q
+from .models import ReviewRequest, Review
+from submission.models import Submission
+
 class ReviewDashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'review/dashboard.html'
 
@@ -63,21 +70,17 @@ class ReviewDashboardView(LoginRequiredMixin, TemplateView):
         if context['is_osar_member']:
             submissions_needing_review = Submission.objects.filter(
                 status='submitted'
-            # ).exclude(
-            #     review_requests__isnull=False
             ).select_related(
-                'primary_investigator__userprofile',
-                'study_type'
+                'primary_investigator__userprofile'
             )
             context['submissions_needing_review'] = submissions_needing_review
 
         # Get reviews that can be forwarded
         forwarded_reviews = ReviewRequest.objects.filter(
-            requested_to=self.request.user,
+            Q(requested_to=user) | Q(requested_by=user),
             can_forward=True,
         ).select_related(
             'submission__primary_investigator__userprofile',
-            'submission__study_type',
             'requested_by',
             'requested_to'
         )
@@ -86,72 +89,121 @@ class ReviewDashboardView(LoginRequiredMixin, TemplateView):
         # Get pending reviews where user is the reviewer
         pending_reviews = ReviewRequest.objects.select_related(
             'submission__primary_investigator__userprofile',
-            'submission__study_type',
             'requested_by',
             'requested_to'
         ).filter(
-            requested_to=user,
+            Q(requested_to=user) | Q(requested_by=user),
             status__in=['pending', 'overdue', 'extended']
         ).order_by('-created_at')
         context['pending_reviews'] = pending_reviews
 
-        # Get completed reviews
-        completed_reviews = ReviewRequest.objects.select_related(
+        return context
+
+class IRBDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    template_name = 'review/irb_dashboard.html'
+
+    def test_func(self):
+        return self.request.user.groups.filter(name='IRB').exists()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        # Get submissions marked for IRB review
+        irb_submissions = Submission.objects.filter(
+            show_in_irb=True
+        ).select_related(
+            'primary_investigator__userprofile',
+            'study_type'
+        )
+        context['irb_submissions'] = irb_submissions
+
+        # Get IRB-related review requests
+        irb_reviews = ReviewRequest.objects.filter(
+            Q(requested_to__groups__name='IRB') | Q(requested_by__groups__name='IRB'),
+            Q(requested_to=user) | Q(requested_by=user)
+        ).select_related(
             'submission__primary_investigator__userprofile',
             'submission__study_type',
             'requested_by',
             'requested_to'
-        ).filter(
-            requested_to=user,
-            status='completed'
-        ).order_by('-updated_at')
-        context['completed_reviews'] = completed_reviews
-        
-        print(forwarded_reviews)
+        ).distinct()
+        context['irb_reviews'] = irb_reviews
+
         return context
 
+class RCDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    template_name = 'review/rc_dashboard.html'
+
+    def test_func(self):
+        return self.request.user.groups.filter(name='RC').exists()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        # Get submissions marked for RC review
+        rc_submissions = Submission.objects.filter(
+            show_in_rc=True
+        ).select_related(
+            'primary_investigator__userprofile',
+            'study_type'
+        )
+        context['rc_submissions'] = rc_submissions
+
+        # Get RC-related review requests
+        rc_reviews = ReviewRequest.objects.filter(
+            Q(requested_to__groups__name='RC') | Q(requested_by__groups__name='RC'),
+            Q(requested_to=user) | Q(requested_by=user)
+        ).select_related(
+            'submission__primary_investigator__userprofile',
+            'submission__study_type',
+            'requested_by',
+            'requested_to'
+        ).distinct()
+        context['rc_reviews'] = rc_reviews
+
+        return context
 
 ######################
 # Create Review Request
 # URL: path('create/<int:submission_id>/', CreateReviewRequestView.as_view(), name='create_review_request'),
 ######################
 
-class CreateReviewRequestView(LoginRequiredMixin, FormView):
-    template_name = 'review/create_review_request.html'
-    form_class = ReviewRequestForm
+class CreateReviewRequestView(LoginRequiredMixin, View):
+    template_name = 'review/create_review_request.html'  # Make sure this exists
+    
+    def get(self, request, submission_id):
+        submission = get_object_or_404(Submission, pk=submission_id)
+        form = ReviewRequestForm(study_type=submission.study_type)
+        return render(request, self.template_name, {
+            'form': form,
+            'submission': submission
+        })
 
-    def dispatch(self, request, *args, **kwargs):
-        self.submission = get_object_or_404(Submission, pk=kwargs['submission_id'])
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_initial(self):
-        initial = super().get_initial()
-        initial['deadline'] = timezone.now().date() + timedelta(days=14)
-        return initial
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['study_type'] = self.submission.study_type
-        return kwargs
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['submission'] = self.submission
-        return context
-
-    def form_valid(self, form):
-        review_request = form.save(commit=False)
-        review_request.submission = self.submission
-        review_request.requested_by = self.request.user
-        review_request.status = 'pending'
-        review_request.submission_version = self.submission.version
-        review_request.save()
-        form.save_m2m()
-
-        send_review_request_notification(review_request)
-        messages.success(self.request, 'Review request created successfully.')
-        return redirect('review:review_dashboard')
-
+    def post(self, request, submission_id):
+        try:
+            submission = get_object_or_404(Submission, pk=submission_id)
+            form = ReviewRequestForm(request.POST, study_type=submission.study_type)
+            
+            if form.is_valid():
+                review_request = form.save(commit=False)
+                review_request.submission = submission
+                review_request.requested_by = request.user
+                review_request.submission_version = submission.version
+                review_request.save()
+                
+                messages.success(request, "Review request created successfully.")
+                return redirect('review:review_dashboard')
+            else:
+                return render(request, self.template_name, {
+                    'form': form,
+                    'submission': submission
+                })
+                
+        except Exception as e:
+            messages.error(request, f"Error creating review request: {str(e)}")
+            return redirect('review:review_dashboard')
 
 ######################
 # Decline Review
@@ -740,3 +792,129 @@ class AssignIRBNumberView(LoginRequiredMixin, View):
             number = 1
 
         return f"{year}-{number:03d}"
+
+class ToggleSubmissionVisibilityView(LoginRequiredMixin, View):
+    def post(self, request, submission_id):
+        try:
+            submission = get_object_or_404(Submission, temporary_id=submission_id)
+            toggle_type = request.POST.get('toggle_type')
+            
+            if not toggle_type in ['irb', 'rc']:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Invalid toggle type'
+                }, status=400)
+            
+            if toggle_type == 'irb':
+                submission.show_in_irb = not getattr(submission, 'show_in_irb', False)
+                visible = submission.show_in_irb
+            else:  # toggle_type == 'rc'
+                submission.show_in_rc = not getattr(submission, 'show_in_rc', False)
+                visible = submission.show_in_rc
+            
+            submission.save(update_fields=[f'show_in_{toggle_type}'])
+            
+            return JsonResponse({
+                'status': 'success',
+                'visible': visible,
+                'message': f'Successfully toggled {toggle_type.upper()} visibility'
+            })
+            
+        except Submission.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Submission not found'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)
+
+class UpdateSubmissionStatusView(LoginRequiredMixin, UserPassesTestMixin, View):
+    def test_func(self):
+        return self.request.user.groups.filter(name__in=['IRB', 'RC', 'OSAR']).exists()
+
+    def post(self, request, submission_id):
+        try:
+            submission = get_object_or_404(Submission, temporary_id=submission_id)
+            new_status = request.POST.get('status')
+            
+            if not new_status:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'New status not provided'
+                }, status=400)
+            
+            # Get available status choices
+            valid_statuses = [choice[0] for choice in submission.get_status_choices()]
+            
+            if new_status not in valid_statuses:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Invalid status'
+                }, status=400)
+            
+            # Update the status
+            submission.status = new_status
+            submission.save(update_fields=['status'])
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Status updated successfully',
+                'new_status': new_status
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)
+
+  
+
+
+@login_required
+def irb_dashboard(request):
+    if not request.user.is_irb_member:
+        return redirect('review:dashboard')
+    context = {
+        'irb_submissions': get_irb_submissions(),
+        'pending_irb_decisions': get_pending_irb_decisions(),
+        'irb_reviews': get_irb_reviews(request.user),
+    }
+    return render(request, 'review/irb_dashboard.html', context)
+
+@login_required
+def rc_dashboard(request):
+    if not request.user.is_rc_member:
+        return redirect('review:dashboard')
+    context = {
+        'rc_submissions': get_rc_submissions(),
+        'department_submissions': get_department_submissions(request.user),
+        'rc_reviews': get_rc_reviews(request.user),
+    }
+    return render(request, 'review/rc_dashboard.html', context)
+
+
+
+@login_required
+def osar_dashboard(request):
+    if not request.user.groups.filter(name='OSAR').exists():
+        return redirect('review:review_dashboard')
+    context = {
+        'osar_submissions': Submission.objects.filter(
+            status='submitted'
+        ).select_related(
+            'primary_investigator__userprofile'
+        ),
+        'osar_reviews': ReviewRequest.objects.filter(
+            Q(requested_to__groups__name='OSAR') | Q(requested_by__groups__name='OSAR'),
+            Q(requested_to=request.user) | Q(requested_by=request.user)
+        ).select_related(
+            'submission__primary_investigator__userprofile',
+            'requested_by',
+            'requested_to'
+        ).distinct(),
+    }
+    return render(request, 'review/osar_dashboard.html', context)

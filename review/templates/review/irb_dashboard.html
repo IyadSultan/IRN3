@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load review_tags %}
+
+{% block extra_css %}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.3/css/buttons.bootstrap4.min.css">
+<style>
+    .btn-green {
+        background-color: #28a745;
+        border-color: #28a745;
+        color: #fff;
+    }
+    .btn-green:hover {
+        background-color: #218838;
+        border-color: #1e7e34;
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">IRB Dashboard</h2>
+    
+    <!-- IRB Review Queue -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title mb-0">IRB Review Queue</h3>
+        </div>
+        <div class="card-body">
+            {% if irb_submissions %}
+                <div class="table-responsive">
+                    <table id="irbSubmissionsTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Submission Date</th>
+                                <th>Primary Investigator</th>
+                                <th>Study Type</th>
+                                <th>Status</th>
+                                <th>Visibility</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for submission in irb_submissions %}
+                            <tr>
+                                <td>{{ submission.title }}</td>
+                                <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
+                                <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ submission.study_type }}</td>
+                                <td>{{ submission.get_status_display }}</td>
+                                <td>
+                                    <button class="toggle-visibility-btn btn {% if submission.show_in_irb %}btn-success{% else %}btn-secondary{% endif %}"
+                                            data-submission-id="{{ submission.id }}"
+                                            data-toggle-type="irb">
+                                        Toggle IRB
+                                    </button>
+                                    <button class="toggle-visibility-btn btn {% if submission.show_in_rc %}btn-success{% else %}btn-secondary{% endif %}"
+                                            data-submission-id="{{ submission.id }}"
+                                            data-toggle-type="rc">
+                                        Toggle RC
+                                    </button>
+                                </td>
+                                <td>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" 
+                                       class="btn btn-success btn-sm">View Details</a>
+                                    {% if submission.status == 'under_review' %}
+                                        <a href="{% url 'review:process_decision' submission.pk %}" 
+                                           class="btn btn-primary btn-sm">Make Decision</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="mb-0">No submissions requiring IRB review.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Pending IRB Decisions -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title mb-0">Pending IRB Decisions</h3>
+        </div>
+        <div class="card-body">
+            {% if pending_irb_decisions %}
+                <div class="table-responsive">
+                    <table id="pendingIRBDecisionsTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Submission Date</th>
+                                <th>Primary Investigator</th>
+                                <th>Study Type</th>
+                                <th>Requests</th>
+                                <th>Days</th>
+                                <th>✅</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for submission in pending_irb_decisions %}
+                            <tr>
+                                <td>{{ submission.title }}</td>
+                                <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
+                                <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ submission.study_type }}</td>
+                                <td>
+                                    {% if submission.review_requests.exists %}
+                                        <ul class="list-unstyled mb-0">
+                                        {% for request in submission.review_requests.all %}
+                                            <li>
+                                                <strong>
+                                                    <a href="{% url 'messaging:compose' %}?recipient={{ request.requested_to.id }}&submission={{ submission.id }}" 
+                                                       class="text-primary text-decoration-none">
+                                                        {{ request.requested_to.get_full_name }}
+                                                    </a>
+                                                </strong>
+                                            </li>
+                                        {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        No requests yet
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if submission.review_requests.exists %}
+                                        <ul class="list-unstyled mb-0">
+                                        {% for request in submission.review_requests.all %}
+                                            <li>
+                                                {% with days=request.created_at|timesince_in_days %}
+                                                    {{ days }}
+                                                {% endwith %}
+                                            </li>
+                                        {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if submission.review_requests.exists %}
+                                        <ul class="list-unstyled mb-0">
+                                        {% for request in submission.review_requests.all %}
+                                            <li>
+                                                {% if request.status == 'completed' %}
+                                                    <span class="text-success">✅</span>
+                                                {% elif request.status == 'declined' %}
+                                                    <span class="text-danger">❌</span>
+                                                {% elif request.status == 'pending' %}
+                                                    <span class="text-warning">⏳</span>
+                                                {% else %}
+                                                    <span class="text-secondary">-</span>
+                                                {% endif %}
+                                            </li>
+                                        {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
+                                    <a href="{% url 'review:process_decision' submission.pk %}" class="btn btn-primary btn-sm">Make Decision</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="mb-0">No submissions pending IRB decision.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- My IRB Reviews -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title mb-0">My IRB Reviews</h3>
+        </div>
+        <div class="card-body">
+            {% if irb_reviews %}
+                <div class="table-responsive">
+                    <table id="irbReviewsTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Primary Investigator</th>
+                                <th>Requested By</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for review in irb_reviews %}
+                            <tr>
+                                <td>{{ review.submission.title }}</td>
+                                <td>{{ review.submission.primary_investigator.userprofile.full_name }}</td>
+                                <td>{{ review.requested_by.userprofile.full_name }}</td>
+                                <td>{{ review.get_status_display }}</td>
+                                <td>
+                                    {% if review.requested_to == user or review.requested_by == user %}
+                                        <a href="{% url 'review:view_review' review.id %}" 
+                                           class="btn btn-info btn-sm">View Review</a>
+                                    {% endif %}
+                                    {% if review.requested_to == user and review.status == 'pending' %}
+                                        <a href="{% url 'review:submit_review' review.id %}" 
+                                           class="btn btn-primary btn-sm">Submit Review</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="mb-0">No IRB reviews assigned.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+<script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.3/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.3/js/buttons.bootstrap4.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Initialize DataTables for all tables
+    const tableConfigs = {
+        irbSubmissionsTable: {
+            order: [[1, 'desc']]
+        },
+        irbReviewsTable: {
+            dom: 'Bfrtip',
+            buttons: ['copy', 'excel', 'csv'],
+            order: [[1, 'desc']]
+        },
+        pendingIRBDecisionsTable: {
+            order: [[1, 'desc']]
+        }
+    };
+
+    // Initialize all tables with their specific configurations
+    Object.keys(tableConfigs).forEach(tableId => {
+        const table = $(`#${tableId}`);
+        if (table.length) {
+            table.DataTable({
+                processing: true,
+                serverSide: false,
+                pageLength: 10,
+                ...tableConfigs[tableId]
+            });
+        }
+    });
+
+    // Handle toggle visibility buttons
+    $('.toggle-visibility-btn').on('click', function(e) {
+        e.preventDefault();
+        
+        const btn = $(this);
+        const submissionId = btn.data('submission-id');
+        const toggleType = btn.data('toggle-type');
+        
+        $.ajax({
+            url: `/review/submission/${submissionId}/toggle-visibility/`,
+            method: 'POST',
+            data: {
+                toggle_type: toggleType,
+                csrfmiddlewaretoken: $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                if (response.visible) {
+                    btn.removeClass('btn-secondary').addClass('btn-success');
+                } else {
+                    btn.removeClass('btn-success').addClass('btn-secondary');
+                }
+            },
+            error: function(xhr) {
+                alert('Error toggling visibility');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
