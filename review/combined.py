@@ -150,7 +150,7 @@
     </ul>
 </div>
 
-# Contents from: .\templates\review\assign_irb_number.html
+# Contents from: .\templates\review\assign_khcc_number.html
 {% extends "base.html" %}
 
 {% block content %}
@@ -164,11 +164,11 @@
             <form method="post">
                 {% csrf_token %}
                 <div class="mb-3">
-                    <label for="irb_number" class="form-label">KHCC #</label>
+                    <label for="khcc_number" class="form-label">KHCC #</label>
                     <input type="text" 
                            class="form-control" 
-                           id="irb_number" 
-                           name="irb_number" 
+                           id="khcc_number" 
+                           name="khcc_number" 
                            value="{{ suggested_irb }}"
                            required>
                     <div class="form-text">Suggested format: YYYY-XXX</div>
@@ -397,7 +397,7 @@
                                 <td>
                                     <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
                                     <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
-                                    {% if is_irb_member and not submission.irb_number %}
+                                    {% if is_irb_member and not submission.khcc_number %}
                                         <a href="{% url 'review:assign_irb' submission.pk %}" class="btn btn-info btn-sm">Assign IRB</a>
                                     {% endif %}
                                 </td>
@@ -469,7 +469,7 @@
                                 <td>
                                     <a href="{% url 'review:create_review_request' review.submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
                                     <a href="{% url 'review:review_summary' review.submission.pk %}" class="btn btn-success btn-sm">Details</a>
-                                    {% if is_irb_member and not review.submission.irb_number %}
+                                    {% if is_irb_member and not review.submission.khcc_number %}
                                         <a href="{% url 'review:assign_irb' review.submission.pk %}" class="btn btn-info btn-sm">Assign IRB</a>
                                     {% endif %}
                                 </td>
@@ -1278,9 +1278,6 @@ $(document).ready(function() {
                                 <td>
                                     <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
                                     <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
-                                    {% if not submission.irb_number %}
-                                        <a href="{% url 'review:assign_irb' submission.pk %}" class="btn btn-info btn-sm">Assign IRB</a>
-                                    {% endif %}
                                     <a href="{% url 'review:view_notepad' submission.pk 'IRB' %}" class="btn btn-info btn-sm">
                                         <i class="fas fa-sticky-note"></i> Notepad
                                     </a>
@@ -1564,6 +1561,18 @@ $(document).ready(function() {
     .visibility-toggles {
         padding: 0.5rem;
     }
+
+    /* Filter section styles */
+    .filter-section {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 0.25rem;
+    }
+    
+    .filter-section select {
+        min-width: 200px;
+    }
 </style>
 {% endblock %}
 
@@ -1637,11 +1646,27 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
 <div class="container">
     <h2 class="mb-4">OSAR Dashboard</h2>
     
-    <!-- Submissions Needing Review -->
+    <!-- Submissions Section -->
     <div class="card mb-4">
         <div class="card-header">
-            <h3 class="card-title mb-0">Submissions Needing Review</h3>
+            <h3 class="card-title mb-0">Submissions</h3>
         </div>
+        
+        <!-- Add Filter Section -->
+        <div class="filter-section">
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <label for="statusFilter" class="form-label">Filter by Status:</label>
+                    <select id="statusFilter" class="form-select">
+                        <option value="">All Statuses</option>
+                        {% for status, label in submission_status_choices %}
+                            <option value="{{ status }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <div class="card-body">
             {% if osar_submissions %}
                 <div class="table-responsive">
@@ -1653,6 +1678,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <th>Primary Investigator</th>
                                 <th>Study Type</th>
                                 <th>Status</th>
+                                <th>KHCC #</th>
                                 <th>Visibility</th>
                                 <th>Actions</th>
                             </tr>
@@ -1665,6 +1691,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
                                 <td>{{ submission.study_type }}</td>
                                 <td>{{ submission.get_status_display }}</td>
+                                <td>{{ submission.khcc_number|default:"-" }}</td>
                                 <td>
                                     <div id="toggle-container-{{ submission.temporary_id }}" class="visibility-toggles"></div>
                                     <script type="text/babel">
@@ -1684,6 +1711,9 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <td>
                                     <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
                                     <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
+                                    {% if not submission.khcc_number %}
+                                        <a href="{% url 'review:assign_irb' submission.pk %}" class="btn btn-info btn-sm">Assign KHCC #</a>
+                                    {% endif %}
                                     <a href="{% url 'review:view_notepad' submission.pk 'OSAR' %}" class="btn btn-info btn-sm">
                                         <i class="fas fa-sticky-note"></i> Notepad
                                     </a>
@@ -1694,7 +1724,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                     </table>
                 </div>
             {% else %}
-                <p class="mb-0">No submissions currently need review.</p>
+                <p class="mb-0">No submissions found.</p>
             {% endif %}
         </div>
     </div>
@@ -1752,14 +1782,37 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
 <script src="https://cdn.datatables.net/buttons/2.2.3/js/buttons.bootstrap4.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Initialize DataTables
-    $('#osarSubmissionsTable').DataTable({
+    // Initialize DataTables with all features
+    var submissionsTable = $('#osarSubmissionsTable').DataTable({
         order: [[1, 'desc']],
-        pageLength: 10
+        pageLength: 10,
+        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
+        dom: 'Blfrtip',
+        buttons: ['copy', 'excel', 'pdf']
     });
+
+    // Add custom status filter functionality
+    $('#statusFilter').on('change', function() {
+        var selectedStatus = $(this).val();
+        
+        // Clear existing filter
+        submissionsTable.column(4).search('').draw();
+        
+        // Apply new filter if a status is selected
+        if (selectedStatus) {
+            // Create a regex that matches the status text case-insensitively
+            var searchRegex = selectedStatus.replace(/_/g, ' ');
+            submissionsTable.column(4).search(searchRegex, true, false).draw();
+        }
+    });
+
+    // Initialize OSAR reviews table
     $('#osarReviewsTable').DataTable({
         order: [[1, 'desc']],
-        pageLength: 10
+        pageLength: 10,
+        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
+        dom: 'Blfrtip',
+        buttons: ['copy', 'excel', 'pdf']
     });
 });
 </script>
@@ -1824,7 +1877,7 @@ $(document).ready(function() {
             <span class="field-label">Study Type:</span> {{ review.review_request.submission.study_type }}
         </div>
         <div class="field">
-            <span class="field-label">KHCC #:</span> {{ review.review_request.submission.irb_number|default:"Not provided" }}
+            <span class="field-label">KHCC #:</span> {{ review.review_request.submission.khcc_number|default:"Not provided" }}
         </div>
     </div>
 
@@ -2284,22 +2337,36 @@ $(document).ready(function() {
 {% endblock %}
 
 # Contents from: .\templates\review\review_summary.html
-{# review/templates/review/review_summary.html #}
 {% extends 'base.html' %}
-
-{% block title %}Review Summary - {{ submission.title }}{% endblock %}
 
 {% block content %}
 <div class="container">
     <h2>Review Summary for {{ submission.title }}</h2>
     
-    {% if review_requests %}
-        <div class="card">
+    <!-- Basic Submission Info -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>Submission Details</h3>
+        </div>
+        <div class="card-body">
+            <p><strong>Primary Investigator:</strong> {{ submission.primary_investigator.userprofile.full_name }}</p>
+            <p><strong>Study Type:</strong> {{ submission.study_type }}</p>
+            <p><strong>Submission Date:</strong> {{ submission.date_submitted|date:"F d, Y" }}</p>
+            {% if submission.khcc_number %}
+                <p><strong>KHCC #:</strong> {{ submission.khcc_number }}</p>
+            {% endif %}
+            <p><strong>Days Since Submission:</strong> {{ stats.days_since_submission }}</p>
+        </div>
+    </div>
+
+    <!-- Review Requests Section -->
+    {% if has_reviews %}
+        <div class="card mb-4">
             <div class="card-header">
                 <h3>Review Requests and Submissions</h3>
             </div>
             <div class="card-body">
-                <table class="table" id="reviewSummaryTable">
+                <table class="table">
                     <thead>
                         <tr>
                             <th>Reviewer</th>
@@ -2311,127 +2378,81 @@ $(document).ready(function() {
                     </thead>
                     <tbody>
                         {% for request in review_requests %}
-                        <tr>
-                            <td>{{ request.requested_to.userprofile.full_name }}</td>
-                            <td>{{ request.requested_by.userprofile.full_name }}</td>
-                            <td>{{ request.status }}</td>
-                            <td>
-                                {% if request.review_set.first %}
-                                    {{ request.review_set.first.date_submitted }}
-                                {% else %}
-                                    Not submitted
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if request.review_set.first %}
-                                    <a href="{% url 'review:view_review' review_request_id=request.id %}" 
-                                       class="btn btn-info btn-sm">View Review</a>
-                                    <a href="{% url 'review:download_review_pdf' review_request_id=request.id %}" 
-                                       class="btn btn-primary btn-sm">
-                                        <i class="fas fa-file-pdf"></i> PDF
-                                    </a>
-                                {% else %}
-                                    <span class="text-muted">Review pending</span>
-                                {% endif %}
-                            </td>
-                        </tr>
+                            <!-- Review request rows -->
+                            <tr>
+                                <td>{{ request.requested_to.userprofile.full_name }}</td>
+                                <td>{{ request.requested_by.userprofile.full_name }}</td>
+                                <td>{{ request.status }}</td>
+                                <td>
+                                    {% if request.review_set.first %}
+                                        {{ request.review_set.first.date_submitted|date }}
+                                    {% else %}
+                                        Not submitted
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <!-- Action buttons -->
+                                    {% if request.review_set.first %}
+                                        <a href="{% url 'review:view_review' review_request_id=request.id %}" 
+                                           class="btn btn-info btn-sm">View Review</a>
+                                    {% else %}
+                                        <span class="text-muted">Review pending</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
+    {% else %}
+        <div class="alert alert-info">
+            No review requests have been created yet.
+            {% if can_create_review %}
+                <a href="{% url 'review:create_review_request' submission.pk %}" 
+                   class="btn btn-primary btn-sm ml-2">Create Review Request</a>
+            {% endif %}
+        </div>
+    {% endif %}
 
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3>Submission Versions</h3>
-            </div>
-            <div class="card-body">
-                <table class="table" id="submissionVersionTable">
-                    <thead>
-                        <tr>
-                            <th>Version</th>
-                            <th>Submission Date</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for version in version_histories %}
+    <!-- Submission Versions Section -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h3>Submission Versions</h3>
+        </div>
+        <div class="card-body">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Version</th>
+                        <th>Submission Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for version in version_histories %}
                         <tr>
                             <td>{{ version.version }}</td>
-                            <td>{{ version.date }}</td>
+                            <td>{{ version.date|date }}</td>
                             <td>
                                 {% if can_download_pdf %}
-                                    {% url 'submission:download_submission_pdf_version' submission_id=submission.temporary_id version=version.version as pdf_url %}
-                                    {% if pdf_url %}
-                                        <a href="{{ pdf_url }}" class="btn btn-primary btn-sm">
-                                            <i class="fas fa-file-pdf"></i> Download PDF
-                                        </a>
-                                    {% else %}
-                                        <button class="btn btn-secondary btn-sm" disabled>
-                                            <i class="fas fa-file-pdf"></i> PDF Not Available
-                                        </button>
-                                    {% endif %}
-                                {% else %}
-                                    <button class="btn btn-secondary btn-sm" disabled>
-                                        <i class="fas fa-lock"></i> No Permission
-                                    </button>
+                                    <a href="{% url 'submission:download_submission_pdf_version' submission_id=submission.temporary_id version=version.version %}" 
+                                       class="btn btn-primary btn-sm">
+                                        <i class="fas fa-file-pdf"></i> Download PDF
+                                    </a>
                                 {% endif %}
                             </td>
                         </tr>
-                        {% empty %}
+                    {% empty %}
                         <tr>
-                            <td colspan="3" class="text-center">No submission versions available.</td>
+                            <td colspan="3" class="text-center">No version history available.</td>
                         </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-
-        {% if can_make_decision %}
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h3>Make IRB Decision</h3>
-                </div>
-                <div class="card-body">
-                    <form method="post" action="{% url 'review:process_decision' submission.id %}">
-                        {% csrf_token %}
-                        <div class="form-group">
-                            <label for="decision">Decision:</label>
-                            <select name="decision" id="decision" class="form-control" required>
-                                <option value="approved">Approved</option>
-                                <option value="revision_required">Revision Required</option>
-                                <option value="rejected">Rejected</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="comments">Comments:</label>
-                            <textarea name="comments" id="comments" class="form-control" rows="4"></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Submit Decision</button>
-                    </form>
-                </div>
-            </div>
-        {% endif %}
-    {% else %}
-        <p>No review requests have been created yet.</p>
-    {% endif %}
+    </div>
 </div>
-
-{% block page_specific_js %}
-<script>
-$(document).ready(function() {
-    $('#reviewSummaryTable').DataTable({
-        pageLength: 10,
-        order: [[1, 'desc']]
-    });
-    $('#submissionVersionTable').DataTable({
-        pageLength: 10,
-        order: [[1, 'desc']]
-    });
-});
-</script>
-{% endblock %}
 {% endblock %}
 
 # Contents from: .\templates\review\submission_detail.html
@@ -3176,6 +3197,15 @@ class Migration(migrations.Migration):
 import submission.models
 from django.db import migrations, models
 
+# Define the review status choices directly in the migration
+REVIEW_STATUS_CHOICES = [
+    ('pending', 'Pending'),
+    ('declined', 'Declined'),
+    ('completed', 'Completed'),
+    ('overdue', 'Overdue'),
+    ('extended', 'Extended'),
+    ('request_withdrawn', 'Request Withdrawn'),
+]
 
 class Migration(migrations.Migration):
 
@@ -3211,9 +3241,9 @@ class Migration(migrations.Migration):
             model_name="reviewrequest",
             name="status",
             field=models.CharField(
-                choices=submission.models.get_status_choices,
-                default="pending",
+                choices=REVIEW_STATUS_CHOICES,
                 max_length=50,
+                default='pending'
             ),
         ),
     ]
@@ -3690,7 +3720,7 @@ class Migration(migrations.Migration):
 # Contents from: .\models.py
 from django.db import models
 from django.contrib.auth.models import User
-from submission.models import Submission, get_status_choices
+from submission.models import Submission
 from forms_builder.models import DynamicForm
 from datetime import datetime
 from django.core.cache import cache
@@ -4806,6 +4836,7 @@ from .utils.notifications import (
     send_irb_decision_notification
 )
 from .utils.pdf_generator import generate_review_pdf
+from iRN.constants import SUBMISSION_STATUS_CHOICES
 
 
 
@@ -4983,6 +5014,11 @@ class CreateReviewRequestView(LoginRequiredMixin, PermissionRequiredMixin, Creat
                 self.object.submission_version = self.submission.version
                 self.object.save()
                 form.save_m2m()
+
+                # Update submission status to 'under_review'
+                if self.submission.status == 'submitted':
+                    self.submission.status = 'under_review'
+                    self.submission.save(update_fields=['status'])
 
                 # Generate the absolute URL for the review
                 review_url = self.request.build_absolute_uri(
@@ -5342,59 +5378,48 @@ class ViewReviewView(LoginRequiredMixin, TemplateView):
 ######################
 
 class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View for displaying a comprehensive summary of a submission's reviews.
+    Handles permissions and provides detailed context for different user roles.
+    """
     template_name = 'review/review_summary.html'
 
     def test_func(self):
+        """
+        Verify if the current user has permission to view this submission's details.
+        Permissions are based on user roles and submission ownership.
+        """
         submission_id = self.kwargs.get('submission_id')
         self.submission = get_object_or_404(Submission, pk=submission_id)
         user = self.request.user
 
-        # Check if user is OSAR member
-        is_osar = user.groups.filter(name='OSAR').exists()
-        if is_osar:
-            return True  # OSAR members can view all submissions
+        # OSAR members can view all submissions
+        if user.groups.filter(name='OSAR').exists():
+            return True
 
-        # Check if user is IRB member
-        is_irb = user.groups.filter(name='IRB').exists()
-        if is_irb:
-            # IRB members can view any submission that's visible on their dashboard
-            irb_viewable_statuses = [
-                'submitted_to_irb',
-                'under_irb_review',
-                'irb_decision_pending',
-                'irb_approved',
-                'irb_rejected',
-                'irb_revision_required',
-                'approved',
-                'revision_required',
-                'rejected'
-            ]
-            if self.submission.status in irb_viewable_statuses:
-                return True
+        # IRB members can view all submissions
+        if user.groups.filter(name='IRB').exists():
+            return True
 
-        # Check if user is RC member
-        is_rc = user.groups.filter(name='RC').exists()
-        if is_rc:
-            # RC members can view submissions in RC-related statuses in their department
-            rc_viewable_statuses = [
-                'submitted_to_rc',
-                'under_rc_review',
-                'rc_decision_pending',
-                'rc_approved',
-                'rc_rejected',
-                'rc_revision_required'
-            ]
-            if (self.submission.status in rc_viewable_statuses and 
-                user.userprofile.department == self.submission.primary_investigator.userprofile.department):
-                return True
+        # RC members can view any submission in their department
+        if user.groups.filter(name='RC').exists():
+            return user.userprofile.department == self.submission.primary_investigator.userprofile.department
 
-        # If none of the above conditions are met
-        return False
+        # Check if user is directly involved with the submission
+        return user in [
+            self.submission.primary_investigator,
+            *self.submission.coinvestigators.all(),
+            *self.submission.research_assistants.all()
+        ]
 
     def handle_no_permission(self):
+        """
+        Handle cases where permission is denied.
+        Provides appropriate redirect based on user role.
+        """
         messages.error(self.request, "You don't have permission to view this submission's details.")
         
-        # Determine which dashboard to redirect to based on user's group
+        # Route to appropriate dashboard based on user role
         user = self.request.user
         if user.groups.filter(name='OSAR').exists():
             return redirect('review:osar_dashboard')
@@ -5405,37 +5430,102 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
         else:
             return redirect('submission:dashboard')
 
-    def get(self, request, *args, **kwargs):
-        if not self.test_func():
-            return self.handle_no_permission()
-
-        review_requests = ReviewRequest.objects.filter(
+    def get_review_requests(self):
+        """
+        Get all review requests for the submission with related data.
+        """
+        return ReviewRequest.objects.filter(
             submission=self.submission
         ).select_related(
             'requested_to__userprofile',
-            'requested_by__userprofile'
+            'requested_by__userprofile',
+            'submission__primary_investigator__userprofile'
         ).prefetch_related(
             'review_set',
             'review_set__formresponse_set__form'
-        )
+        ).order_by('-created_at')
 
-        # Get version histories ordered by version number
-        version_histories = self.submission.version_histories.all().order_by('-version')
+    def get_version_histories(self):
+        """
+        Get submission version histories ordered by version.
+        """
+        return self.submission.version_histories.all().order_by('-version')
 
-        # Add role-specific context
+    def get_user_permissions(self, user):
+        """
+        Determine user-specific permissions for the view.
+        """
+        return {
+            'can_make_decision': user.groups.filter(name='IRB Coordinator').exists(),
+            'can_download_pdf': True,  # Can be modified based on specific requirements
+            'can_assign_irb': (user.groups.filter(name='IRB').exists() and 
+                             not self.submission.khcc_number),
+            'is_osar': user.groups.filter(name='OSAR').exists(),
+            'is_rc': user.groups.filter(name='RC').exists(),
+            'is_irb': user.groups.filter(name='IRB').exists(),
+            'can_create_review': any([
+                user.groups.filter(name=role).exists() 
+                for role in ['OSAR', 'IRB', 'RC']
+            ])
+        }
+
+    def get_submission_stats(self, review_requests):
+        """
+        Calculate submission-related statistics.
+        """
+        return {
+            'total_reviews': review_requests.count(),
+            'completed_reviews': review_requests.filter(status='completed').count(),
+            'pending_reviews': review_requests.filter(status='pending').count(),
+            'days_since_submission': (timezone.now().date() - 
+                                    self.submission.date_submitted.date()).days
+        }
+
+    def get(self, request, *args, **kwargs):
+        """
+        Handle GET requests for the review summary view.
+        Shows submission history even if no reviews exist yet.
+        """
+        if not self.test_func():
+            return self.handle_no_permission()
+
+        # Get submission history data
+        version_histories = self.get_version_histories()
+        user_permissions = self.get_user_permissions(request.user)
+        
+        # Get review data if any exists
+        review_requests = self.get_review_requests()
+        submission_stats = self.get_submission_stats(review_requests) if review_requests.exists() else {
+            'total_reviews': 0,
+            'completed_reviews': 0,
+            'pending_reviews': 0,
+            'days_since_submission': (timezone.now().date() - 
+                                    self.submission.date_submitted.date()).days
+        }
+
+        # Check for active reviews
+        has_active_reviews = review_requests.filter(
+            status__in=['pending', 'in_progress']
+        ).exists() if review_requests.exists() else False
+
         context = {
             'submission': self.submission,
             'review_requests': review_requests,
             'version_histories': version_histories,
-            'can_make_decision': request.user.groups.filter(name='IRB Coordinator').exists(),
-            'can_download_pdf': True,
-            'is_osar': request.user.groups.filter(name='OSAR').exists(),
-            'is_rc': request.user.groups.filter(name='RC').exists(),
-            'is_irb': request.user.groups.filter(name='IRB').exists(),
+            'stats': submission_stats,
+            'has_active_reviews': has_active_reviews,
+            'has_reviews': review_requests.exists(),
+            **user_permissions
         }
 
         return render(request, self.template_name, context)
 
+    def post(self, request, *args, **kwargs):
+        """
+        Handle POST requests (if any specific actions are needed).
+        Currently redirects to GET as this is primarily a view-only page.
+        """
+        return self.get(request, *args, **kwargs)
 ######################
 # Process IRB Decision
 # URL: path('submission/<int:submission_id>/decision/', ProcessIRBDecisionView.as_view(), name='process_decision'),
@@ -5556,16 +5646,16 @@ class UserAutocompleteView(View):
 ######################
 
 class AssignKHCCNumberView(LoginRequiredMixin, View):
-    template_name = 'review/assign_irb_number.html'
+    template_name = 'review/assign_khcc_number.html'
 
     def dispatch(self, request, *args, **kwargs):
-        if not request.user.groups.filter(name='IRB').exists():
+        if not request.user.groups.filter(name='OSAR').exists():
             messages.error(request, "You don't have permission to assign KHCC #s.")
             return redirect('review:review_dashboard')
         
         self.submission = get_object_or_404(Submission, pk=kwargs['submission_id'])
-        if self.submission.irb_number:
-            messages.warning(request, "This submission already has an KHCC #.")
+        if self.submission.khcc_number:
+            messages.warning(request, "This submission already has a KHCC #.")
             return redirect('review:review_summary', submission_id=self.submission.id)
             
         return super().dispatch(request, *args, **kwargs)
@@ -5573,25 +5663,25 @@ class AssignKHCCNumberView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         context = {
             'submission': self.submission,
-            'suggested_irb': self._generate_irb_number()
+            'suggested_irb': self._generate_khcc_number()
         }
         return render(request, self.template_name, context)
 
     def post(self, request, *args, **kwargs):
-        irb_number = request.POST.get('irb_number', '').strip()
+        khcc_number = request.POST.get('khcc_number', '').strip()
         
-        if not irb_number:
+        if not khcc_number:
             messages.error(request, "KHCC # is required.")
             return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
 
         # Check uniqueness
-        if Submission.objects.filter(irb_number=irb_number).exists():
+        if Submission.objects.filter(khcc_number=khcc_number).exists():
             messages.error(request, "This KHCC # is already in use. Please try another.")
             return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
 
         try:
             with transaction.atomic():
-                self.submission.irb_number = irb_number
+                self.submission.khcc_number = khcc_number
                 self.submission.save()
 
                 # Get all users who need to be notified
@@ -5615,7 +5705,7 @@ class AssignKHCCNumberView(LoginRequiredMixin, View):
                 system_user = get_system_user()
                 message_content = f"""
                 An KHCC # has been assigned to the submission "{self.submission.title}".
-                KHCC #: {irb_number}
+                KHCC #: {khcc_number}
                 """
 
                 for user in users_to_notify:
@@ -5638,25 +5728,25 @@ class AssignKHCCNumberView(LoginRequiredMixin, View):
                         print(f"Debug - Error type: {type(e)}")
                         raise  # Re-raise the exception to trigger the outer error handling
 
-                messages.success(request, f"KHCC # {irb_number} has been assigned successfully.")
+                messages.success(request, f"KHCC # {khcc_number} has been assigned successfully.")
                 return redirect('review:review_summary', submission_id=self.submission.temporary_id)
 
         except Exception as e:
             messages.error(request, f"Error assigning KHCC #: {str(e)}")
             return redirect('review:assign_irb', submission_id=self.submission.temporary_id)
 
-    def _generate_irb_number(self):
+    def _generate_khcc_number(self):
         """Generate a suggested KHCC # format: YYYY-XXX"""
         year = timezone.now().year
         
         # Get the highest number for this year
         latest_irb = Submission.objects.filter(
-            irb_number__startswith=f"{year}-"
-        ).order_by('-irb_number').first()
+            khcc_number__startswith=f"{year}-"
+        ).order_by('-khcc_number').first()
 
-        if latest_irb and latest_irb.irb_number:
+        if latest_irb and latest_irb.khcc_number:
             try:
-                number = int(latest_irb.irb_number.split('-')[1]) + 1
+                number = int(latest_irb.khcc_number.split('-')[1]) + 1
             except (IndexError, ValueError):
                 number = 1
         else:
@@ -5805,11 +5895,11 @@ def rc_dashboard(request):
 def osar_dashboard(request):
     if not request.user.groups.filter(name='OSAR').exists():
         return redirect('review:review_dashboard')
+    
     context = {
-        'osar_submissions': Submission.objects.filter(
-            status='submitted'
-        ).select_related(
-            'primary_investigator__userprofile'
+        'osar_submissions': Submission.objects.all().select_related(
+            'primary_investigator__userprofile',
+            'study_type'
         ),
         'osar_reviews': ReviewRequest.objects.filter(
             Q(requested_to__groups__name='OSAR') | Q(requested_by__groups__name='OSAR'),
@@ -5819,6 +5909,7 @@ def osar_dashboard(request):
             'requested_by',
             'requested_to'
         ).distinct(),
+        'submission_status_choices': SUBMISSION_STATUS_CHOICES,
     }
     return render(request, 'review/osar_dashboard.html', context)
 

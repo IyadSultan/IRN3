@@ -583,18 +583,18 @@ class ViewReviewView(LoginRequiredMixin, TemplateView):
 
 class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
-    View for displaying a comprehensive summary of a submission's reviews.
-    Handles permissions and provides detailed context for different user roles.
+    View for displaying a comprehensive summary of a submission's reviews
+    and handling submission decisions.
     """
     template_name = 'review/review_summary.html'
 
+    def setup(self, request, *args, **kwargs):
+        """Initialize common attributes used by multiple methods"""
+        super().setup(request, *args, **kwargs)
+        self.submission = get_object_or_404(Submission, pk=kwargs.get('submission_id'))
+
     def test_func(self):
-        """
-        Verify if the current user has permission to view this submission's details.
-        Permissions are based on user roles and submission ownership.
-        """
-        submission_id = self.kwargs.get('submission_id')
-        self.submission = get_object_or_404(Submission, pk=submission_id)
+        """Verify user permission to access the submission"""
         user = self.request.user
 
         # OSAR members can view all submissions
@@ -605,11 +605,11 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
         if user.groups.filter(name='IRB').exists():
             return True
 
-        # RC members can view any submission in their department
+        # RC members can view submissions in their department
         if user.groups.filter(name='RC').exists():
             return user.userprofile.department == self.submission.primary_investigator.userprofile.department
 
-        # Check if user is directly involved with the submission
+        # Check direct involvement
         return user in [
             self.submission.primary_investigator,
             *self.submission.coinvestigators.all(),
@@ -617,13 +617,9 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
         ]
 
     def handle_no_permission(self):
-        """
-        Handle cases where permission is denied.
-        Provides appropriate redirect based on user role.
-        """
+        """Route users to appropriate dashboard when access is denied"""
         messages.error(self.request, "You don't have permission to view this submission's details.")
         
-        # Route to appropriate dashboard based on user role
         user = self.request.user
         if user.groups.filter(name='OSAR').exists():
             return redirect('review:osar_dashboard')
@@ -631,13 +627,10 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
             return redirect('review:rc_dashboard')
         elif user.groups.filter(name='IRB').exists():
             return redirect('review:irb_dashboard')
-        else:
-            return redirect('submission:dashboard')
+        return redirect('submission:dashboard')
 
     def get_review_requests(self):
-        """
-        Get all review requests for the submission with related data.
-        """
+        """Get all review requests with related data"""
         return ReviewRequest.objects.filter(
             submission=self.submission
         ).select_related(
@@ -650,23 +643,19 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
         ).order_by('-created_at')
 
     def get_version_histories(self):
-        """
-        Get submission version histories ordered by version.
-        """
+        """Get submission version history"""
         return self.submission.version_histories.all().order_by('-version')
 
     def get_user_permissions(self, user):
-        """
-        Determine user-specific permissions for the view.
-        """
+        """Determine user-specific permissions"""
+        is_irb = user.groups.filter(name='IRB').exists()
         return {
-            'can_make_decision': user.groups.filter(name='IRB Coordinator').exists(),
-            'can_download_pdf': True,  # Can be modified based on specific requirements
-            'can_assign_irb': (user.groups.filter(name='IRB').exists() and 
-                             not self.submission.khcc_number),
+            'can_make_decision': is_irb,  # Updated to allow IRB members to make decisions
+            'can_download_pdf': True,
+            'can_assign_irb': is_irb and not self.submission.khcc_number,
             'is_osar': user.groups.filter(name='OSAR').exists(),
             'is_rc': user.groups.filter(name='RC').exists(),
-            'is_irb': user.groups.filter(name='IRB').exists(),
+            'is_irb': is_irb,
             'can_create_review': any([
                 user.groups.filter(name=role).exists() 
                 for role in ['OSAR', 'IRB', 'RC']
@@ -674,37 +663,84 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
         }
 
     def get_submission_stats(self, review_requests):
-        """
-        Calculate submission-related statistics.
-        """
+        """Calculate submission statistics"""
+        now = timezone.now().date()
+        submission_date = self.submission.date_submitted.date() if self.submission.date_submitted else now
+        
         return {
             'total_reviews': review_requests.count(),
             'completed_reviews': review_requests.filter(status='completed').count(),
             'pending_reviews': review_requests.filter(status='pending').count(),
-            'days_since_submission': (timezone.now().date() - 
-                                    self.submission.date_submitted.date()).days
+            'days_since_submission': (now - submission_date).days
         }
 
     def get(self, request, *args, **kwargs):
-        """
-        Handle GET requests for the review summary view.
-        Shows submission history even if no reviews exist yet.
-        """
+        """Handle GET requests"""
         if not self.test_func():
             return self.handle_no_permission()
 
-        # Get submission history data
+        context = self.get_context_data()
+        return render(request, self.template_name, context)
+
+    def post(self, request, *args, **kwargs):
+        """Handle POST requests for submission decisions"""
+        if not self.test_func():
+            return self.handle_no_permission()
+
+        action = request.POST.get('action')
+        comments = request.POST.get('comments', '').strip()
+
+        if not comments:
+            messages.error(request, "Comments are required for making a decision.")
+            return redirect('review:review_summary', submission_id=self.submission.pk)
+
+        try:
+            with transaction.atomic():
+                # Update submission status based on action
+                if action == 'revision_requested':
+                    self.submission.status = 'revision_requested'
+                    self.submission.is_locked = False
+                elif action == 'rejected':
+                    self.submission.status = 'rejected'
+                    self.submission.is_locked = True
+                elif action == 'accepted':
+                    self.submission.status = 'accepted'
+                    self.submission.is_locked = True
+                else:
+                    messages.error(request, "Invalid action specified.")
+                    return redirect('review:review_summary', submission_id=self.submission.pk)
+
+                self.submission.save()
+
+                # Send notification
+                send_irb_decision_notification(self.submission, action, comments)
+
+                messages.success(
+                    request,
+                    f"Submission successfully marked as {action.replace('_', ' ').title()}"
+                )
+                
+                return redirect('review:review_summary', submission_id=self.submission.pk)
+
+        except Exception as e:
+            messages.error(request, f"Error processing decision: {str(e)}")
+            return redirect('review:review_summary', submission_id=self.submission.pk)
+
+    def get_context_data(self):
+        """Prepare context data for template rendering"""
         version_histories = self.get_version_histories()
-        user_permissions = self.get_user_permissions(request.user)
-        
-        # Get review data if any exists
+        user_permissions = self.get_user_permissions(self.request.user)
         review_requests = self.get_review_requests()
+
+        # Calculate stats if reviews exist
         submission_stats = self.get_submission_stats(review_requests) if review_requests.exists() else {
             'total_reviews': 0,
             'completed_reviews': 0,
             'pending_reviews': 0,
-            'days_since_submission': (timezone.now().date() - 
-                                    self.submission.date_submitted.date()).days
+            'days_since_submission': (
+                timezone.now().date() - 
+                self.submission.date_submitted.date()
+            ).days if self.submission.date_submitted else 0
         }
 
         # Check for active reviews
@@ -712,7 +748,7 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
             status__in=['pending', 'in_progress']
         ).exists() if review_requests.exists() else False
 
-        context = {
+        return {
             'submission': self.submission,
             'review_requests': review_requests,
             'version_histories': version_histories,
@@ -721,15 +757,6 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
             'has_reviews': review_requests.exists(),
             **user_permissions
         }
-
-        return render(request, self.template_name, context)
-
-    def post(self, request, *args, **kwargs):
-        """
-        Handle POST requests (if any specific actions are needed).
-        Currently redirects to GET as this is primarily a view-only page.
-        """
-        return self.get(request, *args, **kwargs)
 ######################
 # Process IRB Decision
 # URL: path('submission/<int:submission_id>/decision/', ProcessIRBDecisionView.as_view(), name='process_decision'),
@@ -1149,3 +1176,48 @@ def view_notepad(request, submission_id, notepad_type):
         'notepad_type': notepad_type
     }
     return render(request, 'review/view_notepad.html', context)
+
+# review/views.py
+class ProcessSubmissionDecisionView(LoginRequiredMixin, PermissionRequiredMixin, View):
+    permission_required = 'submission.change_submission_status'
+    
+    def post(self, request, submission_id):
+        submission = get_object_or_404(Submission, pk=submission_id)
+        action = request.POST.get('action')
+        comments = request.POST.get('comments', '')
+        
+        try:
+            with transaction.atomic():
+                if action == 'revision_requested':
+                    submission.status = 'revision_requested'
+                    submission.is_locked = False
+                elif action == 'rejected':
+                    submission.status = 'rejected'
+                    submission.is_locked = True
+                elif action == 'accepted':
+                    submission.status = 'accepted'
+                    submission.is_locked = True
+                else:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': 'Invalid action'
+                    }, status=400)
+                
+                submission.save()
+                
+                # Send notification
+                send_irb_decision_notification(submission, action, comments)
+                
+                messages.success(request, f"Submission successfully marked as {action.replace('_', ' ').title()}")
+                
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Submission status updated to {action}',
+                    'redirect_url': reverse('review:review_summary', args=[submission.pk])
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)
