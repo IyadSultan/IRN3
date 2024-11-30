@@ -59,7 +59,7 @@
                                         {% for request in submission.review_requests.all %}
                                             <li>
                                                 <strong>
-                                                    <a href="{% url 'messaging:_message' %}?recipient={{ request.requested_to.id }}&submission={{ submission.id }}" 
+                                                    <a href="{% url 'messaging:compose_message' %}?recipient={{ request.requested_to.id }}&submission={{ submission.id }}" 
                                                        class="text-primary text-decoration-none">
                                                         {{ request.requested_to.get_full_name }}
                                                     </a>
