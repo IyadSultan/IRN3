@@ -17,7 +17,8 @@ from .views import (
     AssignIRBNumberView,
     osar_dashboard,
     irb_dashboard,
-    rc_dashboard
+    rc_dashboard,
+    view_notepad
 )
 from submission.views import user_autocomplete
 
@@ -56,6 +57,11 @@ urlpatterns = [
     ToggleSubmissionVisibilityView.as_view(),
     name='toggle_visibility'
 ),
+    path(
+        'submission/<int:submission_id>/notepad/<str:notepad_type>/',
+        view_notepad,
+        name='view_notepad'
+    ),
 
 
 

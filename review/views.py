@@ -1,42 +1,45 @@
 ######################
 # Imports
 ######################
-
-from datetime import timedelta
+from datetime import datetime, timedelta
 import json
 import logging
 
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.core.exceptions import PermissionDenied
+from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Q
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.text import slugify
 from django.views import View
 from django.views.generic import TemplateView, FormView
+from django.views.generic.edit import CreateView
 from django import forms
-from django.http import HttpResponse
-from django.utils.text import slugify
-from datetime import datetime
-from django.core.files.base import ContentFile
+
+from forms_builder.models import DynamicForm
 from messaging.models import Message, MessageAttachment
+from submission.models import Submission
+from submission.utils.pdf_generator import PDFGenerator, generate_submission_pdf
 from users.utils import get_system_user
 
 from .forms import ReviewRequestForm
-from .models import ReviewRequest, Review, FormResponse
-from .utils.notifications import send_review_request_notification, send_review_decline_notification, send_extension_request_notification, send_review_completion_notification, send_irb_decision_notification
-from forms_builder.models import DynamicForm
-from messaging.models import Message
-from submission.models import Submission
-from users.utils import get_system_user
+from .models import ReviewRequest, Review, FormResponse, NotepadEntry
+from .utils.notifications import (
+    send_review_request_notification,
+    send_review_decline_notification,
+    send_extension_request_notification,
+    send_review_completion_notification,
+    send_irb_decision_notification
+)
 from .utils.pdf_generator import generate_review_pdf
-from submission.utils.pdf_generator import PDFGenerator, generate_submission_pdf
-from django.http import JsonResponse
-from django.contrib.auth import get_user_model
 
 
 
@@ -58,12 +61,15 @@ class ReviewDashboardView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
+        visible_submissions = Submission.get_visible_submissions_for_user(user)
+
         # Add group membership checks to context
         context.update({
             'is_osar_member': user.groups.filter(name='OSAR').exists(),
             'is_irb_member': user.groups.filter(name='IRB').exists(),
             'is_rc_member': user.groups.filter(name='RC').exists(),
             'is_aahrpp_member': user.groups.filter(name='AAHRPP').exists(),
+            'submissions': visible_submissions,
         })
 
         # Get submissions needing review (for OSAR members)
@@ -170,41 +176,95 @@ class RCDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 # URL: path('create/<int:submission_id>/', CreateReviewRequestView.as_view(), name='create_review_request'),
 ######################
 
-class CreateReviewRequestView(LoginRequiredMixin, View):
-    template_name = 'review/create_review_request.html'  # Make sure this exists
-    
-    def get(self, request, submission_id):
-        submission = get_object_or_404(Submission, pk=submission_id)
-        form = ReviewRequestForm(study_type=submission.study_type)
-        return render(request, self.template_name, {
-            'form': form,
-            'submission': submission
-        })
+from django.views.generic.edit import CreateView
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.contrib import messages
+from django.shortcuts import redirect, get_object_or_404
+from django.urls import reverse_lazy, reverse
+from django.utils import timezone
+from django.db import transaction
+from messaging.models import Message
 
-    def post(self, request, submission_id):
+class CreateReviewRequestView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
+    model = ReviewRequest
+    form_class = ReviewRequestForm
+    template_name = 'review/create_review_request.html'
+    permission_required = 'review.can_create_review_request'
+
+    def get_initial(self):
+        initial = super().get_initial()
+        initial['deadline'] = timezone.now().date() + timezone.timedelta(days=14)
+        return initial
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        self.submission = get_object_or_404(Submission, pk=self.kwargs['submission_id'])
+        kwargs['study_type'] = self.submission.study_type
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['submission'] = self.submission
+        return context
+
+    def form_valid(self, form):
         try:
-            submission = get_object_or_404(Submission, pk=submission_id)
-            form = ReviewRequestForm(request.POST, study_type=submission.study_type)
-            
-            if form.is_valid():
-                review_request = form.save(commit=False)
-                review_request.submission = submission
-                review_request.requested_by = request.user
-                review_request.submission_version = submission.version
-                review_request.save()
-                
-                messages.success(request, "Review request created successfully.")
-                return redirect('review:review_dashboard')
-            else:
-                return render(request, self.template_name, {
-                    'form': form,
-                    'submission': submission
-                })
-                
-        except Exception as e:
-            messages.error(request, f"Error creating review request: {str(e)}")
-            return redirect('review:review_dashboard')
+            with transaction.atomic():
+                # Set review request fields
+                self.object = form.save(commit=False)
+                self.object.submission = self.submission
+                self.object.requested_by = self.request.user
+                self.object.submission_version = self.submission.version
+                self.object.save()
+                form.save_m2m()
 
+                # Generate the absolute URL for the review
+                review_url = self.request.build_absolute_uri(
+                    reverse('review:submit_review', args=[self.object.id])
+                )
+
+                # Create notification message for the reviewer
+                message = Message.objects.create(
+                    sender=self.request.user,
+                    subject=f'Review Request: {self.submission.title}',
+                    body=f"""Dear {self.object.requested_to.userprofile.full_name},
+
+You have been requested to review the submission "{self.submission.title}" (Version {self.submission.version}).
+
+Review Details:
+- Deadline: {self.object.deadline.strftime('%B %d, %Y')}
+- Forms to Complete: {', '.join(form.name for form in self.object.selected_forms.all())}
+
+Message from requester:
+{self.object.message if self.object.message else 'No additional message provided.'}
+
+You can access the review directly by clicking the following link:
+{review_url}
+
+Alternatively, you can find this review in the "Reviews" section of your dashboard.
+
+Important Deadlines:
+- Review Due Date: {self.object.deadline.strftime('%B %d, %Y')}
+- Days Remaining: {(self.object.deadline - timezone.now().date()).days} days
+
+Best regards,
+{self.request.user.userprofile.full_name}""",
+                    related_submission=self.submission,
+                )
+                
+                # Add the reviewer as recipient
+                message.recipients.add(self.object.requested_to)
+                
+                messages.success(self.request, 'Review request created and notification sent successfully.')
+                return redirect('review:review_dashboard')
+
+        except Exception as e:
+            messages.error(self.request, f'Error creating review request: {str(e)}')
+            return super().form_invalid(form)
+
+    def form_invalid(self, form):
+        messages.error(self.request, 'Please correct the errors below.')
+        return super().form_invalid(form)
 ######################
 # Decline Review
 # URL: path('review/<int:review_request_id>/decline/', DeclineReviewView.as_view(), name='decline_review'),
@@ -950,3 +1010,36 @@ def osar_dashboard(request):
         ).distinct(),
     }
     return render(request, 'review/osar_dashboard.html', context)
+
+@login_required
+def view_notepad(request, submission_id, notepad_type):
+    # Verify permissions
+    if not request.user.groups.filter(name=notepad_type).exists():
+        messages.error(request, f"You don't have permission to view {notepad_type} notepad.")
+        return redirect('review:review_dashboard')
+    
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    if request.method == 'POST':
+        note_text = request.POST.get('note_text', '').strip()
+        if note_text:
+            NotepadEntry.objects.create(
+                submission=submission,
+                notepad_type=notepad_type,
+                text=note_text,
+                created_by=request.user
+            )
+            messages.success(request, 'Note added successfully.')
+        return redirect('review:view_notepad', submission_id=submission_id, notepad_type=notepad_type)
+    
+    notes = NotepadEntry.objects.filter(
+        submission=submission,
+        notepad_type=notepad_type
+    ).select_related('created_by')
+    
+    context = {
+        'submission': submission,
+        'notes': notes,
+        'notepad_type': notepad_type
+    }
+    return render(request, 'review/view_notepad.html', context)

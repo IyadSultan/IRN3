@@ -58,6 +58,9 @@
                                     {% if not submission.irb_number %}
                                         <a href="{% url 'review:assign_irb' submission.pk %}" class="btn btn-info btn-sm">Assign IRB</a>
                                     {% endif %}
+                                    <a href="{% url 'review:view_notepad' submission.pk 'IRB' %}" class="btn btn-info btn-sm">
+                                        <i class="fas fa-sticky-note"></i> Notepad
+                                    </a>
                                 </td>
                             </tr>
                             {% endfor %}

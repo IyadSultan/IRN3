@@ -224,7 +224,57 @@ class Submission(models.Model):
             
         return None
         
+    def can_user_view(self, user):
+        """
+        Determine if a user can view this submission based on their role and the submission's visibility settings.
         
+        Rules:
+        - OSAR members can view all submissions
+        - IRB members can view if show_in_irb is True
+        - RC members can view if show_in_rc is True
+        - PIs, Co-Is, and RAs can view their own submissions
+        """
+        # Check if user is directly involved with the submission
+        if self.can_user_edit(user) or self.can_user_submit(user):
+            return True
+            
+        # OSAR members can view all submissions
+        if user.groups.filter(name='OSAR').exists():
+            return True
+            
+        # IRB members can view if show_in_irb is True
+        if self.show_in_irb and user.groups.filter(name='IRB').exists():
+            return True
+            
+        # RC members can view if show_in_rc is True
+        if self.show_in_rc and user.groups.filter(name='RC').exists():
+            return True
+            
+        return False
+
+    def get_visible_submissions_for_user(user):
+        """
+        Class method to get all submissions visible to a specific user.
+        """
+        base_queryset = Submission.objects.all()
+        
+        # OSAR members can see all submissions
+        if user.groups.filter(name='OSAR').exists():
+            return base_queryset
+            
+        # Build query for user's roles
+        query = models.Q(
+            # Direct involvement
+            models.Q(primary_investigator=user) |
+            models.Q(coinvestigators__user=user) |
+            models.Q(research_assistants__user=user) |
+            # IRB visibility
+            models.Q(show_in_irb=True, primary_investigator__groups__name='IRB') |
+            # RC visibility
+            models.Q(show_in_rc=True, primary_investigator__groups__name='RC')
+        )
+        
+        return base_queryset.filter(query).distinct()
 
 from django.db import models
 from django.contrib.auth.models import User

@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>{{ notepad_type }} Notepad</h2>
+            <h4 class="text-muted">{{ submission.title }}</h4>
+        </div>
+    </div>
+
+    <!-- New Note Form -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="note_text">Add New Note:</label>
+                    <textarea 
+                        class="form-control" 
+                        id="note_text" 
+                        name="note_text" 
+                        rows="3" 
+                        required
+                    ></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary mt-2">Add Note</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Existing Notes -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title mb-0">Previous Notes</h3>
+        </div>
+        <div class="card-body">
+            {% if notes %}
+                {% for note in notes %}
+                    <div class="note-entry mb-4">
+                        <div class="note-content">
+                            {{ note.text|linebreaks }}
+                        </div>
+                        <div class="note-metadata text-muted">
+                            <small>
+                                Added by {{ note.created_by.get_full_name }} 
+                                on {{ note.created_at|date:"F d, Y" }} 
+                                at {{ note.created_at|time:"H:i" }}
+                            </small>
+                        </div>
+                        <hr>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-muted">No notes have been added yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

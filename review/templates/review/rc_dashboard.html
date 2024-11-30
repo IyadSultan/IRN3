@@ -55,6 +55,9 @@
                                 <td>
                                     <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
                                     <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
+                                    <a href="{% url 'review:view_notepad' submission.pk 'RC' %}" class="btn btn-info btn-sm">
+                                        <i class="fas fa-sticky-note"></i> Notepad
+                                    </a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -151,6 +154,9 @@
                                 </td>
                                 <td>
                                     <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
+                                    <a href="{% url 'review:view_notepad' submission.pk 'RC' %}" class="btn btn-info btn-sm">
+                                        <i class="fas fa-sticky-note"></i> Notepad
+                                    </a>
                                 </td>
                             </tr>
                             {% endfor %}

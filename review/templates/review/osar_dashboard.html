@@ -101,7 +101,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
 
 <div class="container">
     <h2 class="mb-4">OSAR Dashboard</h2>
-
+    
     <!-- Submissions Needing Review -->
     <div class="card mb-4">
         <div class="card-header">
@@ -149,6 +149,9 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <td>
                                     <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
                                     <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
+                                    <a href="{% url 'review:view_notepad' submission.pk 'OSAR' %}" class="btn btn-info btn-sm">
+                                        <i class="fas fa-sticky-note"></i> Notepad
+                                    </a>
                                 </td>
                             </tr>
                             {% endfor %}

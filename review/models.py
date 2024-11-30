@@ -147,5 +147,30 @@ class FormResponse(models.Model):
     def __str__(self):
         return f"Response to {self.form} for {self.review}"
 
+######################
+# Notepad
+######################
+
+class NotepadEntry(models.Model):
+    NOTEPAD_TYPES = [
+        ('OSAR', 'OSAR'),
+        ('IRB', 'IRB'),
+        ('RC', 'RC'),
+    ]
+
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE, related_name='notepad_entries')
+    notepad_type = models.CharField(max_length=10, choices=NOTEPAD_TYPES)
+    text = models.TextField()
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Notepad Entry'
+        verbose_name_plural = 'Notepad Entries'
+
+    def __str__(self):
+        return f"{self.notepad_type} Note by {self.created_by.get_full_name()} on {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+
 
 
