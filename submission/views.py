@@ -1290,38 +1290,6 @@ AIDI System
     for recipient in recipients:
         message.recipients.add(recipient)
 
-def notify_osar_of_completion(submission):
-    """Notify OSAR when all forms are complete and submission is ready for review."""
-    system_user = get_system_user()
-    osar_members = User.objects.filter(groups__name='OSAR')
-    
-    if not osar_members.exists():
-        logger.warning("No OSAR members found for notification")
-        return
-        
-    # Create notification message
-    message = Message.objects.create(
-        sender=system_user,
-        subject=f'Submission Ready for Review - {submission.title}',
-        body=f"""
-A submission has completed all required forms and is ready for review:
-
-Submission ID: {submission.temporary_id}
-Title: {submission.title}
-Primary Investigator: {submission.primary_investigator.get_full_name()}
-Study Type: {submission.study_type.name}
-
-Please proceed with your review process.
-
-Best regards,
-AIDI System
-        """.strip(),
-        related_submission=submission
-    )
-    
-    # Add OSAR members as recipients
-    for member in osar_members:
-        message.recipients.add(member)
 
 @login_required
 def check_form_status(request, submission_id):
@@ -1685,13 +1653,27 @@ AIDI System
     pi_message.recipients.add(submission.primary_investigator)
 
 def notify_osar_of_completion(submission):
-    """Notify OSAR when all forms are complete."""
+    """Notify OSAR when all forms are complete and submission is ready for review."""
     system_user = get_system_user()
     osar_members = User.objects.filter(groups__name='OSAR')
     
     if not osar_members.exists():
         logger.warning("No OSAR members found for notification")
         return
+        
+    # Generate PDF of the submission
+    try:
+        buffer = generate_submission_pdf(
+            submission=submission,
+            version=submission.version,
+            user=None,  # You can specify a user if required
+            as_buffer=True
+        )
+        if not buffer:
+            raise ValueError("Failed to generate PDF for submission")
+    except Exception as e:
+        logger.error(f"Failed to generate PDF for submission {submission.temporary_id}: {str(e)}")
+        buffer = None
         
     # Create notification message
     message = Message.objects.create(
@@ -1713,6 +1695,12 @@ AIDI System
         """.strip(),
         related_submission=submission
     )
+    
+    # Attach PDF if generated successfully
+    if buffer:
+        pdf_filename = f"submission_{submission.temporary_id}_v{submission.version}.pdf"
+        message_attachment = MessageAttachment(message=message)
+        message_attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
     
     # Add OSAR members as recipients
     for member in osar_members:
