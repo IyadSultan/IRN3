@@ -44,6 +44,11 @@
                             </td>
                             <td>{{ history.date|date:"M d, Y H:i" }}</td>
                             <td>
+                                {% if submission.submitted_by and history.version == submission.version %}
+                                    Submitted by: {{ submission.submitted_by.get_full_name }}
+                                {% endif %}
+                            </td>
+                            <td>
                                 <div class="btn-group" role="group">
                                     <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id history.version %}" 
                                        class="btn btn-sm btn-secondary" 

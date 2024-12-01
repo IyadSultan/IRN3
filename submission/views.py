@@ -650,6 +650,123 @@ def submission_review(request, submission_id):
         action = request.POST.get('action')
         
         if action == 'submit_final':
+            # Check for required certificates
+            missing_certs = check_researcher_documents(submission)
+            if missing_certs:
+                messages.error(request, 'Cannot submit: All team members must have valid certificates uploaded in the system.')
+                return redirect('submission:submission_review', submission_id=submission_id)
+            
+            # Check for missing documents or validation errors
+            if missing_documents or validation_errors:
+                messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
+                return redirect('submission:submission_review', submission_id=submission_id)
+
+            try:
+                with transaction.atomic():
+                    # Submit the submission and track who submitted it
+                    submission.submitted_by = request.user
+                    submission.date_submitted = timezone.now()
+                    submission.is_locked = True
+
+                    # Check for pending forms from non-submitter team members
+                    non_submitters = submission.get_non_submitters()
+                    required_forms = submission.get_required_investigator_forms()
+                    
+                    has_pending_forms = False
+                    for member in non_submitters:
+                        for form in required_forms:
+                            if not submission.has_submitted_form(member, form):
+                                has_pending_forms = True
+                                break
+                        if has_pending_forms:
+                            break
+
+                    # Set appropriate status
+                    submission.status = 'documents_pending' if has_pending_forms else 'submitted'
+                    submission.save()
+                    
+                    # Create version history entry with submitter info
+                    VersionHistory.objects.create(
+                        submission=submission,
+                        version=submission.version,
+                        status=submission.status,
+                        date=timezone.now(),
+                        submitted_by=request.user
+                    )
+
+                    # Generate submission PDF
+                    buffer = generate_submission_pdf(
+                        submission=submission,
+                        version=submission.version,
+                        user=request.user,
+                        as_buffer=True
+                    )
+
+                    if not buffer:
+                        raise ValueError("Failed to generate PDF for submission")
+
+                    # Get system user for notifications
+                    system_user = get_system_user()
+                    pdf_filename = f"submission_{submission.temporary_id}_v{submission.version}.pdf"
+
+                    # Send notification to PI
+                    pi_message = Message.objects.create(
+                        sender=system_user,
+                        subject=f'Submission {submission.temporary_id} - Version {submission.version} {"Awaiting Forms" if has_pending_forms else "Confirmation"}',
+                        body=f"""
+Dear {submission.primary_investigator.userprofile.full_name},
+
+Your submission (ID: {submission.temporary_id}) has been submitted by {request.user.get_full_name()}.
+
+Status: {'Pending team member forms' if has_pending_forms else 'Complete submission'}
+
+{'''Some team members still need to complete their required forms.
+The submission will be forwarded for review once all forms are completed.''' if has_pending_forms else 'All forms are complete. Your submission will now be reviewed by OSAR.'}
+
+Please find the attached PDF for your records.
+
+Best regards,
+AIDI System
+                        """.strip(),
+                        related_submission=submission
+                    )
+                    pi_message.recipients.add(submission.primary_investigator)
+                    
+                    # Attach PDF to PI message
+                    pi_attachment = MessageAttachment(message=pi_message)
+                    pi_attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
+
+                    if has_pending_forms:
+                        # Notify team members about pending forms
+                        notify_pending_forms(submission)
+                    else:
+                        # Notify OSAR only if all forms are complete
+                        notify_osar_of_completion(submission)
+
+                    # Increment version after everything is done
+                    submission.version += 1
+                    submission.save()
+
+                    messages.success(
+                        request, 
+                        'Submission completed.' + 
+                        (' Awaiting required forms from team members.' if has_pending_forms else ' Sent to OSAR for review.')
+                    )
+                    return redirect('submission:dashboard')
+
+            except Exception as e:
+                logger.error(f"Error in submission finalization: {str(e)}")
+                messages.error(request, f"Error during submission: {str(e)}")
+                return redirect('submission:dashboard')
+
+        elif action == 'back':
+                logger.error(f"Error in submission finalization: {str(e)}")
+                messages.error(request, f"Error during submission: {str(e)}")
+                return redirect('submission:dashboard')    
+        if request.method == 'POST':
+            action = request.POST.get('action')
+            
+        if action == 'submit_final':
             missing_certs = check_researcher_documents(submission)
             if missing_certs:
                 messages.error(request, 'Cannot submit: All team members must have valid certificates uploaded in the system.')

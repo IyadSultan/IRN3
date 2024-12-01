@@ -49,6 +49,31 @@ class Submission(models.Model):
     archived_at = models.DateTimeField(null=True, blank=True)
     show_in_irb = models.BooleanField(default=False, help_text="Toggle visibility for IRB members")
     show_in_rc = models.BooleanField(default=False, help_text="Toggle visibility for RC members")
+    # Add new field to track submitter
+    submitted_by = models.ForeignKey(
+        User,
+        related_name='submitted_submissions',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who submitted the submission"
+    )
+
+    def submit(self, submitted_by):
+        """Handle submission by a specific user."""
+        self.submitted_by = submitted_by
+        self.date_submitted = timezone.now()
+        self.is_locked = True
+        self.status = 'documents_pending' if not self.are_all_investigator_forms_complete() else 'submitted'
+        self.save()
+        
+        # Create version history
+        VersionHistory.objects.create(
+            submission=self,
+            version=self.version,
+            status=self.status,
+            date=timezone.now()
+        )
 
     def __str__(self):
         return f"{self.title} (ID: {self.temporary_id}, Version: {self.version})"
@@ -464,7 +489,9 @@ class Document(models.Model):
 
 class VersionHistory(models.Model):
     submission = models.ForeignKey(
-        Submission, related_name='version_histories', on_delete=models.CASCADE
+        Submission, 
+        related_name='version_histories', 
+        on_delete=models.CASCADE
     )
     version = models.PositiveIntegerField()
     status = models.CharField(
@@ -472,10 +499,17 @@ class VersionHistory(models.Model):
         choices=get_submission_status_choices
     )
     date = models.DateTimeField()
+    submitted_by = models.ForeignKey(  # New field
+        User,
+        related_name='version_submissions',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who submitted this version"
+    )
 
     def __str__(self):
-        return f"Submission {self.submission.temporary_id} - Version {self.version}"
-    
+        return f"Submission {self.submission.temporary_id} - Version {self.version}" 
 
 from django.db import models
 from django.core.cache import cache
