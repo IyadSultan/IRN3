@@ -34,5 +34,7 @@ urlpatterns = [
     path('submission/<int:submission_id>/amendment/', views.study_amendment, name='study_amendment'),
     path('submission/<int:submission_id>/closure/', views.study_closure, name='study_closure'),
     path('submission/<int:submission_id>/actions/', views.submission_actions, name='submission_actions'),
-    
+    path('download-action-pdf/<int:submission_id>/<int:action_id>/', 
+         views.download_action_pdf, 
+         name='download_action_pdf'),
 ]

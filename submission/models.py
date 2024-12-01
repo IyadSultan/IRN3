@@ -579,3 +579,57 @@ class PermissionChangeLog(models.Model):
         action = 'granted' if self.new_value else 'removed'
         return f"{self.permission_type.title()} permission {action} for {self.user.get_full_name()} " \
                f"as {self.get_role_display()} by {self.changed_by.get_full_name()}"
+
+class StudyAction(models.Model):
+    ACTION_TYPES = [
+        ('withdrawal', 'Study Withdrawal'),
+        ('progress', 'Progress Report'),
+        ('amendment', 'Study Amendment'),
+        ('closure', 'Study Closure'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    submission = models.ForeignKey(
+        'Submission', 
+        on_delete=models.CASCADE,
+        related_name='study_actions'
+    )
+    action_type = models.CharField(max_length=20, choices=ACTION_TYPES)
+    performed_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    date_created = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    notes = models.TextField(blank=True)
+    version = models.IntegerField(default=1)
+
+    class Meta:
+        ordering = ['-date_created']
+
+    def __str__(self):
+        return f"{self.get_action_type_display()} - {self.submission.title}"
+
+    def save(self, *args, **kwargs):
+        if not self.version:
+            self.version = self.submission.version
+        super().save(*args, **kwargs)
+
+class StudyActionDocument(models.Model):
+    action = models.ForeignKey(
+        StudyAction,
+        on_delete=models.CASCADE,
+        related_name='documents'
+    )
+    file = models.FileField(upload_to='study_actions/')
+    description = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def filename(self):
+        return self.file.name.split('/')[-1]

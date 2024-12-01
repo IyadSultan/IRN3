@@ -21,6 +21,8 @@ from .models import (
     Document,
     VersionHistory,
     PermissionChangeLog,
+    StudyAction,
+    StudyActionDocument,
 )
 from .forms import (
     SubmissionForm,
@@ -1420,9 +1422,7 @@ def view_submission(request, submission_id):
 # Add to views.py
 
 def handle_study_action_form(request, submission_id, form_name, action_type):
-    """
-    Generic handler for study action forms (withdrawal, progress, amendment, closure)
-    """
+    """Generic handler for study action forms"""
     submission = get_object_or_404(Submission, pk=submission_id)
     
     # Check permissions
@@ -1450,6 +1450,14 @@ def handle_study_action_form(request, submission_id, form_name, action_type):
         if form.is_valid():
             try:
                 with transaction.atomic():
+                    # Create study action record
+                    study_action = StudyAction.objects.create(
+                        submission=submission,
+                        action_type=action_type,
+                        performed_by=request.user,
+                        status='completed'
+                    )
+                    
                     # Save form data
                     for field_name, value in form.cleaned_data.items():
                         FormDataEntry.objects.create(
@@ -1580,3 +1588,36 @@ def submission_actions(request, submission_id):
         'can_submit': can_submit,
     }
     return render(request, 'submission/submission_actions.html', context)
+
+@login_required
+def download_action_pdf(request, submission_id, action_id):
+    """Generate and download PDF for a specific study action."""
+    try:
+        submission = get_object_or_404(Submission, pk=submission_id)
+        action = get_object_or_404(StudyAction, pk=action_id, submission=submission)
+        
+        if not has_edit_permission(request.user, submission):
+            messages.error(request, "You do not have permission to view this submission.")
+            return redirect('submission:dashboard')
+
+        # Generate PDF
+        response = generate_submission_pdf(
+            submission=submission,
+            version=action.version,
+            user=request.user,
+            as_buffer=False,
+            action=action  # Pass the action to include action-specific data
+        )
+        
+        if response is None:
+            messages.error(request, "Error generating PDF. Please try again later.")
+            logger.error(f"PDF generation failed for action {action_id}")
+            return redirect('submission:version_history', submission_id=submission_id)
+            
+        return response
+
+    except Exception as e:
+        logger.error(f"Error in download_action_pdf: {str(e)}")
+        logger.error("Error details:", exc_info=True)
+        messages.error(request, "An error occurred while generating the PDF.")
+        return redirect('submission:version_history', submission_id=submission_id)

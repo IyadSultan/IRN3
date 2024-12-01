@@ -150,6 +150,97 @@
                 </div>
             </div>
             {% endif %}
+            <!-- Actions History Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">Actions History</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Action</th>
+                                    <th>Performed By</th>
+                                    <th>Status</th>
+                                    <th>Documents</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for action in submission.study_actions.all %}
+                                <tr>
+                                    <td>{{ action.date_created|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        <span class="badge {% if action.action_type == 'withdrawal' %}bg-danger
+                                                         {% elif action.action_type == 'closure' %}bg-secondary
+                                                         {% elif action.action_type == 'progress' %}bg-info
+                                                         {% elif action.action_type == 'amendment' %}bg-warning
+                                                         {% else %}bg-primary{% endif %}">
+                                            {{ action.get_action_type_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ action.performed_by.get_full_name }}</td>
+                                    <td>
+                                        <span class="badge {% if action.status == 'completed' %}bg-success
+                                                         {% elif action.status == 'pending' %}bg-warning
+                                                         {% else %}bg-secondary{% endif %}">
+                                            {{ action.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if action.documents.exists %}
+                                            <div class="btn-group">
+                                                <button type="button" class="btn btn-sm btn-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                                    <i class="fas fa-file"></i> Documents
+                                                </button>
+                                                <ul class="dropdown-menu">
+                                                    {% for doc in action.documents.all %}
+                                                    <li>
+                                                        <a class="dropdown-item" href="{{ doc.file.url }}" target="_blank">
+                                                            <i class="fas fa-download"></i> {{ doc.description|default:doc.filename }}
+                                                        </a>
+                                                    </li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">No documents</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'submission:download_action_pdf' submission.temporary_id action.id %}" 
+                                               class="btn btn-sm btn-secondary" 
+                                               title="Download PDF">
+                                                <i class="fas fa-file-pdf"></i> Download
+                                            </a>
+                                            
+                                            {% if action.action_type == 'amendment' %}
+                                            <a href="{% url 'submission:compare_versions' submission.temporary_id action.version submission.version %}" 
+                                               class="btn btn-sm btn-primary" 
+                                               title="Compare with Previous Version">
+                                                <i class="fas fa-code-compare"></i> Compare Changes
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center">
+                                        <div class="alert alert-info mb-0">
+                                            <i class="fas fa-info-circle"></i> No actions have been performed yet.
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
             
             <!-- Navigation -->
             <div class="mt-4">
