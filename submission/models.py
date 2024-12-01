@@ -47,10 +47,11 @@ class Submission(models.Model):
     is_locked = models.BooleanField(default=False)
     is_archived = models.BooleanField(default=False)
     archived_at = models.DateTimeField(null=True, blank=True)
-    show_in_irb = models.BooleanField(default=False, 
-        help_text="Toggle visibility for IRB members")
-    show_in_rc = models.BooleanField(default=False, 
-        help_text="Toggle visibility for RC members")
+    show_in_irb = models.BooleanField(default=False, help_text="Toggle visibility for IRB members")
+    show_in_rc = models.BooleanField(default=False, help_text="Toggle visibility for RC members")
+
+    def __str__(self):
+        return f"{self.title} (ID: {self.temporary_id}, Version: {self.version})"
 
     def archive(self, user=None):
         """Archive the submission"""
@@ -64,65 +65,113 @@ class Submission(models.Model):
         self.archived_at = None
         self.save(update_fields=['is_archived', 'archived_at'])
 
-    def __str__(self):
-        return f"{self.title} (ID: {self.temporary_id}, Version: {self.version})"
-
     def increment_version(self):
-        VersionHistory.objects.create(submission=self, version=self.version, status=self.status, date=timezone.now())
+        """Increment submission version and create history entry."""
+        VersionHistory.objects.create(
+            submission=self,
+            version=self.version,
+            status=self.status,
+            date=timezone.now()
+        )
         self.version += 1
 
     def get_required_investigator_forms(self):
         """Get all forms that require per-investigator submission."""
         return self.study_type.forms.filter(requested_per_investigator=True)
 
+    def get_submitters(self):
+        """Get all users who have submission rights."""
+        submitters = [self.primary_investigator]
+        submitters.extend([ci.user for ci in self.coinvestigators.filter(can_submit=True)])
+        submitters.extend([ra.user for ra in self.research_assistants.filter(can_submit=True)])
+        return submitters
+
+    def get_non_submitters(self):
+        """Get all users who don't have submission rights."""
+        non_submitters = []
+        non_submitters.extend([ci.user for ci in self.coinvestigators.filter(can_submit=False)])
+        non_submitters.extend([ra.user for ra in self.research_assistants.filter(can_submit=False)])
+        return non_submitters
+
+    def has_submitted_form(self, user, form):
+        """Check if a user has submitted a specific form."""
+        # Direct submission check
+        if InvestigatorFormSubmission.objects.filter(
+            submission=self,
+            form=form,
+            investigator=user,
+            version=self.version
+        ).exists():
+            return True
+
+        # If user has submit rights and submission is submitted/pending, form is considered submitted
+        if self.status in ['submitted', 'documents_pending'] and user in self.get_submitters():
+            return True
+
+        return False
+
     def get_pending_investigator_forms(self, user):
         """Get forms that still need to be filled by an investigator."""
+        if not (user == self.primary_investigator or 
+                self.coinvestigators.filter(user=user).exists() or 
+                self.research_assistants.filter(user=user).exists()):
+            return []
+
+        # If user has submit rights and submission is submitted/pending, no forms are pending
+        if user in self.get_submitters() and self.status in ['submitted', 'documents_pending']:
+            return []
+
         required_forms = self.get_required_investigator_forms()
         submitted_forms = InvestigatorFormSubmission.objects.filter(
             submission=self,
             investigator=user,
             version=self.version
         ).values_list('form_id', flat=True)
-        return required_forms.exclude(id__in=submitted_forms)
 
+        return list(required_forms.exclude(id__in=submitted_forms))
+
+    def has_pending_forms(self, user):
+        """Check if user has any pending forms for this submission."""
+        return len(self.get_pending_investigator_forms(user)) > 0
     def get_investigator_form_status(self):
         """Get completion status of all investigator forms."""
         required_forms = self.get_required_investigator_forms()
         if not required_forms.exists():
             return {}
 
-        investigators = list(self.coinvestigators.all())
-        investigators.append({'user': self.primary_investigator, 'role': 'Primary Investigator'})
+        # Get all team members
+        submitters = self.get_submitters()
+        non_submitters = self.get_non_submitters()
+        all_investigators = [{'user': user, 'role': self.get_user_role(user)} 
+                           for user in submitters + non_submitters]
 
         status = {}
         for form in required_forms:
+            # Get direct form submissions
             form_submissions = InvestigatorFormSubmission.objects.filter(
                 submission=self,
                 form=form,
                 version=self.version
             ).select_related('investigator')
-
+            
+            # Create base submission dict
             submitted_users = {sub.investigator_id: sub.date_submitted for sub in form_submissions}
             
-            # For the PI, if they submitted the submission, consider their forms complete
-            if self.date_submitted and self.status == 'submitted':
-                submitted_users.setdefault(
-                    self.primary_investigator.id, 
-                    self.date_submitted
-                )
+            # For users with submit rights, mark as submitted if submission is submitted
+            if self.status in ['submitted', 'documents_pending'] and self.date_submitted:
+                for user in submitters:
+                    submitted_users.setdefault(user.id, self.date_submitted)
 
             status[form.name] = {
                 'form': form,
                 'investigators': [
                     {
-                        'user': inv['user'] if isinstance(inv, dict) else inv.user,
-                        'role': inv['role'] if isinstance(inv, dict) else 'Co-Investigator',
-                        'submitted': submitted_users.get(
-                            inv['user'].id if isinstance(inv, dict) else inv.user.id
-                        ),
-                        'is_pi': (inv['user'] if isinstance(inv, dict) else inv.user) == self.primary_investigator
+                        'user': inv['user'],
+                        'role': inv['role'],
+                        'submitted': submitted_users.get(inv['user'].id),
+                        'is_pi': inv['user'] == self.primary_investigator
                     }
-                    for inv in investigators
+                    for inv in all_investigators
                 ]
             }
         return status
@@ -133,131 +182,77 @@ class Submission(models.Model):
         if not required_forms.exists():
             return True
 
-        investigators = list(self.coinvestigators.all().values_list('user_id', flat=True))
-        # Don't include PI in check as their forms are auto-completed
+        # Get non-submitters - they always need to submit forms
+        non_submitters = self.get_non_submitters()
         
+        # For new submissions, include submitters in check
+        if self.status not in ['submitted', 'documents_pending']:
+            non_submitters.extend(self.get_submitters())
+
+        # Check each form
         for form in required_forms:
-            submitted_users = InvestigatorFormSubmission.objects.filter(
-                submission=self,
-                form=form,
-                version=self.version
-            ).values_list('investigator_id', flat=True)
-            if not set(investigators).issubset(set(submitted_users)):
+            submitted_users = [
+                user.id for user in non_submitters
+                if self.has_submitted_form(user, form)
+            ]
+            if len(submitted_users) < len(non_submitters):
                 return False
+
         return True
-    
+
     def can_user_edit(self, user):
         """Check if user can edit the submission."""
         if user == self.primary_investigator:
             return True
-            
-        coinv = self.coinvestigators.filter(user=user).first()
-        if coinv and coinv.can_edit:
-            return True
-            
-        ra = self.research_assistants.filter(user=user).first()
-        if ra and ra.can_edit:
-            return True
-            
-        return False
+        return (self.coinvestigators.filter(user=user, can_edit=True).exists() or
+                self.research_assistants.filter(user=user, can_edit=True).exists())
 
     def can_user_submit(self, user):
         """Check if user can submit the submission."""
-        if user == self.primary_investigator:
-            return True
-            
-        coinv = self.coinvestigators.filter(user=user).first()
-        if coinv and coinv.can_submit:
-            return True
-            
-        ra = self.research_assistants.filter(user=user).first()
-        if ra and ra.can_submit:
-            return True
-            
-        return False
+        return user in self.get_submitters()
 
     def can_user_view_communications(self, user):
         """Check if user can view submission communications."""
         if user == self.primary_investigator:
             return True
-            
-        coinv = self.coinvestigators.filter(user=user).first()
-        if coinv and coinv.can_view_communications:
-            return True
-            
-        ra = self.research_assistants.filter(user=user).first()
-        if ra and ra.can_view_communications:
-            return True
-            
-        return False
+        return (self.coinvestigators.filter(user=user, can_view_communications=True).exists() or
+                self.research_assistants.filter(user=user, can_view_communications=True).exists())
 
     def get_user_role(self, user):
         """Get user's role in the submission."""
         if user == self.primary_investigator:
             return 'Primary Investigator'
-            
-        coinv = self.coinvestigators.filter(user=user).first()
-        if coinv:
+        if self.coinvestigators.filter(user=user).exists():
             return 'Co-Investigator'
-            
-        ra = self.research_assistants.filter(user=user).first()
-        if ra:
+        if self.research_assistants.filter(user=user).exists():
             return 'Research Assistant'
-            
         return None
-        
+
     def can_user_view(self, user):
-        """
-        Determine if a user can view this submission based on their role and the submission's visibility settings.
-        
-        Rules:
-        - OSAR members can view all submissions
-        - IRB members can view if show_in_irb is True
-        - RC members can view if show_in_rc is True
-        - PIs, Co-Is, and RAs can view their own submissions
-        """
-        # Check if user is directly involved with the submission
+        """Determine if a user can view this submission."""
         if self.can_user_edit(user) or self.can_user_submit(user):
             return True
-            
-        # OSAR members can view all submissions
         if user.groups.filter(name='OSAR').exists():
             return True
-            
-        # IRB members can view if show_in_irb is True
         if self.show_in_irb and user.groups.filter(name='IRB').exists():
             return True
-            
-        # RC members can view if show_in_rc is True
         if self.show_in_rc and user.groups.filter(name='RC').exists():
             return True
-            
         return False
 
-    def get_visible_submissions_for_user(user):
-        """
-        Class method to get all submissions visible to a specific user.
-        """
-        base_queryset = Submission.objects.all()
-        
-        # OSAR members can see all submissions
+    @classmethod
+    def get_visible_submissions_for_user(cls, user):
+        """Get all submissions visible to a specific user."""
         if user.groups.filter(name='OSAR').exists():
-            return base_queryset
-            
-        # Build query for user's roles
-        query = models.Q(
-            # Direct involvement
+            return cls.objects.all()
+        
+        return cls.objects.filter(
             models.Q(primary_investigator=user) |
             models.Q(coinvestigators__user=user) |
             models.Q(research_assistants__user=user) |
-            # IRB visibility
             models.Q(show_in_irb=True, primary_investigator__groups__name='IRB') |
-            # RC visibility
             models.Q(show_in_rc=True, primary_investigator__groups__name='RC')
-        )
-        
-        return base_queryset.filter(query).distinct()
-
+        ).distinct()
 from django.db import models
 from django.contrib.auth.models import User
 from users.models import Role  # Add this import

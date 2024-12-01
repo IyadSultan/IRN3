@@ -7,7 +7,20 @@
             <h4 class="text-muted">{{ submission.title }}</h4>
         </div>
         <div class="card-body">
-            
+            {% if pending_forms %}
+                <div class="alert alert-warning">
+                    <h5><i class="fas fa-exclamation-circle"></i> Required Forms</h5>
+                    <p>You have pending forms to complete for this submission:</p>
+                    <div class="mt-3">
+                        {% for form in pending_forms %}
+                            <a href="{% url 'submission:investigator_form' submission.temporary_id form.id %}" 
+                               class="btn btn-primary mb-2 me-2">
+                                <i class="fas fa-file-signature"></i> Fill {{ form.name }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
 
             <!-- Version History Table -->
             <div class="table-responsive">
@@ -25,7 +38,7 @@
                         <tr>
                             <td>{{ history.version }}</td>
                             <td>
-                                <span class="badge {% if history.status == 'withdrawn' %}bg-danger{% elif history.status == 'closed' %}bg-secondary{% else %}bg-{{ history.status|lower }}{% endif %} text-white">
+                                <span class="badge badge-{{ history.status|lower }}">
                                     {{ history.get_status_display }}
                                 </span>
                             </td>
@@ -56,13 +69,8 @@
             <!-- Required Investigator Forms -->
             {% if submission.get_required_investigator_forms %}
             <div class="card mt-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">Required Investigator Forms</h4>
-                    {% if not submission.is_locked %}
-                        <a href="#" id="refreshStatus" class="btn btn-sm btn-outline-primary">
-                            <i class="fas fa-sync-alt"></i> Refresh Status
-                        </a>
-                    {% endif %}
+                <div class="card-header">
+                    <h4 class="mb-0">Required Forms Status</h4>
                 </div>
                 <div class="card-body">
                     {% with form_status=submission.get_investigator_form_status %}
@@ -114,12 +122,12 @@
                                             {% if inv.submitted %}
                                                 <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id status.form.version %}" 
                                                    class="btn btn-sm btn-secondary">
-                                                    <i class="fas fa-file-pdf"></i> View Response
+                                                    <i class="fas fa-file-pdf"></i> View Form
                                                 </a>
                                             {% elif user == inv.user and not submission.is_locked %}
                                                 <a href="{% url 'submission:investigator_form' submission.temporary_id status.form.id %}" 
-                                                   class="btn btn-sm btn-primary">
-                                                    <i class="fas fa-edit"></i> Fill Form
+                                                   class="btn btn-sm btn-warning">
+                                                    <i class="fas fa-edit"></i> Submit Required Form
                                                 </a>
                                             {% else %}
                                                 -
@@ -130,17 +138,15 @@
                                 </tbody>
                             </table>
                         </div>
-
-                        {% if forloop.last %}
+                        {% endfor %}
+                        
                         <div class="alert {% if submission.are_all_investigator_forms_complete %}alert-success{% else %}alert-warning{% endif %} mt-3">
                             {% if submission.are_all_investigator_forms_complete %}
                                 <i class="fas fa-check-circle"></i> All required forms have been submitted.
                             {% else %}
-                                <i class="fas fa-exclamation-circle"></i> Some forms are still pending submission.
+                                <i class="fas fa-exclamation-circle"></i> Some team members still need to submit their forms.
                             {% endif %}
                         </div>
-                        {% endif %}
-                        {% endfor %}
                     {% else %}
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle"></i> No form submissions required for this version.
@@ -148,128 +154,178 @@
                     {% endif %}
                     {% endwith %}
                 </div>
-            </div>
-            {% endif %}
-            <!-- Actions History Section -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h4 class="mb-0">Actions History</h4>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Action</th>
-                                    <th>Performed By</th>
-                                    <th>Status</th>
-                                    <th>Documents</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for action in submission.study_actions.all %}
-                                <tr>
-                                    <td>{{ action.date_created|date:"M d, Y H:i" }}</td>
-                                    <td>
-                                        <span class="badge {% if action.action_type == 'withdrawal' %}bg-danger
-                                                         {% elif action.action_type == 'closure' %}bg-secondary
-                                                         {% elif action.action_type == 'progress' %}bg-info
-                                                         {% elif action.action_type == 'amendment' %}bg-warning
-                                                         {% else %}bg-primary{% endif %}">
-                                            {{ action.get_action_type_display }}
-                                        </span>
-                                    </td>
-                                    <td>{{ action.performed_by.get_full_name }}</td>
-                                    <td>
-                                        <span class="badge {% if action.status == 'completed' %}bg-success
-                                                         {% elif action.status == 'pending' %}bg-warning
-                                                         {% else %}bg-secondary{% endif %}">
-                                            {{ action.get_status_display }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        {% if action.documents.exists %}
-                                            <div class="btn-group">
-                                                <button type="button" class="btn btn-sm btn-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                                                    <i class="fas fa-file"></i> Documents
-                                                </button>
-                                                <ul class="dropdown-menu">
-                                                    {% for doc in action.documents.all %}
-                                                    <li>
-                                                        <a class="dropdown-item" href="{{ doc.file.url }}" target="_blank">
-                                                            <i class="fas fa-download"></i> {{ doc.description|default:doc.filename }}
-                                                        </a>
-                                                    </li>
-                                                    {% endfor %}
-                                                </ul>
-                                            </div>
-                                        {% else %}
-                                            <span class="text-muted">No documents</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="btn-group" role="group">
-                                            <a href="{% url 'submission:download_action_pdf' submission.temporary_id action.id %}" 
-                                               class="btn btn-sm btn-secondary" 
-                                               title="Download PDF">
-                                                <i class="fas fa-file-pdf"></i> Download
-                                            </a>
-                                            
-                                            {% if action.action_type == 'amendment' %}
-                                            <a href="{% url 'submission:compare_versions' submission.temporary_id action.version submission.version %}" 
-                                               class="btn btn-sm btn-primary" 
-                                               title="Compare with Previous Version">
-                                                <i class="fas fa-code-compare"></i> Compare Changes
-                                            </a>
+                {% endif %}
+    
+                <!-- Study Actions History Section -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4 class="mb-0">Actions History</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Action</th>
+                                        <th>Performed By</th>
+                                        <th>Status</th>
+                                        <th>Documents</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for action in submission.study_actions.all %}
+                                    <tr>
+                                        <td>{{ action.date_created|date:"M d, Y H:i" }}</td>
+                                        <td>
+                                            <span class="badge {% if action.action_type == 'withdrawal' %}bg-danger
+                                                             {% elif action.action_type == 'closure' %}bg-secondary
+                                                             {% elif action.action_type == 'progress' %}bg-info
+                                                             {% elif action.action_type == 'amendment' %}bg-warning
+                                                             {% else %}bg-primary{% endif %}">
+                                                {{ action.get_action_type_display }}
+                                            </span>
+                                        </td>
+                                        <td>{{ action.performed_by.get_full_name }}</td>
+                                        <td>
+                                            <span class="badge {% if action.status == 'completed' %}bg-success
+                                                             {% elif action.status == 'pending' %}bg-warning
+                                                             {% else %}bg-secondary{% endif %}">
+                                                {{ action.get_status_display }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if action.documents.exists %}
+                                                <div class="btn-group">
+                                                    <button type="button" class="btn btn-sm btn-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                                        <i class="fas fa-file"></i> Documents
+                                                    </button>
+                                                    <ul class="dropdown-menu">
+                                                        {% for doc in action.documents.all %}
+                                                        <li>
+                                                            <a class="dropdown-item" href="{{ doc.file.url }}" target="_blank">
+                                                                <i class="fas fa-download"></i> {{ doc.description|default:doc.filename }}
+                                                            </a>
+                                                        </li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                </div>
+                                            {% else %}
+                                                <span class="text-muted">No documents</span>
                                             {% endif %}
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="6" class="text-center">
-                                        <div class="alert alert-info mb-0">
-                                            <i class="fas fa-info-circle"></i> No actions have been performed yet.
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <a href="{% url 'submission:download_action_pdf' submission.temporary_id action.id %}" 
+                                                   class="btn btn-sm btn-secondary" 
+                                                   title="Download PDF">
+                                                    <i class="fas fa-file-pdf"></i> Download
+                                                </a>
+                                                
+                                                {% if action.action_type == 'amendment' %}
+                                                <a href="{% url 'submission:compare_versions' submission.temporary_id action.version submission.version %}" 
+                                                   class="btn btn-sm btn-primary" 
+                                                   title="Compare with Previous Version">
+                                                    <i class="fas fa-code-compare"></i> Compare Changes
+                                                </a>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="6" class="text-center">
+                                            <div class="alert alert-info mb-0">
+                                                <i class="fas fa-info-circle"></i> No actions have been performed yet.
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Navigation -->
-            <div class="mt-4">
-                <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Dashboard
-                </a>
+                
+                <!-- Navigation -->
+                <div class="mt-4">
+                    <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
             </div>
         </div>
     </div>
-</div>
-
-{% block page_specific_js %}
-<script>
-$(document).ready(function() {
-    $('#refreshStatus').click(function(e) {
-        e.preventDefault();
-        $.ajax({
-            url: '{% url "submission:check_form_status" submission.temporary_id %}',
-            method: 'GET',
-            success: function(response) {
-                location.reload();
-            },
-            error: function(xhr, status, error) {
-                console.error('Error refreshing status:', error);
-            }
+    
+    {% block page_specific_js %}
+    <script>
+    $(document).ready(function() {
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
         });
+    
+        // Auto-refresh status every 5 minutes if there are pending forms
+        {% if not submission.are_all_investigator_forms_complete %}
+        setInterval(function() {
+            $.ajax({
+                url: '{% url "submission:check_form_status" submission.temporary_id %}',
+                method: 'GET',
+                success: function(response) {
+                    if (response.all_complete) {
+                        location.reload();
+                    }
+                }
+            });
+        }, 300000); // 5 minutes
+        {% endif %}
     });
-});
-</script>
-{% endblock %}
-
-{% endblock %}
+    </script>
+    {% endblock %}
+    
+    {% block extra_css %}
+    <style>
+        .btn-group {
+            gap: 0.5rem;
+        }
+        
+        .badge {
+            padding: 0.5em 0.8em;
+            font-size: 0.9em;
+        }
+    
+        .table td {
+            vertical-align: middle;
+        }
+    
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+        }
+    
+        .alert-warning {
+            border-left: 4px solid #ffc107;
+        }
+    
+        .alert-success {
+            border-left: 4px solid #28a745;
+        }
+    
+        .alert-info {
+            border-left: 4px solid #17a2b8;
+        }
+    
+        .badge.badge-documents_pending {
+            background-color: #ffc107;
+            color: #000;
+        }
+    
+        .badge.badge-submitted {
+            background-color: #28a745;
+            color: #fff;
+        }
+    </style>
+    {% endblock %}
+    
+    {% endblock %}

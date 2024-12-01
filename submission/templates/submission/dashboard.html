@@ -17,6 +17,13 @@
         </div>
     </div>
 
+    {% if submissions_with_pending_forms %}
+    <div class="alert alert-warning alert-dismissible fade show mb-4" role="alert">
+        <i class="fas fa-exclamation-triangle"></i> You have pending forms to complete in one or more submissions.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
     <div class="card">
         <div class="card-body">
             <div class="table-responsive">
@@ -68,14 +75,27 @@
                                             <i class="fas fa-edit"></i>
                                         </a>
                                     {% endif %}
+
+                                    {% if submission.has_pending %}
+                                    <a href="{% url 'submission:version_history' submission.temporary_id %}" 
+                                       class="btn btn-sm btn-info position-relative" 
+                                       title="Version History - Has Pending Forms">
+                                        <i class="fas fa-history"></i>
+                                        <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger rounded-circle">
+                                            <span class="visually-hidden">Pending forms</span>
+                                        </span>
+                                    </a>
+                                {% else %}
                                     <a href="{% url 'submission:version_history' submission.temporary_id %}" 
                                        class="btn btn-sm btn-info" 
                                        title="Version History">
                                         <i class="fas fa-history"></i>
                                     </a>
+                                        {% endif %}
+
                                     <a href="{% url 'submission:submission_actions' submission.temporary_id %}" 
                                        class="btn btn-sm btn-primary" 
-                                        title="Actions">
+                                       title="Actions">
                                         <i class="fas fa-cogs"></i>
                                     </a>
                                     <a href="{% url 'submission:download_submission_pdf' submission.temporary_id %}" 
@@ -121,6 +141,12 @@ $(document).ready(function() {
         ]
     });
 
+    // Initialize all tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    });
+
     // Archive submission handler
     $('.archive-submission').click(function() {
         const submissionId = $(this).data('submission-id');
@@ -153,14 +179,25 @@ $(document).ready(function() {
         gap: 0.5rem;
     }
     
-    .status-badge {
-        padding: 5px 10px;
-        border-radius: 15px;
+    .badge {
+        padding: 0.5em 0.8em;
         font-size: 0.9em;
+        font-weight: 500;
     }
-    
-    .status-badge i {
-        margin-right: 5px;
+
+    .badge-documents_pending {
+        background-color: #ffc107;
+        color: #000;
+    }
+
+    .badge-submitted {
+        background-color: #28a745;
+        color: #fff;
+    }
+
+    .badge-draft {
+        background-color: #6c757d;
+        color: #fff;
     }
 
     .table td {
@@ -169,6 +206,20 @@ $(document).ready(function() {
 
     .btn-sm {
         padding: 0.25rem 0.5rem;
+    }
+
+    /* Adjusted notification dot */
+    .position-absolute.bg-danger {
+        width: 2px;
+        height: 2px;
+        margin-top: -3px;
+        border: 1.5px solid #fff;
+    }
+
+    /* Adjusted dot position */
+    .btn-info.position-relative .position-absolute {
+        transform: translate(-50%, -50%);
+        left: 75%;  /* Moved more to the left */
     }
 </style>
 {% endblock %}
