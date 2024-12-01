@@ -278,6 +278,18 @@ class PDFGenerator:
         else:
             self.write_wrapped_text("No documents attached")
 
+    def add_action_info(self, action_type, action_date):
+        """Add action-specific information to the PDF"""
+        self.add_section_header(f"{action_type.title()} Information")
+        
+        action_info = [
+            f"Action Type: {action_type.title()}",
+            f"Date: {action_date.strftime('%Y-%m-%d %H:%M')}",
+        ]
+
+        for info in action_info:
+            self.write_wrapped_text(info)
+
     def generate(self):
         """Generate the complete PDF"""
         self.add_header()
@@ -289,7 +301,7 @@ class PDFGenerator:
         self.canvas.save()
 
 
-def generate_submission_pdf(submission, version, user, as_buffer=False):
+def generate_submission_pdf(submission, version, user, as_buffer=False, action_type=None, action_date=None):
     """Generate PDF for a submission"""
     try:
         if version is None:
@@ -298,17 +310,13 @@ def generate_submission_pdf(submission, version, user, as_buffer=False):
             
         logger.info(f"Generating PDF for submission {submission.temporary_id} version {version}")
         
-        # Check if there's any form data for this version
-        form_entries = FormDataEntry.objects.filter(
-            submission=submission,
-            version=version
-        )
-        
-        if not form_entries.exists():
-            logger.warning(f"No form entries found for submission {submission.temporary_id} version {version}")
-        
         buffer = BytesIO()
         pdf_generator = PDFGenerator(buffer, submission, version, user)
+        
+        # Add action-specific content if provided
+        if action_type:
+            pdf_generator.add_action_info(action_type, action_date)
+            
         pdf_generator.generate()
         
         if as_buffer:

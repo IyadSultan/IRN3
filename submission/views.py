@@ -1596,23 +1596,29 @@ def download_action_pdf(request, submission_id, action_id):
         submission = get_object_or_404(Submission, pk=submission_id)
         action = get_object_or_404(StudyAction, pk=action_id, submission=submission)
         
-        if not has_edit_permission(request.user, submission):
-            messages.error(request, "You do not have permission to view this submission.")
-            return redirect('submission:dashboard')
-
+        # Use a fallback version if action.version is None
+        version = action.version or submission.version
+        
         # Generate PDF
         response = generate_submission_pdf(
             submission=submission,
-            version=action.version,
+            version=version,
             user=request.user,
             as_buffer=False,
-            action=action  # Pass the action to include action-specific data
+            action_type=action.action_type,  # Pass action_type instead of action object
+            action_date=action.date_created  # Pass action date if needed
         )
         
         if response is None:
             messages.error(request, "Error generating PDF. Please try again later.")
             logger.error(f"PDF generation failed for action {action_id}")
             return redirect('submission:version_history', submission_id=submission_id)
+            
+        # Modify the filename to include action type
+        response['Content-Disposition'] = (
+            f'attachment; filename="submission_{submission.temporary_id}_'
+            f'{action.action_type}_{action.date_created.strftime("%Y%m%d")}.pdf"'
+        )
             
         return response
 
