@@ -25,58 +25,38 @@ def check_researcher_documents(submission):
     """Check documents for all researchers involved in the submission"""
     missing_documents = {}
 
+    def check_user_documents(profile, role_key, user_name):
+        """Helper function to check documents for a user"""
+        missing = []
+        if not profile.has_valid_gcp:
+            missing.append('GCP Certificate (Expired or Missing)')
+        if not profile.has_qrc:
+            missing.append('QRC Certificate')
+        if not profile.has_ctc:
+            missing.append('CTC Certificate')
+        if not profile.has_cv:
+            missing.append('CV')
+        if missing:
+            # Use a unique key for each user by combining role and name
+            key = f"{role_key}: {user_name}"
+            missing_documents[key] = {
+                'name': user_name,
+                'documents': missing
+            }
+
     # Check primary investigator's documents
     pi_profile = submission.primary_investigator.userprofile
-    pi_missing = []
-    if not pi_profile.has_valid_gcp:
-        pi_missing.append('GCP Certificate (Expired or Missing)')
-    if not pi_profile.has_qrc:
-        pi_missing.append('QRC Certificate')
-    if not pi_profile.has_ctc:
-        pi_missing.append('CTC Certificate')
-    if not pi_profile.has_cv:
-        pi_missing.append('CV')
-    if pi_missing:
-        missing_documents['Primary Investigator'] = {
-            'name': pi_profile.full_name,
-            'documents': pi_missing
-        }
+    check_user_documents(pi_profile, 'Primary Investigator', pi_profile.full_name)
 
     # Check co-investigators' documents
     for coinv in submission.coinvestigators.all():
         coinv_profile = coinv.user.userprofile
-        coinv_missing = []
-        if not coinv_profile.has_valid_gcp:
-            coinv_missing.append('GCP Certificate (Expired or Missing)')
-        if not coinv_profile.has_qrc:
-            coinv_missing.append('QRC Certificate')
-        if not coinv_profile.has_ctc:
-            coinv_missing.append('CTC Certificate')
-        if not coinv_profile.has_cv:
-            coinv_missing.append('CV')
-        if coinv_missing:
-            missing_documents[f'Co-Investigator: {coinv.role_in_study}'] = {
-                'name': coinv_profile.full_name,
-                'documents': coinv_missing
-            }
+        check_user_documents(coinv_profile, 'Co-Investigator', coinv_profile.full_name)
 
     # Check research assistants' documents
     for ra in submission.research_assistants.all():
         ra_profile = ra.user.userprofile
-        ra_missing = []
-        if not ra_profile.has_valid_gcp:
-            ra_missing.append('GCP Certificate (Expired or Missing)')
-        if not ra_profile.has_qrc:
-            ra_missing.append('QRC Certificate')
-        if not ra_profile.has_ctc:
-            ra_missing.append('CTC Certificate')
-        if not ra_profile.has_cv:
-            ra_missing.append('CV')
-        if ra_missing:
-            missing_documents[f'Research Assistant'] = {
-                'name': ra_profile.full_name,
-                'documents': ra_missing
-            }
+        check_user_documents(ra_profile, 'Research Assistant', ra_profile.full_name)
 
     return missing_documents
 

@@ -7,6 +7,9 @@
             <h4 class="text-muted">{{ submission.title }}</h4>
         </div>
         <div class="card-body">
+            
+
+            <!-- Version History Table -->
             <div class="table-responsive">
                 <table class="table table-striped">
                     <thead>
@@ -22,10 +25,9 @@
                         <tr>
                             <td>{{ history.version }}</td>
                             <td>
-                                <span class="badge bg-{{ history.status|lower }} text-dark">
-                                    {{ history.status|title }}
+                                <span class="badge {% if history.status == 'withdrawn' %}bg-danger{% elif history.status == 'closed' %}bg-secondary{% else %}bg-{{ history.status|lower }}{% endif %} text-white">
+                                    {{ history.get_status_display }}
                                 </span>
-                            </td>
                             </td>
                             <td>{{ history.date|date:"M d, Y H:i" }}</td>
                             <td>
@@ -36,8 +38,8 @@
                                         <i class="fas fa-file-pdf"></i> Download
                                     </a>
                                     
-                                    {% if history.can_compare %}
-                                    <a href="{% url 'submission:compare_version' submission.temporary_id history.version %}" 
+                                    {% if not forloop.first %}
+                                    <a href="{% url 'submission:compare_versions' submission.temporary_id history.version submission.version %}" 
                                        class="btn btn-sm btn-primary" 
                                        title="Compare with Previous Version">
                                         <i class="fas fa-code-compare"></i> Compare Changes
@@ -51,61 +53,105 @@
                 </table>
             </div>
             
+            <!-- Required Investigator Forms -->
             {% if submission.get_required_investigator_forms %}
             <div class="card mt-4">
-                <div class="card-header">
-                    <h4>Required Investigator Forms</h4>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Required Investigator Forms</h4>
+                    {% if not submission.is_locked %}
+                        <a href="#" id="refreshStatus" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-sync-alt"></i> Refresh Status
+                        </a>
+                    {% endif %}
                 </div>
                 <div class="card-body">
                     {% with form_status=submission.get_investigator_form_status %}
                     {% if form_status %}
                         {% for form_name, status in form_status.items %}
                         <h5 class="mb-3">{{ form_name }}</h5>
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Investigator</th>
-                                    <th>Role</th>
-                                    <th>Status</th>
-                                    <th>Submission Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for inv in status.investigators %}
-                                <tr>
-                                    <td>{{ inv.user.get_full_name }}</td>
-                                    <td>{{ inv.role }}</td>
-                                    <td>
-                                        {% if inv.submitted %}
-                                            <span class="badge bg-success">
-                                                <i class="fas fa-check"></i> Submitted
-                                            </span>
-                                        {% else %}
-                                            <span class="badge bg-danger">
-                                                <i class="fas fa-times"></i> Pending
-                                            </span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if inv.submitted %}
-                                            {{ inv.submitted|date:"M d, Y H:i" }}
-                                        {% else %}
-                                            -
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Investigator</th>
+                                        <th>Role</th>
+                                        <th>Department</th>
+                                        <th>Status</th>
+                                        <th>Submission Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for inv in status.investigators %}
+                                    <tr>
+                                        <td>
+                                            {{ inv.user.get_full_name }}
+                                            {% if inv.is_pi %}
+                                            <span class="badge bg-info ms-1">PI</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ inv.role }}</td>
+                                        <td>{{ inv.user.userprofile.department|default:"Not specified" }}</td>
+                                        <td>
+                                            {% if inv.submitted %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check"></i> Submitted
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-warning">
+                                                    <i class="fas fa-clock"></i> Pending
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if inv.submitted %}
+                                                {{ inv.submitted|date:"M d, Y H:i" }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if inv.submitted %}
+                                                <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id status.form.version %}" 
+                                                   class="btn btn-sm btn-secondary">
+                                                    <i class="fas fa-file-pdf"></i> View Response
+                                                </a>
+                                            {% elif user == inv.user and not submission.is_locked %}
+                                                <a href="{% url 'submission:investigator_form' submission.temporary_id status.form.id %}" 
+                                                   class="btn btn-sm btn-primary">
+                                                    <i class="fas fa-edit"></i> Fill Form
+                                                </a>
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {% if forloop.last %}
+                        <div class="alert {% if submission.are_all_investigator_forms_complete %}alert-success{% else %}alert-warning{% endif %} mt-3">
+                            {% if submission.are_all_investigator_forms_complete %}
+                                <i class="fas fa-check-circle"></i> All required forms have been submitted.
+                            {% else %}
+                                <i class="fas fa-exclamation-circle"></i> Some forms are still pending submission.
+                            {% endif %}
+                        </div>
+                        {% endif %}
                         {% endfor %}
                     {% else %}
-                        <p class="text-muted">No form submissions required for this version.</p>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> No form submissions required for this version.
+                        </div>
                     {% endif %}
                     {% endwith %}
                 </div>
             </div>
             {% endif %}
             
+            <!-- Navigation -->
             <div class="mt-4">
                 <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Back to Dashboard
@@ -114,4 +160,25 @@
         </div>
     </div>
 </div>
+
+{% block page_specific_js %}
+<script>
+$(document).ready(function() {
+    $('#refreshStatus').click(function(e) {
+        e.preventDefault();
+        $.ajax({
+            url: '{% url "submission:check_form_status" submission.temporary_id %}',
+            method: 'GET',
+            success: function(response) {
+                location.reload();
+            },
+            error: function(xhr, status, error) {
+                console.error('Error refreshing status:', error);
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+
 {% endblock %}

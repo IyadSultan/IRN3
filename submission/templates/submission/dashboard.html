@@ -73,6 +73,11 @@
                                        title="Version History">
                                         <i class="fas fa-history"></i>
                                     </a>
+                                    <a href="{% url 'submission:submission_actions' submission.temporary_id %}" 
+                                       class="btn btn-sm btn-primary" 
+                                        title="Actions">
+                                        <i class="fas fa-cogs"></i>
+                                    </a>
                                     <a href="{% url 'submission:download_submission_pdf' submission.temporary_id %}" 
                                        class="btn btn-sm btn-secondary" 
                                        title="Download PDF">

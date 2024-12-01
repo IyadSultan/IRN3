@@ -29,4 +29,10 @@ urlpatterns = [
     path('archive/<int:submission_id>/', views.archive_submission, name='archive_submission'),
     path('unarchive/<int:submission_id>/', views.unarchive_submission, name='unarchive_submission'),
     path('view/<int:submission_id>/', views.view_submission, name='view_submission'),
+    path('submission/<int:submission_id>/withdraw/', views.study_withdrawal, name='study_withdrawal'),
+    path('submission/<int:submission_id>/progress/', views.progress_report, name='progress_report'),
+    path('submission/<int:submission_id>/amendment/', views.study_amendment, name='study_amendment'),
+    path('submission/<int:submission_id>/closure/', views.study_closure, name='study_closure'),
+    path('submission/<int:submission_id>/actions/', views.submission_actions, name='submission_actions'),
+    
 ]

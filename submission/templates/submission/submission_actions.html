@@ -1,0 +1,125 @@
+{% extends 'users/base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2>Study Actions</h2>
+            <h6 class="text-muted">{{ submission.title }}</h6>
+            <span class="badge bg-{{ submission.status|lower }} text-white">
+                {{ submission.get_status_display }}
+            </span>
+        </div>
+        <div class="card-body">
+            {% if not can_submit %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i> You don't have permission to perform study actions. Only users with submission rights can perform these actions.
+            </div>
+            {% endif %}
+
+            {% if submission.is_locked %}
+            <div class="alert alert-info">
+                <i class="fas fa-lock"></i> This submission is currently locked. Some actions may be restricted.
+            </div>
+            {% endif %}
+
+            <div class="row">
+                <!-- Withdraw Study -->
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0"><i class="fas fa-times-circle"></i> Withdraw Study</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Withdraw your study from the review process. This action:</p>
+                            <ul>
+                                <li>Permanently withdraws the study</li>
+                                <li>Locks the submission</li>
+                                <li>Notifies all team members</li>
+                                <li>Cannot be undone</li>
+                            </ul>
+                            <a href="{% url 'submission:study_withdrawal' submission.temporary_id %}" 
+                               class="btn btn-danger mt-3 {% if not can_submit or submission.is_locked %}disabled{% endif %}"
+                               onclick="return confirm('Are you sure you want to withdraw this study? This action cannot be undone.')">
+                                <i class="fas fa-times-circle"></i> Withdraw Study
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Report -->
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="fas fa-chart-line"></i> Progress Report</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Submit a progress report for your study. This will:</p>
+                            <ul>
+                                <li>Update OSAR on study progress</li>
+                                <li>Be recorded in study history</li>
+                                <li>Be available to all team members</li>
+                                <li>Help maintain study compliance</li>
+                            </ul>
+                            <a href="{% url 'submission:progress_report' submission.temporary_id %}" 
+                               class="btn btn-info mt-3 {% if not can_submit %}disabled{% endif %}">
+                                <i class="fas fa-chart-line"></i> Submit Progress Report
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Study Amendment -->
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-warning">
+                            <h5 class="mb-0"><i class="fas fa-edit"></i> Study Amendment</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Submit an amendment to your study. Use this to:</p>
+                            <ul>
+                                <li>Request changes to study protocol</li>
+                                <li>Update study parameters</li>
+                                <li>Modify study procedures</li>
+                                <li>Request team member changes</li>
+                            </ul>
+                            <a href="{% url 'submission:study_amendment' submission.temporary_id %}" 
+                               class="btn btn-warning mt-3 {% if not can_submit %}disabled{% endif %}">
+                                <i class="fas fa-edit"></i> Submit Amendment
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Study Closure -->
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0"><i class="fas fa-door-closed"></i> Study Closure</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Close your completed study. This action:</p>
+                            <ul>
+                                <li>Marks the study as completed</li>
+                                <li>Locks the submission</li>
+                                <li>Notifies all team members</li>
+                                <li>Cannot be undone</li>
+                            </ul>
+                            <a href="{% url 'submission:study_closure' submission.temporary_id %}" 
+                               class="btn btn-secondary mt-3 {% if not can_submit or submission.is_locked %}disabled{% endif %}"
+                               onclick="return confirm('Are you sure you want to close this study? This action cannot be undone.')">
+                                <i class="fas fa-door-closed"></i> Close Study
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

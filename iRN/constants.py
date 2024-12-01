@@ -63,6 +63,8 @@ SUBMISSION_STATUS_CHOICES = [
     ('accepted', 'Accepted'),
     ('revision_requested', 'Revision Requested'),
     ('closed', 'Closed'),
+    ('withdrawn', 'Withdrawn'),
+    ('document_missing', 'Document Missing'),
 ]
 
 def get_submission_status_choices():

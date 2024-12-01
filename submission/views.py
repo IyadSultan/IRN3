@@ -806,7 +806,13 @@ def version_history(request, submission_id):
     if not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to view this submission.")
         return redirect('submission:dashboard')
-        
+
+     # Check if user can submit
+    can_submit = (
+        request.user == submission.primary_investigator or
+        submission.coinvestigators.filter(user=request.user, can_submit=True).exists() or
+        submission.research_assistants.filter(user=request.user, can_submit=True).exists()
+    )  
     # Get all versions from version history, ordered by version number descending
     histories = VersionHistory.objects.filter(
         submission=submission
@@ -819,6 +825,7 @@ def version_history(request, submission_id):
     return render(request, 'submission/version_history.html', {
         'submission': submission,
         'histories': histories,
+        'can_submit': can_submit,
     })
 
 @login_required
@@ -1408,3 +1415,164 @@ def view_submission(request, submission_id):
         'versions': submission.version_histories.all().order_by('-version'),
     }
     return render(request, 'submission/view_submission.html', context)
+
+
+# Add to views.py
+
+def handle_study_action_form(request, submission_id, form_name, action_type):
+    """
+    Generic handler for study action forms (withdrawal, progress, amendment, closure)
+    """
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    # Check permissions
+    if not (request.user == submission.primary_investigator or 
+            submission.coinvestigators.filter(user=request.user, can_submit=True).exists() or
+            submission.research_assistants.filter(user=request.user, can_submit=True).exists()):
+        messages.error(request, "You don't have permission to perform this action.")
+        return redirect('submission:version_history', submission_id=submission.temporary_id)
+    
+    # Get the dynamic form
+    try:
+        dynamic_form = DynamicForm.objects.get(name=form_name)
+    except DynamicForm.DoesNotExist:
+        messages.error(request, f"Required form '{form_name}' not found.")
+        return redirect('submission:version_history', submission_id=submission.temporary_id)
+
+    if request.method == 'POST':
+        form_class = generate_django_form(dynamic_form)
+        form = form_class(request.POST)
+        
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    # Save form data
+                    for field_name, value in form.cleaned_data.items():
+                        FormDataEntry.objects.create(
+                            submission=submission,
+                            form=dynamic_form,
+                            field_name=field_name,
+                            value=value,
+                            version=submission.version
+                        )
+                    
+                    # Handle specific actions
+                    if action_type == 'withdrawal':
+                        submission.status = 'withdrawn'
+                        submission.is_locked = True
+                        action_msg = "Study has been withdrawn"
+                    elif action_type == 'closure':
+                        submission.status = 'closed'
+                        submission.is_locked = True
+                        action_msg = "Study has been closed"
+                    elif action_type == 'progress':
+                        action_msg = "Progress report submitted"
+                    elif action_type == 'amendment':
+                        action_msg = "Amendment submitted"
+                    
+                    submission.save()
+                    
+                    # Send notifications
+                    system_user = get_system_user()
+                    
+                    # Notify OSAR
+                    osar_message = Message.objects.create(
+                        sender=system_user,
+                        subject=f"{action_type.title()} - {submission.title}",
+                        body=f"""
+A {action_type} has been submitted for:
+
+Submission ID: {submission.temporary_id}
+Title: {submission.title}
+PI: {submission.primary_investigator.get_full_name()}
+Submitted by: {request.user.get_full_name()}
+
+Please review the submitted {action_type} form.
+
+Best regards,
+AIDI System
+                        """.strip(),
+                        related_submission=submission
+                    )
+                    
+                    # Add OSAR recipients
+                    osar_users = User.objects.filter(groups__name='OSAR')
+                    for user in osar_users:
+                        osar_message.recipients.add(user)
+                    
+                    # Notify research team
+                    team_message = Message.objects.create(
+                        sender=system_user,
+                        subject=f"{action_type.title()} - {submission.title}",
+                        body=f"""
+A {action_type} has been submitted for:
+
+Submission ID: {submission.temporary_id}
+Title: {submission.title}
+Submitted by: {request.user.get_full_name()}
+
+Status: {action_msg}
+
+Best regards,
+AIDI System
+                        """.strip(),
+                        related_submission=submission
+                    )
+                    
+                    # Add research team recipients
+                    team_message.recipients.add(submission.primary_investigator)
+                    for coinv in submission.coinvestigators.all():
+                        team_message.recipients.add(coinv.user)
+                    for ra in submission.research_assistants.all():
+                        team_message.recipients.add(ra.user)
+
+                    messages.success(request, f"{action_msg} successfully.")
+                    return redirect('submission:version_history', submission_id=submission.temporary_id)
+                    
+            except Exception as e:
+                messages.error(request, f"Error processing {action_type}: {str(e)}")
+                return redirect('submission:version_history', submission_id=submission.temporary_id)
+    else:
+        form_class = generate_django_form(dynamic_form)
+        form = form_class()
+
+    return render(request, 'submission/dynamic_form.html', {
+        'form': form,
+        'submission': submission,
+        'dynamic_form': dynamic_form,
+    })
+
+@login_required
+def study_withdrawal(request, submission_id):
+    return handle_study_action_form(request, submission_id, 'withdrawal', 'withdrawal')
+
+@login_required
+def progress_report(request, submission_id):
+    return handle_study_action_form(request, submission_id, 'progress', 'progress')
+
+@login_required
+def study_amendment(request, submission_id):
+    return handle_study_action_form(request, submission_id, 'amendment', 'amendment')
+
+@login_required
+def study_closure(request, submission_id):
+    return handle_study_action_form(request, submission_id, 'closure', 'closure')
+
+
+@login_required
+def submission_actions(request, submission_id):
+    """Display available actions for a submission."""
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    # Check if user can submit
+    can_submit = (
+        request.user == submission.primary_investigator or
+        submission.coinvestigators.filter(user=request.user, can_submit=True).exists() or
+        submission.research_assistants.filter(user=request.user, can_submit=True).exists()
+    )
+    
+    context = {
+        'submission': submission,
+        'can_submit': can_submit,
+    }
+    return render(request, 'submission/submission_actions.html', context)
