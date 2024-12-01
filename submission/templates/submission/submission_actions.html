@@ -16,11 +16,6 @@
             </div>
             {% endif %}
 
-            {% if submission.is_locked %}
-            <div class="alert alert-info">
-                <i class="fas fa-lock"></i> This submission is currently locked. Some actions may be restricted.
-            </div>
-            {% endif %}
 
             <div class="row">
                 <!-- Withdraw Study -->
@@ -37,11 +32,18 @@
                                 <li>Notifies all team members</li>
                                 <li>Cannot be undone</li>
                             </ul>
-                            <a href="{% url 'submission:study_withdrawal' submission.temporary_id %}" 
-                               class="btn btn-danger mt-3 {% if not can_submit or submission.is_locked %}disabled{% endif %}"
-                               onclick="return confirm('Are you sure you want to withdraw this study? This action cannot be undone.')">
-                                <i class="fas fa-times-circle"></i> Withdraw Study
-                            </a>
+                            {% if not can_submit %}
+                                <div class="alert alert-warning mt-3">
+                                    <i class="fas fa-lock"></i> You need submission rights to withdraw the study
+                                </div>
+                          
+                            {% else %}
+                                <a href="{% url 'submission:study_withdrawal' submission.temporary_id %}" 
+                                   class="btn btn-danger mt-3"
+                                   onclick="return confirm('Are you sure you want to withdraw this study? This action cannot be undone.')">
+                                    <i class="fas fa-times-circle"></i> Withdraw Study
+                                </a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -60,10 +62,16 @@
                                 <li>Be available to all team members</li>
                                 <li>Help maintain study compliance</li>
                             </ul>
-                            <a href="{% url 'submission:progress_report' submission.temporary_id %}" 
-                               class="btn btn-info mt-3 {% if not can_submit %}disabled{% endif %}">
-                                <i class="fas fa-chart-line"></i> Submit Progress Report
-                            </a>
+                            {% if not can_submit %}
+                                <div class="alert alert-warning mt-3">
+                                    <i class="fas fa-lock"></i> You need submission rights to submit a progress report
+                                </div>
+                            {% else %}
+                                <a href="{% url 'submission:progress_report' submission.temporary_id %}" 
+                                   class="btn btn-info mt-3">
+                                    <i class="fas fa-chart-line"></i> Submit Progress Report
+                                </a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -82,10 +90,16 @@
                                 <li>Modify study procedures</li>
                                 <li>Request team member changes</li>
                             </ul>
-                            <a href="{% url 'submission:study_amendment' submission.temporary_id %}" 
-                               class="btn btn-warning mt-3 {% if not can_submit %}disabled{% endif %}">
-                                <i class="fas fa-edit"></i> Submit Amendment
-                            </a>
+                            {% if not can_submit %}
+                                <div class="alert alert-warning mt-3">
+                                    <i class="fas fa-lock"></i> You need submission rights to submit an amendment
+                                </div>
+                            {% else %}
+                                <a href="{% url 'submission:study_amendment' submission.temporary_id %}" 
+                                   class="btn btn-warning mt-3">
+                                    <i class="fas fa-edit"></i> Submit Amendment
+                                </a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -104,11 +118,17 @@
                                 <li>Notifies all team members</li>
                                 <li>Cannot be undone</li>
                             </ul>
-                            <a href="{% url 'submission:study_closure' submission.temporary_id %}" 
-                               class="btn btn-secondary mt-3 {% if not can_submit or submission.is_locked %}disabled{% endif %}"
-                               onclick="return confirm('Are you sure you want to close this study? This action cannot be undone.')">
-                                <i class="fas fa-door-closed"></i> Close Study
-                            </a>
+                            {% if not can_submit %}
+                                <div class="alert alert-warning mt-3">
+                                    <i class="fas fa-lock"></i> You need submission rights to close the study
+                                </div>
+                            {% else %}
+                                <a href="{% url 'submission:study_closure' submission.temporary_id %}" 
+                                   class="btn btn-secondary mt-3"
+                                   onclick="return confirm('Are you sure you want to close this study? This action cannot be undone.')">
+                                    <i class="fas fa-door-closed"></i> Close Study
+                                </a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

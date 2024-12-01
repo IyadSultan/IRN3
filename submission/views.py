@@ -1440,6 +1440,10 @@ def handle_study_action_form(request, submission_id, form_name, action_type):
         return redirect('submission:version_history', submission_id=submission.temporary_id)
 
     if request.method == 'POST':
+        # Check for exit without save action first
+        if request.POST.get('action') == 'exit_no_save':
+            return redirect('submission:submission_actions', submission_id=submission.temporary_id)
+            
         form_class = generate_django_form(dynamic_form)
         form = form_class(request.POST)
         
@@ -1536,7 +1540,7 @@ AIDI System
         form_class = generate_django_form(dynamic_form)
         form = form_class()
 
-    return render(request, 'submission/dynamic_form.html', {
+    return render(request, 'submission/dynamic_actions.html', {
         'form': form,
         'submission': submission,
         'dynamic_form': dynamic_form,

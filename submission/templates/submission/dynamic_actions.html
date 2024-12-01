@@ -1,0 +1,28 @@
+{# submission/dynamic_form.html #}
+{% extends 'users/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2>{{ dynamic_form.name }}</h2>
+            <h6 class="text-muted">{{ submission.title }}</h6>
+        </div>
+        <div class="card-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {{ form|crispy }}
+                <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
+                    <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2" formnovalidate>
+                        <i class="fas fa-times"></i> Exit without Saving
+                    </button>
+                    <button type="submit" name="action" value="submit" class="btn btn-primary">
+                        <i class="fas fa-check"></i> Submit
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
