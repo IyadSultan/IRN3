@@ -1,5 +1,5 @@
 # Combined Python and HTML files
-# Generated from directory: C:\Users\isult\Dropbox\AI\Projects\IRN3\review
+# Generated from directory: C:\Users\isultan\Documents\IRN3\review
 # Total files found: 59
 
 
@@ -1549,7 +1549,6 @@ $(document).ready(function() {
         color: #fff;
     }
     
-    /* Custom toggle switch styles */
     .form-switch {
         padding-left: 2.5em;
     }
@@ -1562,7 +1561,6 @@ $(document).ready(function() {
         padding: 0.5rem;
     }
 
-    /* Filter section styles */
     .filter-section {
         background-color: #f8f9fa;
         padding: 1rem;
@@ -1572,6 +1570,84 @@ $(document).ready(function() {
     
     .filter-section select {
         min-width: 200px;
+    }
+
+    .action-buttons .btn {
+        margin-right: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        line-height: 1.5;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: middle;
+        border-radius: 0.25rem;
+        transition: all 0.15s ease-in-out;
+        min-width: 100px;
+    }
+
+    .status-badge.draft { 
+        background-color: #6c757d;
+        color: white;
+        border: 1px solid #5a6268;
+    }
+    .status-badge.submitted { 
+        background-color: #007bff;
+        color: white;
+        border: 1px solid #0056b3;
+    }
+    .status-badge.under-review { 
+        background-color: #17a2b8;
+        color: white;
+        border: 1px solid #138496;
+    }
+    .status-badge.revision-requested { 
+        background-color: #ffc107;
+        color: #000;
+        border: 1px solid #d39e00;
+    }
+    .status-badge.rejected { 
+        background-color: #dc3545;
+        color: white;
+        border: 1px solid #bd2130;
+    }
+    .status-badge.accepted { 
+        background-color: #28a745;
+        color: white;
+        border: 1px solid #1e7e34;
+    }
+
+    /* Filter section styling */
+    .card-title {
+        font-size: 1.5rem;
+        font-weight: 500;
+        margin-bottom: 0;
+    }
+
+    .form-label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-select, .form-control {
+        height: calc(1.5em + 0.75rem + 2px);
+        padding: 0.375rem 0.75rem;
+        font-size: 1rem;
+        line-height: 1.5;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+
+    .form-select:focus, .form-control:focus {
+        border-color: #80bdff;
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
     }
 </style>
 {% endblock %}
@@ -1649,13 +1725,13 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
     <!-- Submissions Section -->
     <div class="card mb-4">
         <div class="card-header">
-            <h3 class="card-title mb-0">Submissions</h3>
+            <h2 class="card-title">Submissions</h2>
         </div>
-        
-        <!-- Add Filter Section -->
-        <div class="filter-section">
-            <div class="row align-items-center">
-                <div class="col-md-3">
+
+        <div class="card-body">
+            <!-- Filter Controls -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
                     <label for="statusFilter" class="form-label">Filter by Status:</label>
                     <select id="statusFilter" class="form-select">
                         <option value="">All Statuses</option>
@@ -1664,8 +1740,20 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                         {% endfor %}
                     </select>
                 </div>
+                <div class="col-md-2">
+                    <label for="entriesFilter" class="form-label">Show entries:</label>
+                    <select id="entriesFilter" class="form-select">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="-1">All</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="searchFilter" class="form-label">Search:</label>
+                    <input type="search" id="searchFilter" class="form-control" placeholder="Type to search...">
+                </div>
             </div>
-        </div>
 
         <div class="card-body">
             {% if osar_submissions %}
@@ -1677,6 +1765,9 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <th>Submission Date</th>
                                 <th>Primary Investigator</th>
                                 <th>Study Type</th>
+                                <th>Requests</th>
+                                <th>Days</th>
+                                <th>✅</th>
                                 <th>Status</th>
                                 <th>KHCC #</th>
                                 <th>Visibility</th>
@@ -1690,7 +1781,65 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
                                 <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
                                 <td>{{ submission.study_type }}</td>
-                                <td>{{ submission.get_status_display }}</td>
+                                <td>
+                                    {% if submission.review_requests.exists %}
+                                        <ul class="list-unstyled mb-0">
+                                        {% for request in submission.review_requests.all %}
+                                            <li>
+                                                <strong>
+                                                    <a href="{% url 'messaging:compose_message' %}?recipient={{ request.requested_to.id }}&submission={{ submission.id }}" 
+                                                       class="text-primary text-decoration-none">
+                                                        {{ request.requested_to.get_full_name }}
+                                                    </a>
+                                                </strong>
+                                            </li>
+                                        {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        No requests yet
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if submission.review_requests.exists %}
+                                        <ul class="list-unstyled mb-0">
+                                        {% for request in submission.review_requests.all %}
+                                            <li>
+                                                {% with days=request.created_at|timesince_in_days %}
+                                                    {{ days }}
+                                                {% endwith %}
+                                            </li>
+                                        {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if submission.review_requests.exists %}
+                                        <ul class="list-unstyled mb-0">
+                                        {% for request in submission.review_requests.all %}
+                                            <li>
+                                                {% if request.status == 'completed' %}
+                                                    <span class="text-success">✅</span>
+                                                {% elif request.status == 'declined' %}
+                                                    <span class="text-danger">❌</span>
+                                                {% elif request.status == 'pending' %}
+                                                    <span class="text-warning">⏳</span>
+                                                {% else %}
+                                                    <span class="text-secondary">-</span>
+                                                {% endif %}
+                                            </li>
+                                        {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="status-badge {{ submission.status|slugify }}">
+                                        {{ submission.get_status_display }}
+                                    </span>
+                                </td>
                                 <td>{{ submission.khcc_number|default:"-" }}</td>
                                 <td>
                                     <div id="toggle-container-{{ submission.temporary_id }}" class="visibility-toggles"></div>
@@ -1709,14 +1858,53 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                     </script>
                                 </td>
                                 <td>
-                                    <a href="{% url 'review:create_review_request' submission.pk %}" class="btn btn-primary btn-sm">Create Review Request</a>
-                                    <a href="{% url 'review:review_summary' submission.pk %}" class="btn btn-success btn-sm">Details</a>
-                                    {% if not submission.khcc_number %}
-                                        <a href="{% url 'review:assign_irb' submission.pk %}" class="btn btn-info btn-sm">Assign KHCC #</a>
-                                    {% endif %}
-                                    <a href="{% url 'review:view_notepad' submission.pk 'OSAR' %}" class="btn btn-info btn-sm">
-                                        <i class="fas fa-sticky-note"></i> Notepad
-                                    </a>
+                                    <div class="action-buttons">
+                                        <a href="{% url 'review:create_review_request' submission.pk %}" 
+                                           class="btn btn-primary btn-sm">
+                                            <i class="fas fa-plus"></i> Review Request
+                                        </a>
+                                        <a href="{% url 'review:review_summary' submission.pk %}" 
+                                           class="btn btn-success btn-sm">
+                                            <i class="fas fa-info-circle"></i> Details
+                                        </a>
+                                        {% if not submission.khcc_number %}
+                                            <a href="{% url 'review:assign_irb' submission.pk %}" 
+                                               class="btn btn-info btn-sm">
+                                                <i class="fas fa-hashtag"></i> KHCC #
+                                            </a>
+                                        {% endif %}
+                                        <a href="{% url 'review:view_notepad' submission.pk 'OSAR' %}" 
+                                           class="btn btn-info btn-sm">
+                                            <i class="fas fa-sticky-note"></i> Notes
+                                        </a>
+
+                                        {% if submission.status == 'under_review' %}
+                                            <button type="button" 
+                                                    class="btn btn-warning btn-sm decision-btn" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#decisionModal"
+                                                    data-submission-id="{{ submission.pk }}"
+                                                    data-action="revision_requested">
+                                                <i class="fas fa-undo"></i> Request Revision
+                                            </button>
+                                            <button type="button" 
+                                                    class="btn btn-danger btn-sm decision-btn" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#decisionModal"
+                                                    data-submission-id="{{ submission.pk }}"
+                                                    data-action="rejected">
+                                                <i class="fas fa-times"></i> Reject
+                                            </button>
+                                            <button type="button" 
+                                                    class="btn btn-success btn-sm decision-btn" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#decisionModal"
+                                                    data-submission-id="{{ submission.pk }}"
+                                                    data-action="accepted">
+                                                <i class="fas fa-check"></i> Accept
+                                            </button>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -1726,6 +1914,35 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
             {% else %}
                 <p class="mb-0">No submissions found.</p>
             {% endif %}
+        </div>
+    </div>
+
+    <!-- Decision Modal -->
+    <div class="modal fade" id="decisionModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Make Decision</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="decisionForm" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" id="decisionAction">
+                        <div class="mb-3">
+                            <label for="comments" class="form-label">Comments</label>
+                            <textarea class="form-control" id="comments" name="comments" rows="4" required></textarea>
+                            <div class="form-text">
+                                Please provide detailed comments explaining your decision.
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="submitDecision">Submit Decision</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1755,12 +1972,20 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <td>{{ review.requested_by.userprofile.full_name }}</td>
                                 <td>{{ review.get_status_display }}</td>
                                 <td>
-                                    {% if review.requested_to == user or review.requested_by == user %}
-                                        <a href="{% url 'review:view_review' review.id %}" class="btn btn-info btn-sm">View Review</a>
-                                    {% endif %}
-                                    {% if review.requested_to == user and review.status == 'pending' %}
-                                        <a href="{% url 'review:submit_review' review.id %}" class="btn btn-primary btn-sm">Submit Review</a>
-                                    {% endif %}
+                                    <div class="action-buttons">
+                                        {% if review.requested_to == user or review.requested_by == user %}
+                                            <a href="{% url 'review:view_review' review.id %}" 
+                                               class="btn btn-info btn-sm">
+                                                <i class="fas fa-eye"></i> View Review
+                                            </a>
+                                        {% endif %}
+                                        {% if review.requested_to == user and review.status == 'pending' %}
+                                            <a href="{% url 'review:submit_review' review.id %}" 
+                                               class="btn btn-primary btn-sm">
+                                                <i class="fas fa-paper-plane"></i> Submit Review
+                                            </a>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -1782,16 +2007,25 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
 <script src="https://cdn.datatables.net/buttons/2.2.3/js/buttons.bootstrap4.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Initialize DataTables with all features
+    // Initialize DataTables with custom controls
     var submissionsTable = $('#osarSubmissionsTable').DataTable({
         order: [[1, 'desc']],
         pageLength: 10,
         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
-        dom: 'Blfrtip',
+        dom: 'Brt<"bottom"ip>',
         buttons: ['copy', 'excel', 'pdf']
     });
 
-    // Add custom status filter functionality
+    // Connect custom filter controls
+    $('#entriesFilter').on('change', function() {
+        submissionsTable.page.len($(this).val()).draw();
+    });
+
+    $('#searchFilter').on('keyup', function() {
+        submissionsTable.search(this.value).draw();
+    });
+
+    // Status Filter
     $('#statusFilter').on('change', function() {
         var selectedStatus = $(this).val();
         
@@ -1813,6 +2047,80 @@ $(document).ready(function() {
         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
         dom: 'Blfrtip',
         buttons: ['copy', 'excel', 'pdf']
+    });
+
+    // Handle Decision Modal
+    const decisionModal = document.getElementById('decisionModal');
+    const decisionForm = document.getElementById('decisionForm');
+    const decisionAction = document.getElementById('decisionAction');
+    const submitButton = document.getElementById('submitDecision');
+    let currentSubmissionId;
+
+    // Handle modal opening
+    decisionModal.addEventListener('show.bs.modal', function(event) {
+        const button = event.relatedTarget;
+        currentSubmissionId = button.dataset.submissionId;
+        decisionAction.value = button.dataset.action;
+        
+        // Update modal title based on action
+        const actionDisplay = decisionAction.value
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, l => l.toUpperCase());
+            
+        this.querySelector('.modal-title').textContent = actionDisplay;
+        
+        // Clear previous comments
+        document.getElementById('comments').value = '';
+        
+        // Reset submit button
+        submitButton.disabled = false;
+        submitButton.innerHTML = 'Submit Decision';
+    });
+
+    // Handle decision submission
+    submitButton.addEventListener('click', function() {
+        const comments = document.getElementById('comments').value.trim();
+        if (!comments) {
+            alert('Please provide comments for your decision');
+            return;
+        }
+
+        // Show loading state
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+
+        const formData = new FormData(decisionForm);
+        
+        fetch(`/review/submission/${currentSubmissionId}/process-decision/`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                window.location.reload();
+            } else {
+                alert(data.message || 'An error occurred');
+                this.disabled = false;
+                this.innerHTML = 'Submit Decision';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again.');
+            this.disabled = false;
+            this.innerHTML = 'Submit Decision';
+        });
+    });
+
+    // Add color classes to status badges
+    document.querySelectorAll('.status-badge').forEach(badge => {
+        const status = badge.textContent.trim().toLowerCase();
+        const className = `status-${status.replace(/\s+/g, '-')}`;
+        badge.classList.add(className);
     });
 });
 </script>
@@ -4279,71 +4587,91 @@ class ReviewViewTests(TestCase):
 # Contents from: .\urls.py
 from django.urls import path
 from .views import (
+    # Dashboard Views
     ReviewDashboardView,
-    IRBDashboardView,
-    RCDashboardView,
+    osar_dashboard,
+    irb_dashboard,
+    rc_dashboard,
+    
+    # Submission Views
+    ReviewSummaryView,
+    SubmissionVersionsView,
     ToggleSubmissionVisibilityView,
     UpdateSubmissionStatusView,
+    AssignKHCCNumberView,
+    ProcessSubmissionDecisionView,
+    view_notepad,
+    
+    # Review Process Views
     CreateReviewRequestView,
     SubmitReviewView,
     ViewReviewView,
     RequestExtensionView,
     DeclineReviewView,
-    ReviewSummaryView,
-    ProcessIRBDecisionView,
-    SubmissionVersionsView,
     download_review_pdf,
-    AssignKHCCNumberView,
-    osar_dashboard,
-    irb_dashboard,
-    rc_dashboard,
-    view_notepad
 )
 from submission.views import user_autocomplete
 
 app_name = 'review'
 
 urlpatterns = [
-    path('', ReviewDashboardView.as_view(), name='review_dashboard'),
+    # Dashboard URLs
+    path('', ReviewDashboardView.as_view(), 
+         name='review_dashboard'),
+    path('osar-dashboard/', osar_dashboard, 
+         name='osar_dashboard'),
+    path('irb-dashboard/', irb_dashboard, 
+         name='irb_dashboard'),
+    path('rc-dashboard/', rc_dashboard, 
+         name='rc_dashboard'),
 
-    path(
-        'submission/<int:submission_id>/toggle-visibility/',
-        ToggleSubmissionVisibilityView.as_view(),
-        name='toggle_visibility'
-    ),
-    path(
-        'submission/<int:submission_id>/update-status/',
-        UpdateSubmissionStatusView.as_view(),
-        name='update_status'
-    ),
-    path('create/<int:submission_id>/', CreateReviewRequestView.as_view(), name='create_review_request'),
-    path('submit/<int:review_request_id>/', SubmitReviewView.as_view(), name='submit_review'),
-    path('review/<int:review_request_id>/', ViewReviewView.as_view(), name='view_review'),
-    path('review/<int:review_request_id>/extension/', RequestExtensionView.as_view(), name='request_extension'),
-    path('review/<int:review_request_id>/decline/', DeclineReviewView.as_view(), name='decline_review'),
-    path('submission/<int:submission_id>/summary/', ReviewSummaryView.as_view(), name='review_summary'),
-    path('submission/<int:submission_id>/decision/', ProcessIRBDecisionView.as_view(), name='process_decision'),
-    path('user-autocomplete/', user_autocomplete, name='user-autocomplete'),
-    path('submission/<int:submission_id>/versions/', SubmissionVersionsView.as_view(), name='submission_versions'),
-    path('review/<int:review_request_id>/pdf/', download_review_pdf, name='download_review_pdf'),
-    path('submission/<int:submission_id>/assign-irb/', AssignKHCCNumberView.as_view(), name='assign_irb'),
+    # Submission Management URLs
+    path('submission/<int:submission_id>/summary/', 
+         ReviewSummaryView.as_view(), 
+         name='review_summary'),
+    path('submission/<int:submission_id>/versions/', 
+         SubmissionVersionsView.as_view(), 
+         name='submission_versions'),
+    path('submission/<int:submission_id>/toggle-visibility/', 
+         ToggleSubmissionVisibilityView.as_view(), 
+         name='toggle_visibility'),
+    path('submission/<int:submission_id>/update-status/', 
+         UpdateSubmissionStatusView.as_view(), 
+         name='update_status'),
+    path('submission/<int:submission_id>/assign-irb/', 
+         AssignKHCCNumberView.as_view(), 
+         name='assign_irb'),
+    path('submission/<int:submission_id>/process-decision/', 
+         ProcessSubmissionDecisionView.as_view(), 
+         name='process_submission_decision'),
+    path('submission/<int:submission_id>/notepad/<str:notepad_type>/', 
+         view_notepad, 
+         name='view_notepad'),
 
+    # Review Process URLs
+    path('create/<int:submission_id>/', 
+         CreateReviewRequestView.as_view(), 
+         name='create_review_request'),
+    path('submit/<int:review_request_id>/', 
+         SubmitReviewView.as_view(), 
+         name='submit_review'),
+    path('review/<int:review_request_id>/', 
+         ViewReviewView.as_view(), 
+         name='view_review'),
+    path('review/<int:review_request_id>/extension/', 
+         RequestExtensionView.as_view(), 
+         name='request_extension'),
+    path('review/<int:review_request_id>/decline/', 
+         DeclineReviewView.as_view(), 
+         name='decline_review'),
+    path('review/<int:review_request_id>/pdf/', 
+         download_review_pdf, 
+         name='download_review_pdf'),
 
-    path('irb-dashboard/', irb_dashboard, name='irb_dashboard'),
-    path('rc-dashboard/', rc_dashboard, name='rc_dashboard'),
-    path('osar-dashboard/', osar_dashboard, name='osar_dashboard'),
-    path('submission/<int:submission_id>/toggle-visibility/',
-    ToggleSubmissionVisibilityView.as_view(),
-    name='toggle_visibility'
-),
-    path(
-        'submission/<int:submission_id>/notepad/<str:notepad_type>/',
-        view_notepad,
-        name='view_notepad'
-    ),
-
-
-
+    # Utility URLs
+    path('user-autocomplete/', 
+         user_autocomplete, 
+         name='user-autocomplete'),
 ]
 
 # Contents from: .\utils.py
@@ -5379,18 +5707,18 @@ class ViewReviewView(LoginRequiredMixin, TemplateView):
 
 class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
-    View for displaying a comprehensive summary of a submission's reviews.
-    Handles permissions and provides detailed context for different user roles.
+    View for displaying a comprehensive summary of a submission's reviews
+    and handling submission decisions.
     """
     template_name = 'review/review_summary.html'
 
+    def setup(self, request, *args, **kwargs):
+        """Initialize common attributes used by multiple methods"""
+        super().setup(request, *args, **kwargs)
+        self.submission = get_object_or_404(Submission, pk=kwargs.get('submission_id'))
+
     def test_func(self):
-        """
-        Verify if the current user has permission to view this submission's details.
-        Permissions are based on user roles and submission ownership.
-        """
-        submission_id = self.kwargs.get('submission_id')
-        self.submission = get_object_or_404(Submission, pk=submission_id)
+        """Verify user permission to access the submission"""
         user = self.request.user
 
         # OSAR members can view all submissions
@@ -5401,11 +5729,11 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
         if user.groups.filter(name='IRB').exists():
             return True
 
-        # RC members can view any submission in their department
+        # RC members can view submissions in their department
         if user.groups.filter(name='RC').exists():
             return user.userprofile.department == self.submission.primary_investigator.userprofile.department
 
-        # Check if user is directly involved with the submission
+        # Check direct involvement
         return user in [
             self.submission.primary_investigator,
             *self.submission.coinvestigators.all(),
@@ -5413,13 +5741,9 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
         ]
 
     def handle_no_permission(self):
-        """
-        Handle cases where permission is denied.
-        Provides appropriate redirect based on user role.
-        """
+        """Route users to appropriate dashboard when access is denied"""
         messages.error(self.request, "You don't have permission to view this submission's details.")
         
-        # Route to appropriate dashboard based on user role
         user = self.request.user
         if user.groups.filter(name='OSAR').exists():
             return redirect('review:osar_dashboard')
@@ -5427,13 +5751,10 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
             return redirect('review:rc_dashboard')
         elif user.groups.filter(name='IRB').exists():
             return redirect('review:irb_dashboard')
-        else:
-            return redirect('submission:dashboard')
+        return redirect('submission:dashboard')
 
     def get_review_requests(self):
-        """
-        Get all review requests for the submission with related data.
-        """
+        """Get all review requests with related data"""
         return ReviewRequest.objects.filter(
             submission=self.submission
         ).select_related(
@@ -5446,23 +5767,19 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
         ).order_by('-created_at')
 
     def get_version_histories(self):
-        """
-        Get submission version histories ordered by version.
-        """
+        """Get submission version history"""
         return self.submission.version_histories.all().order_by('-version')
 
     def get_user_permissions(self, user):
-        """
-        Determine user-specific permissions for the view.
-        """
+        """Determine user-specific permissions"""
+        is_irb = user.groups.filter(name='IRB').exists()
         return {
-            'can_make_decision': user.groups.filter(name='IRB Coordinator').exists(),
-            'can_download_pdf': True,  # Can be modified based on specific requirements
-            'can_assign_irb': (user.groups.filter(name='IRB').exists() and 
-                             not self.submission.khcc_number),
+            'can_make_decision': is_irb,  # Updated to allow IRB members to make decisions
+            'can_download_pdf': True,
+            'can_assign_irb': is_irb and not self.submission.khcc_number,
             'is_osar': user.groups.filter(name='OSAR').exists(),
             'is_rc': user.groups.filter(name='RC').exists(),
-            'is_irb': user.groups.filter(name='IRB').exists(),
+            'is_irb': is_irb,
             'can_create_review': any([
                 user.groups.filter(name=role).exists() 
                 for role in ['OSAR', 'IRB', 'RC']
@@ -5470,37 +5787,84 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
         }
 
     def get_submission_stats(self, review_requests):
-        """
-        Calculate submission-related statistics.
-        """
+        """Calculate submission statistics"""
+        now = timezone.now().date()
+        submission_date = self.submission.date_submitted.date() if self.submission.date_submitted else now
+        
         return {
             'total_reviews': review_requests.count(),
             'completed_reviews': review_requests.filter(status='completed').count(),
             'pending_reviews': review_requests.filter(status='pending').count(),
-            'days_since_submission': (timezone.now().date() - 
-                                    self.submission.date_submitted.date()).days
+            'days_since_submission': (now - submission_date).days
         }
 
     def get(self, request, *args, **kwargs):
-        """
-        Handle GET requests for the review summary view.
-        Shows submission history even if no reviews exist yet.
-        """
+        """Handle GET requests"""
         if not self.test_func():
             return self.handle_no_permission()
 
-        # Get submission history data
+        context = self.get_context_data()
+        return render(request, self.template_name, context)
+
+    def post(self, request, *args, **kwargs):
+        """Handle POST requests for submission decisions"""
+        if not self.test_func():
+            return self.handle_no_permission()
+
+        action = request.POST.get('action')
+        comments = request.POST.get('comments', '').strip()
+
+        if not comments:
+            messages.error(request, "Comments are required for making a decision.")
+            return redirect('review:review_summary', submission_id=self.submission.pk)
+
+        try:
+            with transaction.atomic():
+                # Update submission status based on action
+                if action == 'revision_requested':
+                    self.submission.status = 'revision_requested'
+                    self.submission.is_locked = False
+                elif action == 'rejected':
+                    self.submission.status = 'rejected'
+                    self.submission.is_locked = True
+                elif action == 'accepted':
+                    self.submission.status = 'accepted'
+                    self.submission.is_locked = True
+                else:
+                    messages.error(request, "Invalid action specified.")
+                    return redirect('review:review_summary', submission_id=self.submission.pk)
+
+                self.submission.save()
+
+                # Send notification
+                send_irb_decision_notification(self.submission, action, comments)
+
+                messages.success(
+                    request,
+                    f"Submission successfully marked as {action.replace('_', ' ').title()}"
+                )
+                
+                return redirect('review:review_summary', submission_id=self.submission.pk)
+
+        except Exception as e:
+            messages.error(request, f"Error processing decision: {str(e)}")
+            return redirect('review:review_summary', submission_id=self.submission.pk)
+
+    def get_context_data(self):
+        """Prepare context data for template rendering"""
         version_histories = self.get_version_histories()
-        user_permissions = self.get_user_permissions(request.user)
-        
-        # Get review data if any exists
+        user_permissions = self.get_user_permissions(self.request.user)
         review_requests = self.get_review_requests()
+
+        # Calculate stats if reviews exist
         submission_stats = self.get_submission_stats(review_requests) if review_requests.exists() else {
             'total_reviews': 0,
             'completed_reviews': 0,
             'pending_reviews': 0,
-            'days_since_submission': (timezone.now().date() - 
-                                    self.submission.date_submitted.date()).days
+            'days_since_submission': (
+                timezone.now().date() - 
+                self.submission.date_submitted.date()
+            ).days if self.submission.date_submitted else 0
         }
 
         # Check for active reviews
@@ -5508,7 +5872,7 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
             status__in=['pending', 'in_progress']
         ).exists() if review_requests.exists() else False
 
-        context = {
+        return {
             'submission': self.submission,
             'review_requests': review_requests,
             'version_histories': version_histories,
@@ -5517,15 +5881,6 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
             'has_reviews': review_requests.exists(),
             **user_permissions
         }
-
-        return render(request, self.template_name, context)
-
-    def post(self, request, *args, **kwargs):
-        """
-        Handle POST requests (if any specific actions are needed).
-        Currently redirects to GET as this is primarily a view-only page.
-        """
-        return self.get(request, *args, **kwargs)
 ######################
 # Process IRB Decision
 # URL: path('submission/<int:submission_id>/decision/', ProcessIRBDecisionView.as_view(), name='process_decision'),
@@ -5945,3 +6300,48 @@ def view_notepad(request, submission_id, notepad_type):
         'notepad_type': notepad_type
     }
     return render(request, 'review/view_notepad.html', context)
+
+# review/views.py
+class ProcessSubmissionDecisionView(LoginRequiredMixin, PermissionRequiredMixin, View):
+    permission_required = 'submission.change_submission_status'
+    
+    def post(self, request, submission_id):
+        submission = get_object_or_404(Submission, pk=submission_id)
+        action = request.POST.get('action')
+        comments = request.POST.get('comments', '')
+        
+        try:
+            with transaction.atomic():
+                if action == 'revision_requested':
+                    submission.status = 'revision_requested'
+                    submission.is_locked = False
+                elif action == 'rejected':
+                    submission.status = 'rejected'
+                    submission.is_locked = True
+                elif action == 'accepted':
+                    submission.status = 'accepted'
+                    submission.is_locked = True
+                else:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': 'Invalid action'
+                    }, status=400)
+                
+                submission.save()
+                
+                # Send notification
+                send_irb_decision_notification(submission, action, comments)
+                
+                messages.success(request, f"Submission successfully marked as {action.replace('_', ' ').title()}")
+                
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Submission status updated to {action}',
+                    'redirect_url': reverse('review:review_summary', args=[submission.pk])
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)

@@ -22,6 +22,8 @@ from .views import (
     RequestExtensionView,
     DeclineReviewView,
     download_review_pdf,
+    QualityDashboardView,
+    get_dashboard_data,
 )
 from submission.views import user_autocomplete
 
@@ -85,4 +87,10 @@ urlpatterns = [
     path('user-autocomplete/', 
          user_autocomplete, 
          name='user-autocomplete'),
-]
+
+    path('quality-dashboard/', 
+         QualityDashboardView.as_view(), 
+         name='quality_dashboard'),  # Notice the underscore
+    path('api/dashboard-data/', 
+         get_dashboard_data, 
+         name='dashboard_data'),]

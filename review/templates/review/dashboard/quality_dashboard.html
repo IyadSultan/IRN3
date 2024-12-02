@@ -1,0 +1,290 @@
+{# review/templates/review/dashboard/quality_dashboard.html #}
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .metric-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+    }
+    .metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #2c5282;
+    }
+    .metric-label {
+        color: #4a5568;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+    }
+    .metric-definition {
+        color: #718096;
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+    }
+    .chart-container {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        height: 500px;
+    }
+    .chart-container.large {
+        height: 600px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2 class="mb-1">Quality Dashboard</h2>
+            <p class="text-muted">Real-time metrics and analytics</p>
+        </div>
+    </div>
+
+    <!-- Top Metrics -->
+    <div class="row">
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Total Submissions</div>
+                <div class="metric-value" id="totalSubmissions">-</div>
+                <div class="metric-definition">Total number of research submissions excluding drafts</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Active Reviewers</div>
+                <div class="metric-value" id="activeReviewers">-</div>
+                <div class="metric-definition">Number of reviewers with pending review assignments</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Avg Review Time (days)</div>
+                <div class="metric-value" id="avgReviewTime">-</div>
+                <div class="metric-definition">Average time from review request to completion</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Pending Reviews</div>
+                <div class="metric-value" id="pendingReviews">-</div>
+                <div class="metric-definition">Number of reviews currently awaiting completion</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Committee Review Times -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h5 class="mb-3">IRB Response Time Distribution</h5>
+                <div id="irbTimeChart" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h5 class="mb-3">RC Response Time Distribution</h5>
+                <div id="rcTimeChart" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trends and Status -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="chart-container large">
+                <h5 class="mb-3">Monthly Submission Trends</h5>
+                <div id="monthlyChart" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="chart-container large">
+                <h5 class="mb-3">Status Distribution</h5>
+                <div id="statusChart" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Role and Institution Distribution -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h5 class="mb-3">PI Role Distribution</h5>
+                <div id="roleChart" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h5 class="mb-3">Institution Distribution</h5>
+                <div id="institutionChart" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block page_specific_js %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Store chart instances
+    const charts = {};
+    
+    function initializeChart(elementId) {
+        const chart = echarts.init(document.getElementById(elementId));
+        charts[elementId] = chart;
+        return chart;
+    }
+
+    function updateDashboard() {
+        fetch('/review/api/dashboard-data/')
+            .then(response => response.json())
+            .then(data => {
+                // Update metrics
+                document.getElementById('totalSubmissions').textContent = data.totalSubmissions || 0;
+                document.getElementById('activeReviewers').textContent = data.activeReviewers || 0;
+                document.getElementById('avgReviewTime').textContent = 
+                    (data.avgReviewTime ? `${data.avgReviewTime.toFixed(1)}` : '-');
+                document.getElementById('pendingReviews').textContent = data.pendingReviews || 0;
+
+                // Monthly Submissions Chart
+                const monthlyChart = initializeChart('monthlyChart');
+                monthlyChart.setOption({
+                    tooltip: { trigger: 'axis' },
+                    xAxis: {
+                        type: 'category',
+                        data: data.submissionTrends.map(item => item.month)
+                    },
+                    yAxis: { type: 'value' },
+                    series: [{
+                        data: data.submissionTrends.map(item => item.count),
+                        type: 'line',
+                        smooth: true,
+                        name: 'Submissions',
+                        areaStyle: {}
+                    }]
+                });
+
+                // Status Distribution Chart
+                const statusChart = initializeChart('statusChart');
+                statusChart.setOption({
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b}: {c} ({d}%)'
+                    },
+                    legend: {
+                        orient: 'vertical',
+                        left: 'left'
+                    },
+                    series: [{
+                        name: 'Status Distribution',
+                        type: 'pie',
+                        radius: '70%',
+                        data: data.statusDistribution.map(item => ({
+                            value: item.count,
+                            name: item.status
+                        }))
+                    }]
+                });
+
+                // Charts for departments and institutions
+                ['piDeptChart', 'coInvDeptChart', 'institutionChart'].forEach(chartId => {
+                    const chart = initializeChart(chartId);
+                    const chartData = {
+                        piDeptChart: data.piDepartments,
+                        coInvDeptChart: data.coInvDepartments,
+                        institutionChart: data.institutions
+                    }[chartId];
+
+                    chart.setOption({
+                        tooltip: {
+                            trigger: 'item',
+                            formatter: '{a} <br/>{b}: {c} ({d}%)'
+                        },
+                        legend: {
+                            type: 'scroll',
+                            orient: 'vertical',
+                            right: 10,
+                            top: 20,
+                            bottom: 20
+                        },
+                        series: [{
+                            type: 'pie',
+                            radius: '65%',
+                            data: chartData.map(item => ({
+                                value: item.count,
+                                name: Object.values(item)[0] || 'Unknown'
+                            }))
+                        }]
+                    });
+                });
+
+                // Time distribution charts
+                const timeChartConfig = {
+                    irbTimeChart: {
+                        data: data.irbTimeDistribution,
+                        title: 'IRB Review Time Distribution',
+                        avgTime: data.irbAvgTime
+                    },
+                    rcTimeChart: {
+                        data: data.rcTimeDistribution,
+                        title: 'RC Review Time Distribution',
+                        avgTime: data.rcAvgTime
+                    }
+                };
+
+                Object.entries(timeChartConfig).forEach(([chartId, config]) => {
+                    const chart = initializeChart(chartId);
+                    chart.setOption({
+                        title: {
+                            text: `Avg: ${config.avgTime.toFixed(1)} days`,
+                            left: 'center',
+                            top: 0,
+                            textStyle: {
+                                fontSize: 14,
+                                fontWeight: 'normal'
+                            }
+                        },
+                        tooltip: { trigger: 'axis' },
+                        xAxis: { 
+                            type: 'category',
+                            name: 'Days',
+                            data: config.data.map(item => item.days)
+                        },
+                        yAxis: { 
+                            type: 'value',
+                            name: 'Number of Reviews'
+                        },
+                        series: [{
+                            data: config.data.map(item => item.count),
+                            type: 'bar',
+                            name: 'Reviews'
+                        }]
+                    });
+                });
+            })
+            .catch(error => console.error('Error updating dashboard:', error));
+    }
+
+    // Handle window resize
+    window.addEventListener('resize', function() {
+        Object.values(charts).forEach(chart => chart.resize());
+    });
+
+    // Initial update
+    updateDashboard();
+
+    // Update every 5 minutes
+    setInterval(updateDashboard, 300000);
+});
+</script>
+{% endblock page_specific_js %}

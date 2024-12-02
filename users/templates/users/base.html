@@ -21,7 +21,10 @@
         <!-- Plugin CSS -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
-
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/recharts@2.1.12/umd/Recharts.min.js"></script>
     <!-- Base Styles -->
     <style>
         :root {
@@ -369,6 +372,11 @@
                                href="{% url 'review:review_dashboard' %}">
                                 <i class="fas fa-clipboard-check"></i>
                                 <span>Review Dashboard</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{% url 'review:quality_dashboard' %}" class="nav-link">
+                                <i class="fas fa-chart-line"></i> Quality Dashboard
                             </a>
                         </li>
                         

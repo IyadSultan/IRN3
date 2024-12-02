@@ -5,14 +5,16 @@ from datetime import datetime, timedelta
 import json
 import logging
 
+from django import forms
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Count, Avg, F
+from django.db.models.functions import TruncMonth
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
@@ -22,9 +24,9 @@ from django.utils.text import slugify
 from django.views import View
 from django.views.generic import TemplateView, FormView
 from django.views.generic.edit import CreateView
-from django import forms
 
 from forms_builder.models import DynamicForm
+from iRN.constants import SUBMISSION_STATUS_CHOICES
 from messaging.models import Message, MessageAttachment
 from submission.models import Submission
 from submission.utils.pdf_generator import PDFGenerator, generate_submission_pdf
@@ -40,7 +42,6 @@ from .utils.notifications import (
     send_irb_decision_notification
 )
 from .utils.pdf_generator import generate_review_pdf
-from iRN.constants import SUBMISSION_STATUS_CHOICES
 
 
 
@@ -49,11 +50,7 @@ from iRN.constants import SUBMISSION_STATUS_CHOICES
 # URL: path('', ReviewDashboardView.as_view(), name='review_dashboard'),
 ######################
 
-from django.views.generic import TemplateView
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.db.models import Q
-from .models import ReviewRequest, Review
-from submission.models import Submission
+
 
 class ReviewDashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'review/dashboard.html'
@@ -177,14 +174,6 @@ class RCDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 # URL: path('create/<int:submission_id>/', CreateReviewRequestView.as_view(), name='create_review_request'),
 ######################
 
-from django.views.generic.edit import CreateView
-from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
-from django.contrib import messages
-from django.shortcuts import redirect, get_object_or_404
-from django.urls import reverse_lazy, reverse
-from django.utils import timezone
-from django.db import transaction
-from messaging.models import Message
 
 class CreateReviewRequestView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
     model = ReviewRequest
@@ -1221,3 +1210,224 @@ class ProcessSubmissionDecisionView(LoginRequiredMixin, PermissionRequiredMixin,
                 'status': 'error',
                 'message': str(e)
             }, status=500)
+        
+
+
+# review/views.py
+
+from django.http import JsonResponse
+from django.db.models import Count, Avg, F, Q
+from django.db.models.functions import TruncMonth, ExtractDay
+from django.utils import timezone
+from django.contrib.auth.decorators import login_required
+from datetime import timedelta
+from .models import ReviewRequest, Review
+from submission.models import Submission, CoInvestigator
+from django.contrib.auth.models import User
+
+@login_required
+def get_dashboard_data(request):
+    """API endpoint for dashboard data"""
+    try:
+        print("Starting dashboard data fetch...")
+        # Calculate date ranges
+        now = timezone.now()
+        six_months_ago = now - timedelta(days=180)
+        
+        # Get submissions excluding drafts
+        submissions = Submission.objects.exclude(status='draft')
+        total_submissions = submissions.count()
+        print(f"Total submissions: {total_submissions}")
+
+        # Get active reviewers
+        active_reviewers = ReviewRequest.objects.filter(
+            status='pending'
+        ).values('requested_to').distinct().count()
+        print(f"Active reviewers: {active_reviewers}")
+
+        # Get pending reviews
+        pending_reviews = ReviewRequest.objects.filter(
+            status='pending'
+        ).count()
+        print(f"Pending reviews: {pending_reviews}")
+
+        # Calculate average review time
+        avg_review_time = 0
+        completed_reviews = ReviewRequest.objects.filter(status='completed')
+        if completed_reviews.exists():
+            avg_time = completed_reviews.aggregate(
+                avg_time=Avg(F('updated_at') - F('created_at'))
+            )['avg_time']
+            if avg_time:
+                avg_review_time = avg_time.days
+        print(f"Average review time: {avg_review_time}")
+
+        # Get monthly submissions trend
+        submission_trends = []
+        monthly_data = submissions.filter(
+            date_submitted__gte=six_months_ago
+        ).annotate(
+            month=TruncMonth('date_submitted')
+        ).values('month').annotate(
+            count=Count('temporary_id')
+        ).order_by('month')
+        
+        for item in monthly_data:
+            if item['month']:
+                submission_trends.append({
+                    'month': item['month'].strftime('%b %Y'),
+                    'count': item['count']
+                })
+        print(f"Submission trends: {len(submission_trends)} months")
+
+        # Get status distribution
+        status_dist = submissions.values('status').annotate(
+            count=Count('temporary_id')
+        ).order_by('-count')
+        
+        status_distribution = [{
+            'status': item['status'].replace('_', ' ').title(),
+            'count': item['count']
+        } for item in status_dist]
+        print(f"Status distribution: {len(status_distribution)} statuses")
+
+        # Get institution distribution
+        institution_dist = submissions.select_related(
+            'primary_investigator__userprofile'
+        ).values(
+            'primary_investigator__userprofile__institution'
+        ).annotate(
+            count=Count('temporary_id')
+        ).order_by('-count')
+
+        institutions = [{
+            'name': item['primary_investigator__userprofile__institution'] or 'Unknown',
+            'count': item['count']
+        } for item in institution_dist]
+        print(f"Institutions: {len(institutions)} institutions")
+
+        # Get roles distribution
+        role_dist = submissions.select_related(
+            'primary_investigator__userprofile'
+        ).values(
+            'primary_investigator__userprofile__role'
+        ).annotate(
+            count=Count('temporary_id')
+        ).order_by('-count')
+
+        role_distribution = [{
+            'role': item['primary_investigator__userprofile__role'] or 'Unknown',
+            'count': item['count']
+        } for item in role_dist]
+        print(f"Roles: {len(role_distribution)} roles")
+
+        # Calculate IRB and RC review times
+        irb_avg_time = 0
+        irb_reviews = ReviewRequest.objects.filter(
+            requested_to__groups__name='IRB',
+            status='completed'
+        )
+        if irb_reviews.exists():
+            irb_time = irb_reviews.aggregate(
+                avg_time=Avg(F('updated_at') - F('created_at'))
+            )['avg_time']
+            if irb_time:
+                irb_avg_time = irb_time.days
+
+        rc_avg_time = 0
+        rc_reviews = ReviewRequest.objects.filter(
+            requested_to__groups__name='RC',
+            status='completed'
+        )
+        if rc_reviews.exists():
+            rc_time = rc_reviews.aggregate(
+                avg_time=Avg(F('updated_at') - F('created_at'))
+            )['avg_time']
+            if rc_time:
+                rc_avg_time = rc_time.days
+
+        print(f"IRB avg time: {irb_avg_time}, RC avg time: {rc_avg_time}")
+
+        # Get review time distributions
+        irb_time_dist = {}
+        for review in irb_reviews:
+            days = (review.updated_at - review.created_at).days
+            irb_time_dist[days] = irb_time_dist.get(days, 0) + 1
+
+        rc_time_dist = {}
+        for review in rc_reviews:
+            days = (review.updated_at - review.created_at).days
+            rc_time_dist[days] = rc_time_dist.get(days, 0) + 1
+
+        response_data = {
+            'totalSubmissions': total_submissions,
+            'activeReviewers': active_reviewers,
+            'avgReviewTime': avg_review_time,
+            'pendingReviews': pending_reviews,
+            'irbAvgTime': irb_avg_time,
+            'rcAvgTime': rc_avg_time,
+            'submissionTrends': submission_trends,
+            'roleDistribution': role_distribution,
+            'institutions': institutions,
+            'statusDistribution': status_distribution,
+            'irbTimeDistribution': [
+                {'days': days, 'count': count}
+                for days, count in sorted(irb_time_dist.items())
+            ],
+            'rcTimeDistribution': [
+                {'days': days, 'count': count}
+                for days, count in sorted(rc_time_dist.items())
+            ]
+        }
+
+        print("Sending response data")
+        return JsonResponse(response_data)
+
+    except Exception as e:
+        import traceback
+        print(f"Error in dashboard data: {str(e)}")
+        print(traceback.format_exc())
+        return JsonResponse({
+            'error': str(e),
+            'submissionTrends': [],
+            'statusDistribution': [],
+            'roleDistribution': [],
+            'institutions': [],
+            'irbTimeDistribution': [],
+            'rcTimeDistribution': [],
+            'totalSubmissions': 0,
+            'activeReviewers': 0,
+            'avgReviewTime': 0,
+            'pendingReviews': 0,
+            'irbAvgTime': 0,
+            'rcAvgTime': 0
+        }, status=500)
+# review/views.py
+
+from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.views.generic import TemplateView
+from django.shortcuts import redirect
+from django.urls import reverse
+
+class QualityDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    template_name = 'review/dashboard/quality_dashboard.html'
+
+    def test_func(self):
+        return self.request.user.groups.filter(
+            name__in=['OSAR', 'IRB', 'RC']
+        ).exists()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'page_title': 'Quality Dashboard',
+        })
+        return context
+
+    def handle_no_permission(self):
+        messages.error(
+            self.request, 
+            "You don't have permission to view the Quality Dashboard."
+        )
+        return redirect('review:review_dashboard')
