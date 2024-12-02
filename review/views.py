@@ -1214,7 +1214,7 @@ def osar_dashboard(request):
 
 @login_required
 def view_notepad(request, submission_id, notepad_type):
-    # Verify permissions
+
     if not request.user.groups.filter(name=notepad_type).exists():
         messages.error(request, f"You don't have permission to view {notepad_type} notepad.")
         return redirect('review:review_dashboard')
@@ -1224,19 +1224,24 @@ def view_notepad(request, submission_id, notepad_type):
     if request.method == 'POST':
         note_text = request.POST.get('note_text', '').strip()
         if note_text:
-            NotepadEntry.objects.create(
+            note = NotepadEntry.objects.create(
                 submission=submission,
                 notepad_type=notepad_type,
                 text=note_text,
                 created_by=request.user
             )
+            note.read_by.add(request.user)
             messages.success(request, 'Note added successfully.')
         return redirect('review:view_notepad', submission_id=submission_id, notepad_type=notepad_type)
-    
+
     notes = NotepadEntry.objects.filter(
         submission=submission,
         notepad_type=notepad_type
-    ).select_related('created_by')
+    ).select_related('created_by').prefetch_related('read_by')
+
+    # Mark notes as read
+    for note in notes:
+        note.read_by.add(request.user)
     
     context = {
         'submission': submission,
@@ -1244,6 +1249,27 @@ def view_notepad(request, submission_id, notepad_type):
         'notepad_type': notepad_type
     }
     return render(request, 'review/view_notepad.html', context)
+
+# views.py
+def has_unread_notes(submission_id, notepad_type, user):
+    return NotepadEntry.objects.filter(
+        submission_id=submission_id,
+        notepad_type=notepad_type
+    ).exclude(read_by=user).exists()
+
+# In your dashboard view (ReviewDashboardView)
+def get_context_data(self, **kwargs):
+    context = super().get_context_data(**kwargs)
+    
+    # Add check for unread notes for each submission
+    for submission in context['submissions']:
+        submission.has_unread_notes = has_unread_notes(
+            submission.pk, 
+            context['group_name'], 
+            self.request.user
+        )
+    
+    return context
 
 # review/views.py
 class ProcessSubmissionDecisionView(LoginRequiredMixin, PermissionRequiredMixin, View):
@@ -1509,3 +1535,16 @@ class QualityDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
             "You don't have permission to view the Quality Dashboard."
         )
         return redirect('review:review_dashboard')
+
+@login_required
+def check_notes_status(request, submission_id, notepad_type):
+    """API endpoint to check for unread notes"""
+    try:
+        has_unread = has_unread_notes(submission_id, notepad_type, request.user)
+        return JsonResponse({
+            'hasNewNotes': has_unread
+        })
+    except Exception as e:
+        return JsonResponse({
+            'error': str(e)
+        }, status=500)

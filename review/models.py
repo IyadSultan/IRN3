@@ -150,6 +150,7 @@ class FormResponse(models.Model):
 ######################
 # Notepad
 ######################
+# models.py
 
 class NotepadEntry(models.Model):
     NOTEPAD_TYPES = [
@@ -157,20 +158,17 @@ class NotepadEntry(models.Model):
         ('IRB', 'IRB'),
         ('RC', 'RC'),
     ]
-
+    
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE, related_name='notepad_entries')
     notepad_type = models.CharField(max_length=10, choices=NOTEPAD_TYPES)
     text = models.TextField()
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_notes')
     created_at = models.DateTimeField(auto_now_add=True)
+    read_by = models.ManyToManyField(User, related_name='read_notes', blank=True)
 
     class Meta:
-        ordering = ['-created_at']
         verbose_name = 'Notepad Entry'
         verbose_name_plural = 'Notepad Entries'
-
-    def __str__(self):
-        return f"{self.notepad_type} Note by {self.created_by.get_full_name()} on {self.created_at.strftime('%Y-%m-%d %H:%M')}"
-
-
+        ordering = ['-created_at']
+        db_table = 'review_notepad_entry'
 

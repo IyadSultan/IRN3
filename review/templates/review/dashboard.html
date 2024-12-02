@@ -117,74 +117,73 @@
         outline: 0;
         box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
     }
+    .notes-new {
+    animation: pulse 2s infinite;
+}
+
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <script type="text/babel">
-// Define the ToggleSwitch component
-const ToggleSwitch = ({ submissionId, initialState = false, label = '', type = '' }) => {
-    const [isEnabled, setIsEnabled] = React.useState(initialState === 'true');
-    const [isLoading, setIsLoading] = React.useState(false);
+// Define the NotesButton component outside of Django template tags
+function NotesButton(props) {
+    const [hasNewNotes, setHasNewNotes] = React.useState(props.hasUnreadNotes);
+    const [lastViewed, setLastViewed] = React.useState(new Date().toISOString());
 
-    const handleToggle = async () => {
-        setIsLoading(true);
+    React.useEffect(() => {
+        checkNewNotes();
+        const interval = setInterval(checkNewNotes, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const checkNewNotes = async () => {
         try {
-            const response = await fetch(`/review/submission/${submissionId}/toggle-visibility/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `toggle_type=${type}&csrfmiddlewaretoken=${document.querySelector('[name=csrfmiddlewaretoken]').value}`
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setIsEnabled(data.visible);
-            }
+            const response = await fetch(`/api/notes/${props.submissionId}/${props.groupName}/check/`);
+            const data = await response.json();
+            setHasNewNotes(data.hasNewNotes);
         } catch (error) {
-            console.error('Error toggling visibility:', error);
-        } finally {
-            setIsLoading(false);
+            console.error('Error checking notes:', error);
         }
     };
 
-    return (
-        <div className="form-check form-switch mb-2">
-            <input
-                className="form-check-input"
-                type="checkbox"
-                checked={isEnabled}
-                onChange={handleToggle}
-                disabled={isLoading}
-                id={`switch-${type}-${submissionId}`}
-            />
-            <label className="form-check-label ms-2" htmlFor={`switch-${type}-${submissionId}`}>
-                {label}
-            </label>
-        </div>
-    );
-};
+    const handleClick = () => {
+        setLastViewed(new Date().toISOString());
+        setHasNewNotes(false);
+    };
 
-// Define the VisibilityToggles component
-const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) => {
-    return (
-        <div className="d-flex flex-column">
-            <ToggleSwitch 
-                submissionId={submissionId} 
-                initialState={initialIrbState} 
-                label="IRB" 
-                type="irb" 
-            />
-            <ToggleSwitch 
-                submissionId={submissionId} 
-                initialState={initialRcState} 
-                label="RC" 
-                type="rc" 
-            />
-        </div>
-    );
-};
+    const notepadUrl = `/review/submission/${props.submissionId}/notepad/${props.groupName}/`;
+    const buttonClass = `btn ${hasNewNotes ? 'btn-danger' : 'btn-info'} btn-sm`;
+    const buttonStyle = { width: '100px' };
+
+    return React.createElement('a', {
+        href: notepadUrl,
+        className: buttonClass,
+        style: buttonStyle,
+        onClick: handleClick
+    }, [
+        React.createElement('i', { className: 'fas fa-sticky-note', key: 'icon' }),
+        ' Notes'
+    ]);
+}
+
+// Create a function to render the NotesButton
+function renderNotesButton(containerId, submissionId, groupName, hasUnreadNotes) {
+    const container = document.getElementById(containerId);
+    if (container) {
+        const root = ReactDOM.createRoot(container);
+        root.render(React.createElement(NotesButton, {
+            submissionId: submissionId,
+            groupName: groupName,
+            hasUnreadNotes: hasUnreadNotes
+        }));
+    }
+}
 </script>
 
 <div class="container">
@@ -358,9 +357,24 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                                 </a>
                                             {% endif %}
                                             <a href="{% url 'review:view_notepad' submission.pk group_name %}" 
-                                               class="btn btn-info btn-sm" style="width: 100px;">
+                                               class="btn {% if submission.has_unread_notes %}btn-danger{% else %}btn-info{% endif %} btn-sm"
+                                               style="width: 100px;">
                                                 <i class="fas fa-sticky-note"></i> Notes
+                                                {% if submission.has_unread_notes %}
+                                                    <span class="badge bg-warning">!</span>
+                                                {% endif %}
                                             </a>
+                                            <div id="notes-button-{{ submission.pk }}"></div>
+                                            <script>
+                                                document.addEventListener('DOMContentLoaded', function() {
+                                                    renderNotesButton(
+                                                        'notes-button-{{ submission.pk }}',
+                                                        '{{ submission.pk }}',
+                                                        '{{ group_name }}',
+                                                        {{ submission.has_unread_notes|yesno:"true,false" }}
+                                                    );
+                                                });
+                                            </script>
 
                                             {% if submission.status == 'under_review' and is_irb %}
                                                 <!-- Decision buttons only shown for IRB members -->
@@ -701,3 +715,12 @@ $(document).ready(function() {
 });
 </script>
 {% endblock %}
+
+{% block extra_js %}
+<!-- React Dependencies -->
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+{% endblock %}
+
+

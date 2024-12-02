@@ -37,21 +37,21 @@
         </div>
         <div class="card-body">
             {% if notes %}
-                {% for note in notes %}
-                    <div class="note-entry mb-4">
-                        <div class="note-content">
-                            {{ note.text|linebreaks }}
-                        </div>
-                        <div class="note-metadata text-muted">
-                            <small>
-                                Added by {{ note.created_by.get_full_name }} 
-                                on {{ note.created_at|date:"F d, Y" }} 
-                                at {{ note.created_at|time:"H:i" }}
-                            </small>
-                        </div>
-                        <hr>
-                    </div>
-                {% endfor %}
+            {% for note in notes %}
+            <div class="note-entry mb-4 {% if request.user not in note.read_by.all %}font-weight-bold text-danger{% endif %}">
+                <div class="note-content">
+                    {{ note.text|linebreaks }}
+                </div>
+                <div class="note-metadata text-muted">
+                    <small>
+                        Added by {{ note.created_by.userprofile.full_name }} 
+                        on {{ note.created_at|date:"F d, Y" }} 
+                        at {{ note.created_at|time:"H:i" }}
+                    </small>
+                </div>
+                <hr>
+            </div>
+        {% endfor %}
             {% else %}
                 <p class="text-muted">No notes have been added yet.</p>
             {% endif %}
