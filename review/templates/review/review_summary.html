@@ -21,58 +21,68 @@
     </div>
 
     <!-- Review Requests Section -->
-    {% if has_reviews %}
+    {% if is_osar or is_irb or is_rc %}
         <div class="card mb-4">
             <div class="card-header">
-                <h3>Review Requests and Submissions</h3>
+                {% if is_irb %}
+                    <h3>IRB Review Requests</h3>
+                {% elif is_rc %}
+                    <h3>RC Review Requests</h3>
+                {% else %}
+                    <h3>All Review Requests</h3>
+                {% endif %}
             </div>
             <div class="card-body">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Reviewer</th>
-                            <th>Requested By</th>
-                            <th>Status</th>
-                            <th>Submission Date</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for request in review_requests %}
-                            <!-- Review request rows -->
+                {% if review_requests %}
+                    <table class="table">
+                        <thead>
                             <tr>
-                                <td>{{ request.requested_to.userprofile.full_name }}</td>
-                                <td>{{ request.requested_by.userprofile.full_name }}</td>
-                                <td>{{ request.status }}</td>
-                                <td>
-                                    {% if request.review_set.first %}
-                                        {{ request.review_set.first.date_submitted|date }}
-                                    {% else %}
-                                        Not submitted
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <!-- Action buttons -->
-                                    {% if request.review_set.first %}
-                                        <a href="{% url 'review:view_review' review_request_id=request.id %}" 
-                                           class="btn btn-info btn-sm">View Review</a>
-                                    {% else %}
-                                        <span class="text-muted">Review pending</span>
-                                    {% endif %}
-                                </td>
+                                <th>Reviewer</th>
+                                <th>Requested By</th>
+                                <th>Status</th>
+                                <th>Submission Date</th>
+                                <th>Actions</th>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {% for request in review_requests %}
+                                <tr>
+                                    <td>{{ request.requested_to.userprofile.full_name }}</td>
+                                    <td>{{ request.requested_by.userprofile.full_name }}</td>
+                                    <td>{{ request.get_status_display }}</td>
+                                    <td>
+                                        {% if request.review_set.first %}
+                                            {{ request.review_set.first.date_submitted|date }}
+                                        {% else %}
+                                            Not submitted
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if request.review_set.first %}
+                                            {% if request.requested_to == user or request.requested_by == user %}
+                                                <a href="{% url 'review:view_review' review_request_id=request.id %}" 
+                                                   class="btn btn-info btn-sm">View Review</a>
+                                            {% else %}
+                                                <span>Review Submitted</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">Review pending</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="alert alert-info">
+                        No review requests found.
+                        {% if is_osar and can_create_review %}
+                            <a href="{% url 'review:create_review_request' submission.pk %}" 
+                               class="btn btn-primary btn-sm ml-2">Create Review Request</a>
+                        {% endif %}
+                    </div>
+                {% endif %}
             </div>
-        </div>
-    {% else %}
-        <div class="alert alert-info">
-            No review requests have been created yet.
-            {% if can_create_review %}
-                <a href="{% url 'review:create_review_request' submission.pk %}" 
-                   class="btn btn-primary btn-sm ml-2">Create Review Request</a>
-            {% endif %}
         </div>
     {% endif %}
 

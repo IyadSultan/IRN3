@@ -42,7 +42,7 @@ from .utils.notifications import (
     send_irb_decision_notification
 )
 from .utils.pdf_generator import generate_review_pdf
-
+from django.db.models import Prefetch
 
 
 ######################
@@ -64,58 +64,95 @@ class ReviewDashboardView(LoginRequiredMixin, TemplateView):
         is_irb = user.groups.filter(name='IRB').exists()
         is_rc = user.groups.filter(name='RC').exists()
 
-        # Base query for submissions
-        submissions_query = Submission.objects.select_related(
-            'primary_investigator__userprofile',
-        ).prefetch_related(
-            'review_requests',
-            'review_requests__requested_to__userprofile',
-            'review_requests__requested_by__userprofile',
-            'version_histories'
-        ).order_by('-date_submitted')
+        # Determine group name for notepad, default to 'general' if no group
+        group_name = 'OSAR' if is_osar else 'IRB' if is_irb else 'RC' if is_rc else 'general'
 
-        # Filter submissions based on user group
-        if is_osar:
-            submissions = submissions_query
-        elif is_irb:
-            submissions = submissions_query.filter(show_in_irb=True)
+        # Filter submissions and their review requests based on group
+        if is_irb:
+            submissions = Submission.objects.filter(
+                show_in_irb=True
+            ).select_related(
+                'primary_investigator__userprofile',
+                'study_type'
+            ).prefetch_related(
+                Prefetch(
+                    'review_requests',
+                    queryset=ReviewRequest.objects.filter(
+                        Q(requested_to__groups__name='IRB') |
+                        Q(requested_by__groups__name='IRB')
+                    ).select_related(
+                        'requested_to__userprofile',
+                        'requested_by__userprofile'
+                    )
+                )
+            )
         elif is_rc:
-            submissions = submissions_query.filter(
-                show_in_rc=True,
-                primary_investigator__userprofile__department=user.userprofile.department
+            submissions = Submission.objects.filter(
+                show_in_rc=True
+            ).select_related(
+                'primary_investigator__userprofile',
+                'study_type'
+            ).prefetch_related(
+                Prefetch(
+                    'review_requests',
+                    queryset=ReviewRequest.objects.filter(
+                        Q(requested_to__groups__name='RC') |
+                        Q(requested_by__groups__name='RC')
+                    ).select_related(
+                        'requested_to__userprofile',
+                        'requested_by__userprofile'
+                    )
+                )
+            )
+        else:  # OSAR or other users
+            submissions = Submission.objects.all().select_related(
+                'primary_investigator__userprofile',
+                'study_type'
+            ).prefetch_related(
+                'review_requests'
+            )
+
+        # Filter review requests based on group
+        if is_irb:
+            review_requests = ReviewRequest.objects.filter(
+                Q(requested_to__groups__name='IRB') | 
+                Q(requested_by__groups__name='IRB')
+            )
+        elif is_rc:
+            review_requests = ReviewRequest.objects.filter(
+                Q(requested_to__groups__name='RC') | 
+                Q(requested_by__groups__name='RC')
             )
         else:
-            submissions = submissions_query.filter(
-                Q(primary_investigator=user) |
-                Q(coinvestigators=user) |
-                Q(research_assistants=user)
-            ).distinct()
+            review_requests = ReviewRequest.objects.all()
 
-        # Get reviews where the user is requested_to
-        reviews_query = ReviewRequest.objects.select_related(
+        # Get pending and completed reviews for the current user
+        pending_reviews = review_requests.filter(
+            requested_to=user,
+            status__in=['pending', 'overdue', 'extended']
+        ).select_related(
             'submission__primary_investigator__userprofile',
-            'requested_by__userprofile',
-            'requested_to__userprofile'
-        ).filter(
-            requested_to=user
+            'requested_by__userprofile'
         )
 
-        # Filter pending and completed reviews
-        pending_reviews = reviews_query.filter(
-            status__in=['pending', 'in_progress']
-        ).order_by('deadline')
-
-        completed_reviews = reviews_query.filter(
+        completed_reviews = review_requests.filter(
+            requested_to=user,
             status='completed'
-        ).order_by('-updated_at')
+        ).select_related(
+            'submission__primary_investigator__userprofile',
+            'requested_by__userprofile'
+        )
 
         context.update({
             'submissions': submissions,
-            'pending_reviews': pending_reviews,
-            'completed_reviews': completed_reviews,
             'is_osar': is_osar,
             'is_irb': is_irb,
             'is_rc': is_rc,
+            'group_name': group_name,
+            'review_requests': review_requests,
+            'pending_reviews': pending_reviews,
+            'completed_reviews': completed_reviews,
+            'submission_status_choices': SUBMISSION_STATUS_CHOICES,
         })
 
         return context
@@ -598,6 +635,11 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
         """Initialize common attributes used by multiple methods"""
         super().setup(request, *args, **kwargs)
         self.submission = get_object_or_404(Submission, pk=kwargs.get('submission_id'))
+        
+        # Get user groups
+        self.is_osar = request.user.groups.filter(name='OSAR').exists()
+        self.is_irb = request.user.groups.filter(name='IRB').exists()
+        self.is_rc = request.user.groups.filter(name='RC').exists()
 
     def test_func(self):
         """Verify user permission to access the submission"""
@@ -636,17 +678,34 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
         return redirect('submission:dashboard')
 
     def get_review_requests(self):
-        """Get all review requests with related data"""
-        return ReviewRequest.objects.filter(
-            submission=self.submission
-        ).select_related(
-            'requested_to__userprofile',
-            'requested_by__userprofile',
-            'submission__primary_investigator__userprofile'
-        ).prefetch_related(
-            'review_set',
-            'review_set__formresponse_set__form'
-        ).order_by('-created_at')
+        """Get filtered review requests based on user group"""
+        if self.is_irb:
+            return self.submission.review_requests.filter(
+                Q(requested_to__groups__name='IRB') |
+                Q(requested_by__groups__name='IRB')
+            ).select_related(
+                'requested_to__userprofile',
+                'requested_by__userprofile'
+            ).prefetch_related(
+                'review_set'
+            )
+        elif self.is_rc:
+            return self.submission.review_requests.filter(
+                Q(requested_to__groups__name='RC') |
+                Q(requested_by__groups__name='RC')
+            ).select_related(
+                'requested_to__userprofile',
+                'requested_by__userprofile'
+            ).prefetch_related(
+                'review_set'
+            )
+        else:  # OSAR or other users
+            return self.submission.review_requests.all().select_related(
+                'requested_to__userprofile',
+                'requested_by__userprofile'
+            ).prefetch_related(
+                'review_set'
+            )
 
     def get_version_histories(self):
         """Get submission version history"""
@@ -734,9 +793,9 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def get_context_data(self):
         """Prepare context data for template rendering"""
-        version_histories = self.get_version_histories()
-        user_permissions = self.get_user_permissions(self.request.user)
         review_requests = self.get_review_requests()
+        user_permissions = self.get_user_permissions(self.request.user)
+        version_histories = self.get_version_histories()
 
         # Calculate stats if reviews exist
         submission_stats = self.get_submission_stats(review_requests) if review_requests.exists() else {
@@ -761,6 +820,9 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
             'stats': submission_stats,
             'has_active_reviews': has_active_reviews,
             'has_reviews': review_requests.exists(),
+            'is_osar': self.is_osar,
+            'is_irb': self.is_irb,
+            'is_rc': self.is_rc,
             **user_permissions
         }
 ######################

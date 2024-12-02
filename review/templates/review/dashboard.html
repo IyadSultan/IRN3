@@ -188,205 +188,223 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
 </script>
 
 <div class="container">
-    <h2 class="mb-4">OSAR Dashboard</h2>
+    <!-- Dynamic Dashboard Header based on user group -->
+    {% if is_irb %}
+        <h2 class="mb-4">IRB Dashboard</h2>
+    {% elif is_rc %}
+        <h2 class="mb-4">RC Dashboard</h2>
+    {% elif is_osar %}
+        <h2 class="mb-4">OSAR Dashboard</h2>
+    {% else %}
+        <h2 class="mb-4">Review Dashboard</h2>
+    {% endif %}
     
-    <!-- Submissions Section -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h2 class="card-title">Submissions</h2>
-        </div>
-
-        <div class="card-body">
-            <!-- Filter Controls -->
-            <div class="row g-3 mb-4">
-                <div class="col-md-4">
-                    <label for="statusFilter" class="form-label">Filter by Status:</label>
-                    <select id="statusFilter" class="form-select">
-                        <option value="">All Statuses</option>
-                        {% for status, label in submission_status_choices %}
-                            <option value="{{ status }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="entriesFilter" class="form-label">Show entries:</label>
-                    <select id="entriesFilter" class="form-select">
-                        <option value="10">10</option>
-                        <option value="25">25</option>
-                        <option value="50">50</option>
-                        <option value="-1">All</option>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label for="searchFilter" class="form-label">Search:</label>
-                    <input type="search" id="searchFilter" class="form-control" placeholder="Type to search...">
-                </div>
+    <!-- Submissions Section - Only visible for OSAR, IRB, or RC members -->
+    {% if is_osar or is_irb or is_rc %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="card-title">Submissions</h2>
             </div>
 
-        <div class="card-body">
-            {% if submissions %}
-                <div class="table-responsive">
-                    <table id="osarSubmissionsTable" class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Title</th>
-                                <th>Submission Date</th>
-                                <th>Primary Investigator</th>
-                                <th>Study Type</th>
-                                <th>Requests</th>
-                                <th>Days</th>
-                                <th>✅</th>
-                                <th>Status</th>
-                                <th>KHCC #</th>
-                                <th>Visibility</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for submission in submissions %}
-                            <tr>
-                                <td>{{ submission.title }}</td>
-                                <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
-                                <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
-                                <td>{{ submission.study_type }}</td>
-                                <td>
-                                    {% if submission.review_requests.exists %}
-                                        <ul class="list-unstyled mb-0">
-                                        {% for request in submission.review_requests.all %}
-                                            <li>
-                                                <strong>
-                                                    <a href="{% url 'messaging:compose_message' %}?recipient={{ request.requested_to.id }}&submission={{ submission.id }}" 
-                                                       class="text-primary text-decoration-none">
-                                                        {{ request.requested_to.userprofile.user}}
-                                                    </a>
-                                                </strong>
-                                            </li>
-                                        {% endfor %}
-                                        </ul>
-                                    {% else %}
-                                        No requests yet
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if submission.review_requests.exists %}
-                                        <ul class="list-unstyled mb-0">
-                                        {% for request in submission.review_requests.all %}
-                                            <li>
-                                                {% with days=request.created_at|timesince_in_days %}
-                                                    {{ days }}
-                                                {% endwith %}
-                                            </li>
-                                        {% endfor %}
-                                        </ul>
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if submission.review_requests.exists %}
-                                        <ul class="list-unstyled mb-0">
-                                        {% for request in submission.review_requests.all %}
-                                            <li>
-                                                {% if request.status == 'completed' %}
-                                                    <span class="text-success">✅</span>
-                                                {% elif request.status == 'declined' %}
-                                                    <span class="text-danger">❌</span>
-                                                {% elif request.status == 'pending' %}
-                                                    <span class="text-warning">⏳</span>
-                                                {% else %}
-                                                    <span class="text-secondary">-</span>
-                                                {% endif %}
-                                            </li>
-                                        {% endfor %}
-                                        </ul>
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <span class="status-badge {{ submission.status|slugify }}">
-                                        {{ submission.get_status_display }}
-                                    </span>
-                                </td>
-                                <td>{{ submission.khcc_number|default:"-" }}</td>
-                                <td>
-                                    <div id="toggle-container-{{ submission.temporary_id }}" class="visibility-toggles"></div>
-                                    <script type="text/babel">
-                                        {
-                                            const container = document.getElementById('toggle-container-{{ submission.temporary_id }}');
-                                            const root = ReactDOM.createRoot(container);
-                                            root.render(
-                                                <VisibilityToggles 
-                                                    submissionId="{{ submission.temporary_id }}"
-                                                    initialIrbState="{{ submission.show_in_irb|yesno:'true,false' }}"
-                                                    initialRcState="{{ submission.show_in_rc|yesno:'true,false' }}"
-                                                />
-                                            );
-                                        }
-                                    </script>
-                                </td>
-                                <td>
-                                    <div class="action-buttons">
-                                        <a href="{% url 'review:create_review_request' submission.pk%}" 
-                                           class="btn btn-primary btn-sm" style="width: 100px;">
-                                            <i class="fas fa-plus"></i> Request
-                                        </a>
-                                        <a href="{% url 'review:review_summary' submission.pk %}" 
-                                           class="btn btn-success btn-sm" style="width: 100px;">
-                                            <i class="fas fa-info-circle"></i> Details
-                                        </a>
-                                        {% if not submission.khcc_number %}
-                                            <a href="{% url 'review:assign_irb' submission.pk %}" 
-                                               class="btn btn-info btn-sm" style="width: 100px;">
-                                                <i class="fas fa-hashtag"></i> KHCC #
-                                            </a>
-                                        {% endif %}
-                                        <a href="{% url 'review:view_notepad' submission.pk 'OSAR' %}" 
-                                           class="btn btn-info btn-sm" style="width: 100px;">
-                                            <i class="fas fa-sticky-note"></i> Notes
-                                        </a>
-
-                                        {% if submission.status == 'under_review' %}
-                                            <button type="button" 
-                                                    class="btn btn-warning btn-sm decision-btn" 
-                                                    style="width: 100px;"
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#decisionModal"
-                                                    data-submission-id="{{ submission.pk }}"
-                                                    data-action="revision_requested">
-                                                <i class="fas fa-undo"></i> Revision
-                                            </button>
-                                            <button type="button" 
-                                                    class="btn btn-danger btn-sm decision-btn" 
-                                                    style="width: 100px;"
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#decisionModal"
-                                                    data-submission-id="{{ submission.pk }}"
-                                                    data-action="rejected">
-                                                <i class="fas fa-times"></i> Reject
-                                            </button>
-                                            <button type="button" 
-                                                    class="btn btn-success btn-sm decision-btn" 
-                                                    data-bs-toggle="modal" 
-                                                    style="width: 100px;"
-                                                    data-bs-target="#decisionModal"
-                                                    data-submission-id="{{ submission.pk }}"
-                                                    data-action="accepted">
-                                                <i class="fas fa-check"></i> Accept
-                                            </button>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                            </tr>
+            <div class="card-body">
+                <!-- Filter Controls -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label for="statusFilter" class="form-label">Filter by Status:</label>
+                        <select id="statusFilter" class="form-select">
+                            <option value="">All Statuses</option>
+                            {% for status, label in submission_status_choices %}
+                                <option value="{{ status }}">{{ label }}</option>
                             {% endfor %}
-                        </tbody>
-                    </table>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="entriesFilter" class="form-label">Show entries:</label>
+                        <select id="entriesFilter" class="form-select">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="-1">All</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="searchFilter" class="form-label">Search:</label>
+                        <input type="search" id="searchFilter" class="form-control" placeholder="Type to search...">
+                    </div>
                 </div>
-            {% else %}
-                <p class="mb-0">No submissions found.</p>
-            {% endif %}
+
+            <div class="card-body">
+                {% if submissions %}
+                    <div class="table-responsive">
+                        <table id="osarSubmissionsTable" class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Submission Date</th>
+                                    <th>Primary Investigator</th>
+                                    <th>Study Type</th>
+                                    <th>Requests</th>
+                                    <th>Days</th>
+                                    <th>✅</th>
+                                    <th>Status</th>
+                                    <th>KHCC #</th>
+                                    {% if is_osar %}
+                                        <th>Visibility</th>
+                                    {% endif %}
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for submission in submissions %}
+                                <tr>
+                                    <td>{{ submission.title }}</td>
+                                    <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
+                                    <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+                                    <td>{{ submission.study_type }}</td>
+                                    <td>
+                                        {% if submission.review_requests.exists %}
+                                            <ul class="list-unstyled mb-0">
+                                            {% for request in submission.review_requests.all %}
+                                                <li>
+                                                    <strong>
+                                                        <a href="{% url 'messaging:compose_message' %}?recipient={{ request.requested_to.id }}&submission={{ submission.id }}" 
+                                                           class="text-primary text-decoration-none">
+                                                            {{ request.requested_to.userprofile.user}}
+                                                        </a>
+                                                    </strong>
+                                                </li>
+                                            {% endfor %}
+                                            </ul>
+                                        {% else %}
+                                            No requests yet
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if submission.review_requests.exists %}
+                                            <ul class="list-unstyled mb-0">
+                                            {% for request in submission.review_requests.all %}
+                                                <li>
+                                                    {% with days=request.created_at|timesince_in_days %}
+                                                        {{ days }}
+                                                    {% endwith %}
+                                                </li>
+                                            {% endfor %}
+                                            </ul>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if submission.review_requests.exists %}
+                                            <ul class="list-unstyled mb-0">
+                                            {% for request in submission.review_requests.all %}
+                                                <li>
+                                                    {% if request.status == 'completed' %}
+                                                        <span class="text-success">✅</span>
+                                                    {% elif request.status == 'declined' %}
+                                                        <span class="text-danger">❌</span>
+                                                    {% elif request.status == 'pending' %}
+                                                        <span class="text-warning">⏳</span>
+                                                    {% else %}
+                                                        <span class="text-secondary">-</span>
+                                                    {% endif %}
+                                                </li>
+                                            {% endfor %}
+                                            </ul>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="status-badge {{ submission.status|slugify }}">
+                                            {{ submission.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ submission.khcc_number|default:"-" }}</td>
+                                    {% if is_osar %}
+                                        <td>
+                                            <div id="toggle-container-{{ submission.temporary_id }}" class="visibility-toggles"></div>
+                                            <script type="text/babel">
+                                                {
+                                                    const container = document.getElementById('toggle-container-{{ submission.temporary_id }}');
+                                                    const root = ReactDOM.createRoot(container);
+                                                    root.render(
+                                                        <VisibilityToggles 
+                                                            submissionId="{{ submission.temporary_id }}"
+                                                            initialIrbState="{{ submission.show_in_irb|yesno:'true,false' }}"
+                                                            initialRcState="{{ submission.show_in_rc|yesno:'true,false' }}"
+                                                        />
+                                                    );
+                                                }
+                                            </script>
+                                        </td>
+                                    {% endif %}
+                                    <td>
+                                        <div class="action-buttons">
+                                            {% if is_osar %}
+                                                <a href="{% url 'review:create_review_request' submission.pk%}" 
+                                                   class="btn btn-primary btn-sm" style="width: 100px;">
+                                                    <i class="fas fa-plus"></i> Request
+                                                </a>
+                                            {% endif %}
+                                            <a href="{% url 'review:review_summary' submission.pk %}" 
+                                               class="btn btn-success btn-sm" style="width: 100px;">
+                                                <i class="fas fa-info-circle"></i> Details
+                                            </a>
+                                            {% if is_osar and not submission.khcc_number %}
+                                                <a href="{% url 'review:assign_irb' submission.pk %}" 
+                                                   class="btn btn-info btn-sm" style="width: 100px;">
+                                                    <i class="fas fa-hashtag"></i> KHCC #
+                                                </a>
+                                            {% endif %}
+                                            <a href="{% url 'review:view_notepad' submission.pk group_name %}" 
+                                               class="btn btn-info btn-sm" style="width: 100px;">
+                                                <i class="fas fa-sticky-note"></i> Notes
+                                            </a>
+
+                                            {% if submission.status == 'under_review' and is_irb %}
+                                                <!-- Decision buttons only shown for IRB members -->
+                                                <button type="button" 
+                                                        class="btn btn-warning btn-sm decision-btn" 
+                                                        style="width: 100px;"
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#decisionModal"
+                                                        data-submission-id="{{ submission.pk }}"
+                                                        data-action="revision_requested">
+                                                    <i class="fas fa-undo"></i> Revision
+                                                </button>
+                                                <button type="button" 
+                                                        class="btn btn-danger btn-sm decision-btn" 
+                                                        style="width: 100px;"
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#decisionModal"
+                                                        data-submission-id="{{ submission.pk }}"
+                                                        data-action="rejected">
+                                                    <i class="fas fa-times"></i> Reject
+                                                </button>
+                                                <button type="button" 
+                                                        class="btn btn-success btn-sm decision-btn" 
+                                                        data-bs-toggle="modal" 
+                                                        style="width: 100px;"
+                                                        data-bs-target="#decisionModal"
+                                                        data-submission-id="{{ submission.pk }}"
+                                                        data-action="accepted">
+                                                    <i class="fas fa-check"></i> Accept
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0">No submissions found.</p>
+                {% endif %}
+            </div>
         </div>
-    </div>
+    {% endif %}
 
     <!-- Decision Modal -->
     <div class="modal fade" id="decisionModal" tabindex="-1" aria-hidden="true">
@@ -449,23 +467,23 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                             <td>
                                 <div class="btn-group">
                                     <a href="{% url 'review:submit_review' review.id %}" class="btn btn-primary btn-sm">
-                                        <i class="fas fa-paper-plane"></i> Review
-                                    </a>
-                                    <a href="{% url 'review:decline_review' review.id %}" class="btn btn-danger btn-sm">
-                                        <i class="fas fa-times"></i> Decline
-                                    </a>
-                                    <a href="{% url 'review:request_extension' review.id %}" class="btn btn-warning btn-sm">
-                                        <i class="fas fa-clock"></i> Extension
-                                    </a>
-                                    <a href="{% url 'review:review_summary' review.submission.pk %}" class="btn btn-success btn-sm">
-                                        <i class="fas fa-info-circle"></i> Details
+                                        <i class="fas fa-paper-plane"></i> Submit Review
                                     </a>
                                     {% if review.can_forward and review.submission %}
                                         <a href="{% url 'review:create_review_request' submission_id=review.submission.pk %}" 
                                            class="btn btn-info btn-sm">
-                                            <i class="fas fa-share"></i> Request
+                                            <i class="fas fa-share"></i> Request Review
                                         </a>
                                     {% endif %}
+                                    <a href="{% url 'review:decline_review' review.id %}" class="btn btn-danger btn-sm">
+                                        <i class="fas fa-times"></i> Decline
+                                    </a>
+                                    <a href="{% url 'review:request_extension' review.id %}" class="btn btn-warning btn-sm">
+                                        <i class="fas fa-clock"></i> Request Extension
+                                    </a>
+                                    <a href="{% url 'review:review_summary' review.submission.pk %}" class="btn btn-success btn-sm">
+                                        <i class="fas fa-info-circle"></i> Details
+                                    </a>
                                 </div>
                             </td>
                         </tr>
