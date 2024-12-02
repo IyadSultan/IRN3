@@ -18,6 +18,50 @@
                     <form method="post" novalidate>
                         {% csrf_token %}
                         {{ form|crispy }}
+                        
+                        <!-- Role Selection -->
+                        <div id="role_selection_div" style="display: none;" class="mb-3">
+                            <label for="user_role" class="form-label">What is your role in this submission?</label>
+                            <select name="user_role" id="user_role" class="form-select" required>
+                                <option value="">Select your role...</option>
+                                <option value="research_assistant">Research Assistant</option>
+                                <option value="coinvestigator">Co-Investigator</option>
+                            </select>
+                            
+                            <!-- Co-Investigator specific roles (hidden by default) -->
+                            <div id="coinvestigator_roles" style="display: none;" class="mt-3">
+                                <label class="form-label">Select your role as Co-Investigator:</label>
+                                <div class="form-check">
+                                    <input type="checkbox" name="ci_roles" value="PI" class="form-check-input" id="role_pi">
+                                    <label class="form-check-label" for="role_pi">Principal Investigator</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" name="ci_roles" value="CO_PI" class="form-check-input" id="role_co_pi">
+                                    <label class="form-check-label" for="role_co_pi">Co-Principal Investigator</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" name="ci_roles" value="SUB_I" class="form-check-input" id="role_sub_i">
+                                    <label class="form-check-label" for="role_sub_i">Sub-Investigator</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" name="ci_roles" value="DATA_MANAGER" class="form-check-input" id="role_data_manager">
+                                    <label class="form-check-label" for="role_data_manager">Data Manager</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" name="ci_roles" value="STATISTICIAN" class="form-check-input" id="role_statistician">
+                                    <label class="form-check-label" for="role_statistician">Statistician</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" name="ci_roles" value="CONSULTANT" class="form-check-input" id="role_consultant">
+                                    <label class="form-check-label" for="role_consultant">Consultant</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" name="ci_roles" value="OTHER" class="form-check-input" id="role_other">
+                                    <label class="form-check-label" for="role_other">Other</label>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                             <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
                                 <i class="fas fa-times"></i> Exit without Saving
@@ -80,17 +124,28 @@
         $('#id_primary_investigator').append(initialOption).trigger('change');
         {% endif %}
 
-        // Toggle PI field visibility
-        function togglePIField() {
+        // Toggle PI field and role selection visibility
+        function toggleFields() {
             if ($('#id_is_primary_investigator').is(':checked')) {
                 $('#div_id_primary_investigator').hide();
+                $('#role_selection_div').hide();
             } else {
                 $('#div_id_primary_investigator').show();
+                $('#role_selection_div').show();
             }
         }
 
-        $('#id_is_primary_investigator').change(togglePIField);
-        togglePIField();
+        // Toggle co-investigator roles visibility
+        $('#user_role').change(function() {
+            if ($(this).val() === 'coinvestigator') {
+                $('#coinvestigator_roles').show();
+            } else {
+                $('#coinvestigator_roles').hide();
+            }
+        });
+
+        $('#id_is_primary_investigator').change(toggleFields);
+        toggleFields();
     });
 </script>
 {% endblock %}

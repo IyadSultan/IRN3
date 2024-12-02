@@ -185,7 +185,7 @@ $(document).ready(function() {
         font-weight: 500;
     }
 
-    .badge-documents_pending {
+    .badge-document_missing {
         background-color: #ffc107;
         color: #000;
     }
@@ -196,6 +196,16 @@ $(document).ready(function() {
     }
 
     .badge-draft {
+        background-color: #6c757d;
+        color: #fff;
+    }
+
+    .badge-document_missing {
+        background-color: #6f42c1;
+        color: #fff;
+    }
+
+    .badge-withdrawn {
         background-color: #6c757d;
         color: #fff;
     }
@@ -219,7 +229,7 @@ $(document).ready(function() {
     /* Adjusted dot position */
     .btn-info.position-relative .position-absolute {
         transform: translate(-50%, -50%);
-        left: 75%;  /* Moved more to the left */
+        left: 75%;
     }
 </style>
 {% endblock %}

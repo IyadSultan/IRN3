@@ -25,6 +25,7 @@ from .models import (
     StudyAction,
     StudyActionDocument,
 )
+
 from .forms import (
     SubmissionForm,
     ResearchAssistantForm,
@@ -140,9 +141,6 @@ def start_submission(request, submission_id=None):
     """Start or edit a submission."""
     if submission_id:
         submission = get_object_or_404(Submission, pk=submission_id)
-        print(f"Found submission with PI: {submission.primary_investigator}")
-        print(f"Current user: {request.user}")
-        
         if submission.is_locked:
             messages.error(request, "This submission is locked and cannot be edited.")
             return redirect('submission:dashboard')
@@ -150,7 +148,6 @@ def start_submission(request, submission_id=None):
             messages.error(request, "You do not have permission to edit this submission.")
             return redirect('submission:dashboard')
         
-        # Only set initial data for primary_investigator, not is_primary_investigator
         initial_data = {
             'primary_investigator': submission.primary_investigator
         }
@@ -159,7 +156,6 @@ def start_submission(request, submission_id=None):
         initial_data = {}
 
     if request.method == 'POST':
-        print(f"POST data: {request.POST}")
         form = SubmissionForm(request.POST, instance=submission)
         action = request.POST.get('action')
         
@@ -167,45 +163,86 @@ def start_submission(request, submission_id=None):
             return redirect('submission:dashboard')
             
         if form.is_valid():
-            submission = form.save(commit=False)
-            # Get is_pi directly from POST data instead of cleaned_data
-            is_pi = request.POST.get('is_primary_investigator') == 'on'
-            
-            if is_pi:
-                submission.primary_investigator = request.user
-            else:
-                pi_user = form.cleaned_data.get('primary_investigator')
-                if not pi_user:
-                    messages.error(request, 'Please select a primary investigator.')
-                    return render(request, 'submission/start_submission.html', {
-                        'form': form,
-                        'submission': submission
-                    })
-                submission.primary_investigator = pi_user
-                
-            submission.save()
-            messages.success(request, f'Temporary submission ID {submission.temporary_id} generated.')
-            
-            if action == 'save_exit':
-                return redirect('submission:dashboard')
-            elif action == 'save_continue':
-                return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
+            try:
+                with transaction.atomic():
+                    submission = form.save(commit=False)
+                    is_pi = request.POST.get('is_primary_investigator') == 'on'
+                    
+                    if is_pi:
+                        submission.primary_investigator = request.user
+                    else:
+                        pi_user = form.cleaned_data.get('primary_investigator')
+                        if not pi_user:
+                            messages.error(request, 'Please select a primary investigator.')
+                            return render(request, 'submission/start_submission.html', {
+                                'form': form,
+                                'submission': submission
+                            })
+                        submission.primary_investigator = pi_user
+
+                    # Save the submission first
+                    submission.save()
+                    form.save_m2m()
+
+                    # Handle user role if not PI
+                    if request.user != submission.primary_investigator:
+                        user_role = request.POST.get('user_role')
+                        
+                        if user_role == 'research_assistant':
+                            ResearchAssistant.objects.create(
+                                submission=submission,
+                                user=request.user,
+                                can_edit=True,
+                                can_submit=True,
+                                can_view_communications=True
+                            )
+                        elif user_role == 'coinvestigator':
+                            # Get selected roles
+                            ci_roles = request.POST.getlist('ci_roles')
+                            if not ci_roles:
+                                ci_roles = ['general']  # Default role if none selected
+                                
+                            CoInvestigator.objects.create(
+                                submission=submission,
+                                user=request.user,
+                                can_edit=True,
+                                can_submit=True,
+                                can_view_communications=True,
+                                roles=ci_roles
+                            )
+                        else:
+                            messages.error(request, 'Please select your role in the submission.')
+                            return render(request, 'submission/start_submission.html', {
+                                'form': form,
+                                'submission': submission
+                            })
+
+                    messages.success(request, 'Submission saved successfully.')
+                    
+                    if action == 'save_exit':
+                        return redirect('submission:dashboard')
+                    elif action == 'save_continue':
+                        return redirect('submission:add_research_assistant', 
+                                     submission_id=submission.temporary_id)
+
+            except Exception as e:
+                logger.error(f"Error in start_submission: {str(e)}")
+                messages.error(request, f"An error occurred: {str(e)}")
+                return render(request, 'submission/start_submission.html', {
+                    'form': form,
+                    'submission': submission
+                })
     else:
         form = SubmissionForm(instance=submission, initial=initial_data)
-        # Explicitly set is_primary_investigator based on current state
         if submission and submission.primary_investigator == request.user:
             form.fields['is_primary_investigator'].initial = True
-        else:
-            form.fields['is_primary_investigator'].initial = False
 
     return render(request, 'submission/start_submission.html', {
         'form': form,
-        'submission': submission,
+        'submission': submission
     })
 
-from django import forms
-from django.contrib.auth.models import User
-from .models import ResearchAssistant  # Add this import
+
 
 @login_required
 def add_research_assistant(request, submission_id):
@@ -494,51 +531,6 @@ def submission_form(request, submission_id, form_id):
                 return []
         return value
 
-    if request.method == 'POST':
-        # Handle navigation actions without form processing
-        if action == 'back':
-            # If there's a previous form, go to it
-            if previous_form:
-                return redirect('submission:submission_form', 
-                              submission_id=submission.temporary_id, 
-                              form_id=previous_form.id)
-            # Otherwise go back to co-investigators
-            return redirect('submission:add_coinvestigator', 
-                          submission_id=submission.temporary_id)
-            return redirect('submission:dashboard')
-
-        # Create form instance without validation
-        DynamicFormClass = generate_django_form(dynamic_form)
-        
-        # Save all form fields without validation
-        for field_name, field in DynamicFormClass.base_fields.items():
-            if isinstance(field, forms.MultipleChoiceField):
-                # Handle multiple choice fields (including checkboxes)
-                values = request.POST.getlist(f'form_{dynamic_form.id}-{field_name}')
-                value = json.dumps(values) if values else '[]'
-            else:
-                value = request.POST.get(f'form_{dynamic_form.id}-{field_name}', '')
-                
-            FormDataEntry.objects.update_or_create(
-                submission=submission,
-                form=dynamic_form,
-                field_name=field_name,
-                version=submission.version,
-                defaults={'value': value}
-            )
-        
-        # Handle post-save navigation
-        if action == 'save_exit':
-            return redirect('submission:dashboard')
-        elif action == 'save_continue':
-            next_form = get_next_form(submission, dynamic_form)
-            if next_form:
-                return redirect('submission:submission_form', 
-                              submission_id=submission.temporary_id, 
-                              form_id=next_form.id)
-            return redirect('submission:submission_review', 
-                          submission_id=submission.temporary_id)
-    
     # GET request handling
     DynamicFormClass = generate_django_form(dynamic_form)
     current_data = {}
@@ -551,16 +543,16 @@ def submission_form(request, submission_id, form_id):
     ):
         field = DynamicFormClass.base_fields.get(entry.field_name)
         if field:
-            if isinstance(field, forms.MultipleChoiceField):
-                try:
+            try:
+                if isinstance(field, forms.MultipleChoiceField):
                     current_data[entry.field_name] = process_field_value(
                         entry.value, 
                         getattr(dynamic_form.fields.get(name=entry.field_name), 'field_type', None)
                     )
-                except json.JSONDecodeError:
-                    current_data[entry.field_name] = []
-            else:
-                current_data[entry.field_name] = entry.value
+                else:
+                    current_data[entry.field_name] = entry.value
+            except json.JSONDecodeError:
+                current_data[entry.field_name] = []
 
     # If no current data and not version 1, get previous version's data
     if not current_data and submission.version > 1 and not submission.is_locked:
@@ -571,16 +563,16 @@ def submission_form(request, submission_id, form_id):
         ):
             field = DynamicFormClass.base_fields.get(entry.field_name)
             if field:
-                if isinstance(field, forms.MultipleChoiceField):
-                    try:
+                try:
+                    if isinstance(field, forms.MultipleChoiceField):
                         current_data[entry.field_name] = process_field_value(
                             entry.value,
                             getattr(dynamic_form.fields.get(name=entry.field_name), 'field_type', None)
                         )
-                    except json.JSONDecodeError:
-                        current_data[entry.field_name] = []
-                else:
-                    current_data[entry.field_name] = entry.value
+                    else:
+                        current_data[entry.field_name] = entry.value
+                except json.JSONDecodeError:
+                    current_data[entry.field_name] = []
 
     # Create form instance with processed data
     form_instance = DynamicFormClass(
@@ -682,7 +674,7 @@ def submission_review(request, submission_id):
                             break
 
                     # Set appropriate status
-                    submission.status = 'documents_pending' if has_pending_forms else 'submitted'
+                    submission.status = 'document_missing' if has_pending_forms else 'submitted'
                     submission.save()
                     
                     # Create version history entry with submitter info
@@ -800,7 +792,7 @@ AIDI System
 
                         # Set status based on pending forms
                         submission.is_locked = True
-                        submission.status = 'documents_pending' if has_pending_forms else 'submitted'
+                        submission.status = 'document_missing' if has_pending_forms else 'submitted'
                         submission.date_submitted = timezone.now()
                         
                         # Create version history entry
@@ -1330,7 +1322,7 @@ def investigator_form(request, submission_id, form_id):
                         # Check if all forms are complete and update status if needed
                         if submission.are_all_investigator_forms_complete():
                             # Update submission status if it was pending documents
-                            if submission.status == 'documents_pending':
+                            if submission.status == 'document_missing':
                                 submission.status = 'submitted'
                                 submission.save()
                                 notify_form_completion(submission)

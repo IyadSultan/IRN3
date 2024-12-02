@@ -64,7 +64,7 @@ class Submission(models.Model):
         self.submitted_by = submitted_by
         self.date_submitted = timezone.now()
         self.is_locked = True
-        self.status = 'documents_pending' if not self.are_all_investigator_forms_complete() else 'submitted'
+        self.status = 'document_missing' if not self.are_all_investigator_forms_complete() else 'submitted'
         self.save()
         
         # Create version history
@@ -130,7 +130,7 @@ class Submission(models.Model):
             return True
 
         # If user has submit rights and submission is submitted/pending, form is considered submitted
-        if self.status in ['submitted', 'documents_pending'] and user in self.get_submitters():
+        if self.status in ['submitted', 'document_missing'] and user in self.get_submitters():
             return True
 
         return False
@@ -143,7 +143,7 @@ class Submission(models.Model):
             return []
 
         # If user has submit rights and submission is submitted/pending, no forms are pending
-        if user in self.get_submitters() and self.status in ['submitted', 'documents_pending']:
+        if user in self.get_submitters() and self.status in ['submitted', 'document_missing']:
             return []
 
         required_forms = self.get_required_investigator_forms()
@@ -183,7 +183,7 @@ class Submission(models.Model):
             submitted_users = {sub.investigator_id: sub.date_submitted for sub in form_submissions}
             
             # For users with submit rights, mark as submitted if submission is submitted
-            if self.status in ['submitted', 'documents_pending'] and self.date_submitted:
+            if self.status in ['submitted', 'document_missing'] and self.date_submitted:
                 for user in submitters:
                     submitted_users.setdefault(user.id, self.date_submitted)
 
@@ -211,7 +211,7 @@ class Submission(models.Model):
         non_submitters = self.get_non_submitters()
         
         # For new submissions, include submitters in check
-        if self.status not in ['submitted', 'documents_pending']:
+        if self.status not in ['submitted', 'document_missing']:
             non_submitters.extend(self.get_submitters())
 
         # Check each form
