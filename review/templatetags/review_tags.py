@@ -45,3 +45,7 @@ def timesince_in_days(value):
     now = timezone.now()
     diff = now - value
     return diff.days
+
+@register.filter
+def intersect(queryset1, queryset2):
+    return set(queryset1) & set(queryset2)

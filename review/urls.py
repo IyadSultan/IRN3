@@ -1,12 +1,6 @@
 from django.urls import path
 from .views import (
-    # Dashboard Views
     ReviewDashboardView,
-    osar_dashboard,
-    irb_dashboard,
-    rc_dashboard,
-    
-    # Submission Views
     ReviewSummaryView,
     SubmissionVersionsView,
     ToggleSubmissionVisibilityView,
@@ -14,8 +8,6 @@ from .views import (
     AssignKHCCNumberView,
     ProcessSubmissionDecisionView,
     view_notepad,
-    
-    # Review Process Views
     CreateReviewRequestView,
     SubmitReviewView,
     ViewReviewView,
@@ -30,16 +22,9 @@ from submission.views import user_autocomplete
 app_name = 'review'
 
 urlpatterns = [
-    # Dashboard URLs
-    path('', ReviewDashboardView.as_view(), 
-         name='review_dashboard'),
-    path('osar-dashboard/', osar_dashboard, 
-         name='osar_dashboard'),
-    path('irb-dashboard/', irb_dashboard, 
-         name='irb_dashboard'),
-    path('rc-dashboard/', rc_dashboard, 
-         name='rc_dashboard'),
-
+    # Single dashboard URL
+    path('', ReviewDashboardView.as_view(), name='review_dashboard'),
+    
     # Submission Management URLs
     path('submission/<int:submission_id>/summary/', 
          ReviewSummaryView.as_view(), 

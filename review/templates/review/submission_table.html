@@ -1,0 +1,56 @@
+{% comment %}dashboard/submissions_table.html{% endcomment %}
+
+{% if submissions %}
+<div class="table-responsive">
+  <table id="{{ table_id }}" class="table table-hover">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Submission Date</th>
+        <th>Primary Investigator</th>
+        <th>Study Type</th>
+        <th>Requests</th>
+        <th>Days</th>
+        <th>Status</th>
+        <th>KHCC #</th>
+        {% if show_visibility %}
+        <th>Visibility</th>
+        {% endif %}
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for submission in submissions %}
+      <tr>
+        <td>{{ submission.title }}</td>
+        <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
+        <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
+        <td>{{ submission.study_type }}</td>
+        <td>
+          {% include "dashboard/request_list.html" with requests=submission.review_requests.all %}
+        </td>
+        <td>
+          {% include "dashboard/days_list.html" with requests=submission.review_requests.all %}
+        </td>
+        <td>
+          <span class="status-badge {{ submission.status|slugify }}">
+            {{ submission.get_status_display }}
+          </span>
+        </td>
+        <td>{{ submission.khcc_number|default:"-" }}</td>
+        {% if show_visibility %}
+        <td>
+          {% include "dashboard/visibility_toggle.html" with submission=submission %}
+        </td>
+        {% endif %}
+        <td>
+          {% include "dashboard/action_buttons.html" with submission=submission %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="mb-0">No submissions found.</p>
+{% endif %}

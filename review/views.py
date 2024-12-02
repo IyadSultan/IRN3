@@ -59,47 +59,64 @@ class ReviewDashboardView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
-        visible_submissions = Submission.get_visible_submissions_for_user(user)
+        # Get user groups
+        is_osar = user.groups.filter(name='OSAR').exists()
+        is_irb = user.groups.filter(name='IRB').exists()
+        is_rc = user.groups.filter(name='RC').exists()
 
-        # Add group membership checks to context
-        context.update({
-            'is_osar_member': user.groups.filter(name='OSAR').exists(),
-            'is_irb_member': user.groups.filter(name='IRB').exists(),
-            'is_rc_member': user.groups.filter(name='RC').exists(),
-            'is_aahrpp_member': user.groups.filter(name='AAHRPP').exists(),
-            'submissions': visible_submissions,
-        })
+        # Base query for submissions
+        submissions_query = Submission.objects.select_related(
+            'primary_investigator__userprofile',
+        ).prefetch_related(
+            'review_requests',
+            'review_requests__requested_to__userprofile',
+            'review_requests__requested_by__userprofile',
+            'version_histories'
+        ).order_by('-date_submitted')
 
-        # Get submissions needing review (for OSAR members)
-        if context['is_osar_member']:
-            submissions_needing_review = Submission.objects.filter(
-                status='submitted'
-            ).select_related(
-                'primary_investigator__userprofile'
+        # Filter submissions based on user group
+        if is_osar:
+            submissions = submissions_query
+        elif is_irb:
+            submissions = submissions_query.filter(show_in_irb=True)
+        elif is_rc:
+            submissions = submissions_query.filter(
+                show_in_rc=True,
+                primary_investigator__userprofile__department=user.userprofile.department
             )
-            context['submissions_needing_review'] = submissions_needing_review
+        else:
+            submissions = submissions_query.filter(
+                Q(primary_investigator=user) |
+                Q(coinvestigators=user) |
+                Q(research_assistants=user)
+            ).distinct()
 
-        # Get reviews that can be forwarded
-        forwarded_reviews = ReviewRequest.objects.filter(
-            Q(requested_to=user) | Q(requested_by=user),
-            can_forward=True,
-        ).select_related(
+        # Get reviews where the user is requested_to
+        reviews_query = ReviewRequest.objects.select_related(
             'submission__primary_investigator__userprofile',
-            'requested_by',
-            'requested_to'
-        )
-        context['forwarded_reviews'] = forwarded_reviews
-
-        # Get pending reviews where user is the reviewer
-        pending_reviews = ReviewRequest.objects.select_related(
-            'submission__primary_investigator__userprofile',
-            'requested_by',
-            'requested_to'
+            'requested_by__userprofile',
+            'requested_to__userprofile'
         ).filter(
-            Q(requested_to=user) | Q(requested_by=user),
-            status__in=['pending', 'overdue', 'extended']
-        ).order_by('-created_at')
-        context['pending_reviews'] = pending_reviews
+            requested_to=user
+        )
+
+        # Filter pending and completed reviews
+        pending_reviews = reviews_query.filter(
+            status__in=['pending', 'in_progress']
+        ).order_by('deadline')
+
+        completed_reviews = reviews_query.filter(
+            status='completed'
+        ).order_by('-updated_at')
+
+        context.update({
+            'submissions': submissions,
+            'pending_reviews': pending_reviews,
+            'completed_reviews': completed_reviews,
+            'is_osar': is_osar,
+            'is_irb': is_irb,
+            'is_rc': is_rc,
+        })
 
         return context
 
