@@ -257,7 +257,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                                 <strong>
                                                     <a href="{% url 'messaging:compose_message' %}?recipient={{ request.requested_to.id }}&submission={{ submission.id }}" 
                                                        class="text-primary text-decoration-none">
-                                                        {{ request.requested_to.get_full_name }}
+                                                        {{ request.requested_to.userprofile.user }}
                                                     </a>
                                                 </strong>
                                             </li>
@@ -328,27 +328,28 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <td>
                                     <div class="action-buttons">
                                         <a href="{% url 'review:create_review_request' submission.pk %}" 
-                                           class="btn btn-primary btn-sm">
-                                            <i class="fas fa-plus"></i> Review Request
+                                           class="btn btn-primary btn-sm w-100">
+                                            <i class="fas fa-plus"></i> Request
                                         </a>
                                         <a href="{% url 'review:review_summary' submission.pk %}" 
-                                           class="btn btn-success btn-sm">
+                                           class="btn btn-success btn-sm w-49">
                                             <i class="fas fa-info-circle"></i> Details
+                                        </a>
+                                        
+                                        <a href="{% url 'review:view_notepad' submission.pk 'OSAR' %}" 
+                                           class="btn btn-info btn-sm w-49">
+                                            <i class="fas fa-sticky-note"></i> Notes
                                         </a>
                                         {% if not submission.khcc_number %}
                                             <a href="{% url 'review:assign_irb' submission.pk %}" 
-                                               class="btn btn-info btn-sm">
-                                                <i class="fas fa-hashtag"></i> KHCC #
+                                               class="btn btn-info btn-sm w-100">
+                                                <i class="fas fa-hashtag"></i> KHCC#
                                             </a>
                                         {% endif %}
-                                        <a href="{% url 'review:view_notepad' submission.pk 'OSAR' %}" 
-                                           class="btn btn-info btn-sm">
-                                            <i class="fas fa-sticky-note"></i> Notes
-                                        </a>
 
                                         {% if submission.status == 'under_review' %}
                                             <button type="button" 
-                                                    class="btn btn-warning btn-sm decision-btn" 
+                                                    class="btn btn-warning btn-sm decision-btn w-100"
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#decisionModal"
                                                     data-submission-id="{{ submission.pk }}"
@@ -356,7 +357,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                                 <i class="fas fa-undo"></i> Request Revision
                                             </button>
                                             <button type="button" 
-                                                    class="btn btn-danger btn-sm decision-btn" 
+                                                    class="btn btn-danger btn-sm decision-btn w-49" 
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#decisionModal"
                                                     data-submission-id="{{ submission.pk }}"
@@ -364,7 +365,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                                 <i class="fas fa-times"></i> Reject
                                             </button>
                                             <button type="button" 
-                                                    class="btn btn-success btn-sm decision-btn" 
+                                                    class="btn btn-success btn-sm decision-btn w-49" 
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#decisionModal"
                                                     data-submission-id="{{ submission.pk }}"
@@ -493,18 +494,16 @@ $(document).ready(function() {
         submissionsTable.search(this.value).draw();
     });
 
-    // Status Filter
+    // Status Filter - Fix the column index to match the status column (index 7)
     $('#statusFilter').on('change', function() {
         var selectedStatus = $(this).val();
         
         // Clear existing filter
-        submissionsTable.column(4).search('').draw();
+        submissionsTable.column(7).search('').draw();
         
         // Apply new filter if a status is selected
         if (selectedStatus) {
-            // Create a regex that matches the status text case-insensitively
-            var searchRegex = selectedStatus.replace(/_/g, ' ');
-            submissionsTable.column(4).search(searchRegex, true, false).draw();
+            submissionsTable.column(7).search(selectedStatus, true, false).draw();
         }
     });
 

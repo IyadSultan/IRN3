@@ -1401,8 +1401,7 @@ def get_dashboard_data(request):
             'pendingReviews': 0,
             'irbAvgTime': 0,
             'rcAvgTime': 0
-        }, status=500)
-# review/views.py
+        }, status=500)# review/views.py
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin

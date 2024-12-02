@@ -7,49 +7,57 @@
     .metric-card {
         background: white;
         border-radius: 8px;
-        padding: 1.5rem;
+        padding: 2rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin-bottom: 1rem;
+        margin-bottom: 2rem;
+        height: 100%;
     }
     .metric-value {
-        font-size: 2rem;
+        font-size: 2.5rem;
         font-weight: bold;
         color: #2c5282;
+        margin: 1rem 0;
     }
     .metric-label {
         color: #4a5568;
-        font-size: 0.875rem;
-        margin-bottom: 0.5rem;
+        font-size: 1rem;
+        margin-bottom: 1rem;
     }
     .metric-definition {
         color: #718096;
-        font-size: 0.75rem;
-        margin-top: 0.5rem;
+        font-size: 0.875rem;
+        margin-top: 1rem;
     }
     .chart-container {
         background: white;
         border-radius: 8px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        height: 500px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        height: 600px;
     }
     .chart-container.large {
-        height: 600px;
+        height: 700px;
+    }
+    .dashboard-section {
+        margin-bottom: 3rem;
+    }
+    .section-header {
+        margin-bottom: 2rem;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <div class="row mb-4">
+<div class="container-fluid py-5">
+    <div class="row mb-5 section-header">
         <div class="col">
-            <h2 class="mb-1">Quality Dashboard</h2>
+            <h2 class="mb-2">Quality Dashboard</h2>
             <p class="text-muted">Real-time metrics and analytics</p>
         </div>
     </div>
 
     <!-- Top Metrics -->
-    <div class="row">
+    <div class="row dashboard-section">
         <div class="col-md-3">
             <div class="metric-card">
                 <div class="metric-label">Total Submissions</div>
@@ -81,48 +89,48 @@
     </div>
 
     <!-- Committee Review Times -->
-    <div class="row">
+    <div class="row dashboard-section">
         <div class="col-md-6">
             <div class="chart-container">
-                <h5 class="mb-3">IRB Response Time Distribution</h5>
+                <h5 class="mb-4">IRB Response Time Distribution</h5>
                 <div id="irbTimeChart" style="width: 100%; height: 100%;"></div>
             </div>
         </div>
         <div class="col-md-6">
             <div class="chart-container">
-                <h5 class="mb-3">RC Response Time Distribution</h5>
+                <h5 class="mb-4">RC Response Time Distribution</h5>
                 <div id="rcTimeChart" style="width: 100%; height: 100%;"></div>
             </div>
         </div>
     </div>
 
     <!-- Trends and Status -->
-    <div class="row">
+    <div class="row dashboard-section">
         <div class="col-md-8">
             <div class="chart-container large">
-                <h5 class="mb-3">Monthly Submission Trends</h5>
+                <h5 class="mb-4">Monthly Submission Trends</h5>
                 <div id="monthlyChart" style="width: 100%; height: 100%;"></div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="chart-container large">
-                <h5 class="mb-3">Status Distribution</h5>
+                <h5 class="mb-4">Status Distribution</h5>
                 <div id="statusChart" style="width: 100%; height: 100%;"></div>
             </div>
         </div>
     </div>
 
     <!-- Role and Institution Distribution -->
-    <div class="row">
+    <div class="row dashboard-section">
         <div class="col-md-6">
             <div class="chart-container">
-                <h5 class="mb-3">PI Role Distribution</h5>
+                <h5 class="mb-4">PI Role Distribution</h5>
                 <div id="roleChart" style="width: 100%; height: 100%;"></div>
             </div>
         </div>
         <div class="col-md-6">
             <div class="chart-container">
-                <h5 class="mb-3">Institution Distribution</h5>
+                <h5 class="mb-4">Institution Distribution</h5>
                 <div id="institutionChart" style="width: 100%; height: 100%;"></div>
             </div>
         </div>
@@ -130,13 +138,11 @@
 </div>
 {% endblock %}
 
-
 {% block page_specific_js %}
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Store chart instances
     const charts = {};
     
     function initializeChart(elementId) {
@@ -183,91 +189,110 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     legend: {
                         orient: 'vertical',
-                        left: 'left'
+                        left: 'left',
+                        type: 'scroll'
                     },
                     series: [{
                         name: 'Status Distribution',
                         type: 'pie',
                         radius: '70%',
-                        data: data.statusDistribution.map(item => ({
-                            value: item.count,
-                            name: item.status
-                        }))
+                        data: data.statusDistribution,
+                        emphasis: {
+                            itemStyle: {
+                                shadowBlur: 10,
+                                shadowOffsetX: 0,
+                                shadowColor: 'rgba(0, 0, 0, 0.5)'
+                            }
+                        }
                     }]
                 });
 
-                // Charts for departments and institutions
-                ['piDeptChart', 'coInvDeptChart', 'institutionChart'].forEach(chartId => {
-                    const chart = initializeChart(chartId);
-                    const chartData = {
-                        piDeptChart: data.piDepartments,
-                        coInvDeptChart: data.coInvDepartments,
-                        institutionChart: data.institutions
-                    }[chartId];
-
-                    chart.setOption({
-                        tooltip: {
-                            trigger: 'item',
-                            formatter: '{a} <br/>{b}: {c} ({d}%)'
-                        },
-                        legend: {
-                            type: 'scroll',
-                            orient: 'vertical',
-                            right: 10,
-                            top: 20,
-                            bottom: 20
-                        },
-                        series: [{
-                            type: 'pie',
-                            radius: '65%',
-                            data: chartData.map(item => ({
-                                value: item.count,
-                                name: Object.values(item)[0] || 'Unknown'
-                            }))
-                        }]
-                    });
+                // Role Distribution Chart
+                const roleChart = initializeChart('roleChart');
+                roleChart.setOption({
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b}: {c} ({d}%)'
+                    },
+                    legend: {
+                        orient: 'vertical',
+                        left: 'left',
+                        type: 'scroll'
+                    },
+                    series: [{
+                        name: 'Role Distribution',
+                        type: 'pie',
+                        radius: '70%',
+                        data: data.roleDistribution,
+                        emphasis: {
+                            itemStyle: {
+                                shadowBlur: 10,
+                                shadowOffsetX: 0,
+                                shadowColor: 'rgba(0, 0, 0, 0.5)'
+                            }
+                        }
+                    }]
                 });
 
-                // Time distribution charts
-                const timeChartConfig = {
-                    irbTimeChart: {
-                        data: data.irbTimeDistribution,
-                        title: 'IRB Review Time Distribution',
-                        avgTime: data.irbAvgTime
+                // Institution Distribution Chart
+                const institutionChart = initializeChart('institutionChart');
+                institutionChart.setOption({
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b}: {c} ({d}%)'
                     },
-                    rcTimeChart: {
-                        data: data.rcTimeDistribution,
-                        title: 'RC Review Time Distribution',
-                        avgTime: data.rcAvgTime
-                    }
-                };
+                    legend: {
+                        orient: 'vertical',
+                        left: 'left',
+                        type: 'scroll'
+                    },
+                    series: [{
+                        name: 'Institution Distribution',
+                        type: 'pie',
+                        radius: '70%',
+                        data: data.institutions,
+                        emphasis: {
+                            itemStyle: {
+                                shadowBlur: 10,
+                                shadowOffsetX: 0,
+                                shadowColor: 'rgba(0, 0, 0, 0.5)'
+                            }
+                        }
+                    }]
+                });
 
-                Object.entries(timeChartConfig).forEach(([chartId, config]) => {
-                    const chart = initializeChart(chartId);
+                // Review Time Distribution Charts
+                ['irb', 'rc'].forEach(committee => {
+                    const chart = initializeChart(`${committee}TimeChart`);
+                    const timeData = data[`${committee}TimeDistribution`];
+                    const avgTime = data[`${committee}AvgTime`];
+                    
                     chart.setOption({
                         title: {
-                            text: `Avg: ${config.avgTime.toFixed(1)} days`,
+                            text: `Average: ${avgTime.toFixed(1)} days`,
                             left: 'center',
-                            top: 0,
-                            textStyle: {
-                                fontSize: 14,
-                                fontWeight: 'normal'
-                            }
+                            top: 0
                         },
-                        tooltip: { trigger: 'axis' },
-                        xAxis: { 
+                        tooltip: {
+                            trigger: 'axis',
+                            formatter: '{b} days: {c} reviews'
+                        },
+                        xAxis: {
                             type: 'category',
                             name: 'Days',
-                            data: config.data.map(item => item.days)
+                            data: timeData.map(item => item.days)
                         },
-                        yAxis: { 
+                        yAxis: {
                             type: 'value',
                             name: 'Number of Reviews'
                         },
                         series: [{
-                            data: config.data.map(item => item.count),
+                            data: timeData.map(item => item.count),
                             type: 'bar',
-                            name: 'Reviews'
+                            name: 'Reviews',
+                            itemStyle: {
+                                color: committee === 'irb' ? '#0088FE' : '#00C49F'
+                            }
                         }]
                     });
                 });
@@ -287,4 +312,4 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateDashboard, 300000);
 });
 </script>
-{% endblock page_specific_js %}
+{% endblock %}
