@@ -80,7 +80,7 @@ urlpatterns = [
     path('api/dashboard-data/', 
          get_dashboard_data, 
          name='dashboard_data'),
-    path('api/notes/<int:submission_id>/<str:notepad_type>/check/',
-         check_notes_status,
-         name='check_notes_status'),
+path('api/notes/<int:submission_id>/<str:notepad_type>/check/',
+     check_notes_status,
+     name='check_notes_status'),
 ]

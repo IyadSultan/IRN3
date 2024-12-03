@@ -64,69 +64,41 @@ class ReviewDashboardView(LoginRequiredMixin, TemplateView):
         is_irb = user.groups.filter(name='IRB').exists()
         is_rc = user.groups.filter(name='RC').exists()
 
-        # Determine group name for notepad, default to 'general' if no group
+        # Determine group name for notepad
         group_name = 'OSAR' if is_osar else 'IRB' if is_irb else 'RC' if is_rc else 'general'
 
-        # Filter submissions and their review requests based on group
+        # Base queryset for submissions
+        base_submission_qs = Submission.objects.select_related(
+            'primary_investigator__userprofile',
+            'study_type'
+        )
+
+        # Filter submissions based on group
         if is_irb:
-            submissions = Submission.objects.filter(
-                show_in_irb=True
-            ).select_related(
-                'primary_investigator__userprofile',
-                'study_type'
-            ).prefetch_related(
-                Prefetch(
-                    'review_requests',
-                    queryset=ReviewRequest.objects.filter(
-                        Q(requested_to__groups__name='IRB') |
-                        Q(requested_by__groups__name='IRB')
-                    ).select_related(
-                        'requested_to__userprofile',
-                        'requested_by__userprofile'
-                    )
-                )
-            )
+            submissions = base_submission_qs.filter(show_in_irb=True)
+            review_filter = Q(requested_to__groups__name='IRB') | Q(requested_by__groups__name='IRB')
         elif is_rc:
-            submissions = Submission.objects.filter(
-                show_in_rc=True
-            ).select_related(
-                'primary_investigator__userprofile',
-                'study_type'
-            ).prefetch_related(
-                Prefetch(
-                    'review_requests',
-                    queryset=ReviewRequest.objects.filter(
-                        Q(requested_to__groups__name='RC') |
-                        Q(requested_by__groups__name='RC')
-                    ).select_related(
-                        'requested_to__userprofile',
-                        'requested_by__userprofile'
-                    )
-                )
-            )
+            submissions = base_submission_qs.filter(show_in_rc=True)
+            review_filter = Q(requested_to__groups__name='RC') | Q(requested_by__groups__name='RC')
         else:  # OSAR or other users
-            submissions = Submission.objects.all().select_related(
-                'primary_investigator__userprofile',
-                'study_type'
-            ).prefetch_related(
-                'review_requests'
-            )
+            submissions = base_submission_qs.all()
+            review_filter = Q()
 
-        # Filter review requests based on group
-        if is_irb:
-            review_requests = ReviewRequest.objects.filter(
-                Q(requested_to__groups__name='IRB') | 
-                Q(requested_by__groups__name='IRB')
+        # Prefetch review requests with filtering
+        submissions = submissions.prefetch_related(
+            Prefetch(
+                'review_requests',
+                queryset=ReviewRequest.objects.filter(review_filter).select_related(
+                    'requested_to__userprofile',
+                    'requested_by__userprofile'
+                )
             )
-        elif is_rc:
-            review_requests = ReviewRequest.objects.filter(
-                Q(requested_to__groups__name='RC') | 
-                Q(requested_by__groups__name='RC')
-            )
-        else:
-            review_requests = ReviewRequest.objects.all()
+        )
 
-        # Get pending and completed reviews for the current user
+        # Get review requests based on group filter
+        review_requests = ReviewRequest.objects.filter(review_filter) if review_filter else ReviewRequest.objects.all()
+
+        # Get pending and completed reviews
         pending_reviews = review_requests.filter(
             requested_to=user,
             status__in=['pending', 'overdue', 'extended']
@@ -142,6 +114,13 @@ class ReviewDashboardView(LoginRequiredMixin, TemplateView):
             'submission__primary_investigator__userprofile',
             'requested_by__userprofile'
         )
+
+        # Check for unread notes for each submission
+        for submission in submissions:
+            submission.has_unread_notes = NotepadEntry.objects.filter(
+                submission=submission,
+                notepad_type=group_name
+            ).exclude(read_by=user).exists()
 
         context.update({
             'submissions': submissions,
@@ -1214,41 +1193,74 @@ def osar_dashboard(request):
 
 @login_required
 def view_notepad(request, submission_id, notepad_type):
-
+    """
+    View function to handle notepad operations (viewing and adding notes).
+    Also handles marking notes as read automatically.
+    """
+    # Check user permissions
     if not request.user.groups.filter(name=notepad_type).exists():
         messages.error(request, f"You don't have permission to view {notepad_type} notepad.")
         return redirect('review:review_dashboard')
     
-    submission = get_object_or_404(Submission, pk=submission_id)
+    # Get submission or return 404
+    submission = get_object_or_404(
+        Submission.objects.select_related('primary_investigator__userprofile'),
+        pk=submission_id
+    )
     
-    if request.method == 'POST':
-        note_text = request.POST.get('note_text', '').strip()
-        if note_text:
-            note = NotepadEntry.objects.create(
+    try:
+        # Handle POST request (adding new note)
+        if request.method == 'POST':
+            note_text = request.POST.get('note_text', '').strip()
+            if note_text:
+                with transaction.atomic():
+                    # Create new note
+                    note = NotepadEntry.objects.create(
+                        submission=submission,
+                        notepad_type=notepad_type,
+                        text=note_text,
+                        created_by=request.user
+                    )
+                    # Mark as read by creator
+                    note.read_by.add(request.user)
+                    messages.success(request, 'Note added successfully.')
+            else:
+                messages.warning(request, 'Note text cannot be empty.')
+            return redirect('review:view_notepad', submission_id=submission_id, notepad_type=notepad_type)
+
+        # Handle GET request (viewing notes)
+        with transaction.atomic():
+            # Get all notes with related data
+            notes = NotepadEntry.objects.filter(
                 submission=submission,
-                notepad_type=notepad_type,
-                text=note_text,
-                created_by=request.user
-            )
-            note.read_by.add(request.user)
-            messages.success(request, 'Note added successfully.')
-        return redirect('review:view_notepad', submission_id=submission_id, notepad_type=notepad_type)
+                notepad_type=notepad_type
+            ).select_related(
+                'created_by',
+                'created_by__userprofile'
+            ).prefetch_related(
+                'read_by'
+            ).order_by('-created_at')
 
-    notes = NotepadEntry.objects.filter(
-        submission=submission,
-        notepad_type=notepad_type
-    ).select_related('created_by').prefetch_related('read_by')
+            # Mark all unread notes as read
+            unread_notes = notes.exclude(read_by=request.user)
+            for note in unread_notes:
+                note.read_by.add(request.user)
 
-    # Mark notes as read
-    for note in notes:
-        note.read_by.add(request.user)
-    
-    context = {
-        'submission': submission,
-        'notes': notes,
-        'notepad_type': notepad_type
-    }
-    return render(request, 'review/view_notepad.html', context)
+            # Prepare context
+            context = {
+                'submission': submission,
+                'notes': notes,
+                'notepad_type': notepad_type,
+                'can_add_notes': True,  # You might want to add additional permission checks here
+                'total_notes': notes.count(),
+                'unread_count': unread_notes.count()
+            }
+
+            return render(request, 'review/view_notepad.html', context)
+
+    except Exception as e:
+        messages.error(request, f"An error occurred: {str(e)}")
+        return redirect('review:review_dashboard')
 
 # views.py
 def has_unread_notes(submission_id, notepad_type, user):
@@ -1539,19 +1551,24 @@ class QualityDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
 @login_required
 def check_notes_status(request, submission_id, notepad_type):
     """API endpoint to check for unread notes"""
-    print(f"Checking notes for submission {submission_id}, type {notepad_type}")  # Debug log
+    print(f"Debug: checking notes for submission {submission_id} and type {notepad_type}")  # Add this
     try:
         unread_notes = NotepadEntry.objects.filter(
             submission_id=submission_id,
             notepad_type=notepad_type
         ).exclude(read_by=request.user).exists()
         
-        print(f"Has unread notes: {unread_notes}")  # Debug log
-        return JsonResponse({
-            'hasNewNotes': unread_notes
-        })
+        print(f"Debug: found unread notes: {unread_notes}")  # Add this
+        
+        response_data = {
+            'hasNewNotes': unread_notes,
+            'submissionId': submission_id,
+            'notepadType': notepad_type
+        }
+        print(f"Debug: sending response: {response_data}")  # Add this
+        return JsonResponse(response_data)
     except Exception as e:
-        print(f"Error checking notes: {str(e)}")  # Debug log
+        print(f"Debug: Error occurred: {str(e)}")  # Add this
         return JsonResponse({
             'error': str(e)
         }, status=500)
