@@ -58,13 +58,13 @@ COINVESTIGATOR_ROLES = [
 SUBMISSION_STATUS_CHOICES = [
     ('draft', 'Draft'),
     ('submitted', 'Submitted'),
-    ('under_review', 'Under Review'),
+    ('under_review', 'Under_Review'),
     ('rejected', 'Rejected'),
     ('accepted', 'Accepted'),
-    ('revision_requested', 'Revision Requested'),
+    ('revision_requested', 'Revision_Requested'),
     ('closed', 'Closed'),
     ('withdrawn', 'Withdrawn'),
-    ('document_missing', 'Document Missing'),
+    ('document_missing', 'Document_Missing'),
 ]
 
 def get_submission_status_choices():

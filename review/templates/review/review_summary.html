@@ -87,7 +87,7 @@
     {% endif %}
 
     <!-- Submission Versions Section -->
-    <div class="card mt-4">
+    <div class="card mb-4">
         <div class="card-header">
             <h3>Submission Versions</h3>
         </div>
@@ -123,5 +123,47 @@
             </table>
         </div>
     </div>
-</div>
+
+    <!-- Attached Files Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>Attached Files</h3>
+        </div>
+        <div class="card-body">
+            {% if submission.documents.exists %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>File Name</th>
+                                <th>Description</th>
+                                <th>Uploaded By</th>
+                                <th>Upload Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in submission.documents.all %}
+                                <tr>
+                                    <td>{{ doc.filename }}</td>
+                                    <td>{{ doc.description|default:"-" }}</td>
+                                    <td>{{ doc.uploaded_by.userprofile.full_name }}</td>
+                                    <td>{{ doc.uploaded_at|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        <a href="{{ doc.file.url }}" 
+                                           class="btn btn-sm btn-primary"
+                                           target="_blank">
+                                            <i class="fas fa-download"></i> Download
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted mb-0">No files attached to this submission.</p>
+            {% endif %}
+        </div>
+    </div>
 {% endblock %}

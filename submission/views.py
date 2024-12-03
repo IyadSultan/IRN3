@@ -12,6 +12,7 @@ from dal import autocomplete
 import json
 from io import BytesIO
 import logging
+from django import forms
 
 from .models import (
     Submission,
@@ -1081,7 +1082,15 @@ def download_submission_pdf(request, submission_id, version=None):
     """Generate and download PDF version of a submission."""
     try:
         submission = get_object_or_404(Submission, pk=submission_id)
-        if not has_edit_permission(request.user, submission):
+        
+        # Check if user is OSAR/IRB/RC member or has direct permission
+        is_admin = request.user.groups.filter(name__in=['OSAR', 'IRB', 'RC']).exists()
+        has_permission = (
+            is_admin or 
+            has_edit_permission(request.user, submission)
+        )
+        
+        if not has_permission:
             messages.error(request, "You do not have permission to view this submission.")
             return redirect('submission:dashboard')
 

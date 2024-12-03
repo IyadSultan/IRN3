@@ -117,96 +117,74 @@
         outline: 0;
         box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
     }
-    .notes-new {
-    animation: pulse 2s infinite;
-}
-
-    @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.7; }
-        100% { opacity: 1; }
-    }
-
-
-.rounded-circle {
-    width: 10px;
-    height: 10px;
-}
-<style>
-.note-button {
-    position: relative;
-    transition: background-color 0.3s ease;
-}
-
-.note-dot {
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    width: 10px;
-    height: 10px;
-    background-color: #dc3545;
-    border-radius: 50%;
-    border: 2px solid white;
-}
-</style>
 </style>
 {% endblock %}
 
 {% block content %}
 <script type="text/babel">
-// Define the NotesButton component outside of Django template tags
-function NotesButton(props) {
-    const [hasNewNotes, setHasNewNotes] = React.useState(props.hasUnreadNotes);
-    const [lastViewed, setLastViewed] = React.useState(new Date().toISOString());
+// Define the ToggleSwitch component
+const ToggleSwitch = ({ submissionId, initialState = false, label = '', type = '' }) => {
+    const [isEnabled, setIsEnabled] = React.useState(initialState === 'true');
+    const [isLoading, setIsLoading] = React.useState(false);
 
-    React.useEffect(() => {
-        checkNewNotes();
-        const interval = setInterval(checkNewNotes, 30000);
-        return () => clearInterval(interval);
-    }, []);
-
-    const checkNewNotes = async () => {
+    const handleToggle = async () => {
+        setIsLoading(true);
         try {
-            const response = await fetch(`/api/notes/${props.submissionId}/${props.groupName}/check/`);
-            const data = await response.json();
-            setHasNewNotes(data.hasNewNotes);
+            const response = await fetch(`/review/submission/${submissionId}/toggle-visibility/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `toggle_type=${type}&csrfmiddlewaretoken=${document.querySelector('[name=csrfmiddlewaretoken]').value}`
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setIsEnabled(data.visible);
+            }
         } catch (error) {
-            console.error('Error checking notes:', error);
+            console.error('Error toggling visibility:', error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    const handleClick = () => {
-        setLastViewed(new Date().toISOString());
-        setHasNewNotes(false);
-    };
+    return (
+        <div className="form-check form-switch mb-2">
+            <input
+                className="form-check-input"
+                type="checkbox"
+                checked={isEnabled}
+                onChange={handleToggle}
+                disabled={isLoading}
+                id={`switch-${type}-${submissionId}`}
+            />
+            <label className="form-check-label ms-2" htmlFor={`switch-${type}-${submissionId}`}>
+                {label}
+            </label>
+        </div>
+    );
+};
 
-    const notepadUrl = `/review/submission/${props.submissionId}/notepad/${props.groupName}/`;
-    const buttonClass = `btn ${hasNewNotes ? 'btn-danger' : 'btn-info'} btn-sm`;
-    const buttonStyle = { width: '100px' };
-
-    return React.createElement('a', {
-        href: notepadUrl,
-        className: buttonClass,
-        style: buttonStyle,
-        onClick: handleClick
-    }, [
-        React.createElement('i', { className: 'fas fa-sticky-note', key: 'icon' }),
-        ' Notes'
-    ]);
-}
-
-// Create a function to render the NotesButton
-function renderNotesButton(containerId, submissionId, groupName, hasUnreadNotes) {
-    const container = document.getElementById(containerId);
-    if (container) {
-        const root = ReactDOM.createRoot(container);
-        root.render(React.createElement(NotesButton, {
-            submissionId: submissionId,
-            groupName: groupName,
-            hasUnreadNotes: hasUnreadNotes
-        }));
-    }
-}
+// Define the VisibilityToggles component
+const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) => {
+    return (
+        <div className="d-flex flex-column">
+            <ToggleSwitch 
+                submissionId={submissionId} 
+                initialState={initialIrbState} 
+                label="IRB" 
+                type="irb" 
+            />
+            <ToggleSwitch 
+                submissionId={submissionId} 
+                initialState={initialRcState} 
+                label="RC" 
+                type="rc" 
+            />
+        </div>
+    );
+};
 </script>
 
 <div class="container">
@@ -380,27 +358,13 @@ function renderNotesButton(containerId, submissionId, groupName, hasUnreadNotes)
                                                 </a>
                                             {% endif %}
                                             <a href="{% url 'review:view_notepad' submission.pk group_name %}" 
-                                            class="btn {% if submission.has_unread_notes %}btn-danger{% else %}btn-info{% endif %} btn-sm"
-                                            style="width: 100px;">
-                                            Notes
-                                            <!-- {% if submission.has_unread_notes %}
-                                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                                              !
-                                            </span>
-                                            {% endif %} -->
-                                         </a>                                     <div id="notes-button-{{ submission.pk }}"></div>
-                                            <script>
-                                                document.addEventListener('DOMContentLoaded', function() {
-                                                    renderNotesButton(
-                                                        'notes-button-{{ submission.pk }}',
-                                                        '{{ submission.pk }}',
-                                                        '{{ group_name }}',
-                                                        {{ submission.has_unread_notes|yesno:"true,false" }}
-                                                    );
-                                                });
-                                            </script>
+                                               class="btn {% if submission.has_unread_notes %}btn-danger{% else %}btn-info{% endif %} btn-sm" 
+                                               style="width: 100px;">
+                                                <i class="fas fa-sticky-note"></i> Notes
+                                               
+                                            </a>
 
-                                            {% if submission.status == 'under_review' and is_irb %}
+                                            {% if submission.status == 'under_review' and is_osar %}
                                                 <!-- Decision buttons only shown for IRB members -->
                                                 <button type="button" 
                                                         class="btn btn-warning btn-sm decision-btn" 
@@ -739,64 +703,3 @@ $(document).ready(function() {
 });
 </script>
 {% endblock %}
-
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Document loaded, setting up note checks');  // Debug log
-
-    function updateNoteButton(button, hasNewNotes) {
-        console.log('Updating button:', button.id, 'hasNewNotes:', hasNewNotes);  // Debug log
-        
-        if (hasNewNotes) {
-            button.style.backgroundColor = '#dc3545';
-            button.style.color = 'white';
-            if (!button.querySelector('.note-dot')) {
-                const dot = document.createElement('span');
-                dot.className = 'note-dot';
-                button.appendChild(dot);
-            }
-        } else {
-            button.style.backgroundColor = '#0dcaf0';
-            button.style.color = 'white';
-            const dot = button.querySelector('.note-dot');
-            if (dot) dot.remove();
-        }
-    }
-
-    function checkNotesStatus(button) {
-        const submissionId = button.id.split('-')[2];
-        const notePadType = '{{ group_name }}';
-        
-        console.log('Checking notes for:', submissionId, notePadType);  // Debug log
-
-        fetch(`/review/api/notes/${submissionId}/${notePadType}/check/`)
-            .then(response => {
-                console.log('Response received:', response.status);  // Debug log
-                return response.json();
-            })
-            .then(data => {
-                console.log('Data received:', data);  // Debug log
-                updateNoteButton(button, data.hasNewNotes);
-            })
-            .catch(error => {
-                console.error('Error checking notes:', error);
-            });
-    }
-
-    // Get all note buttons
-    const noteButtons = document.querySelectorAll('.note-button');
-    console.log('Found note buttons:', noteButtons.length);  // Debug log
-
-    // Set up periodic checks for each button
-    noteButtons.forEach(button => {
-        // Initial check
-        checkNotesStatus(button);
-        
-        // Check every 30 seconds
-        setInterval(() => checkNotesStatus(button), 30000);
-    });
-});
-</script>
-{% endblock %}
-

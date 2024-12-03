@@ -279,20 +279,6 @@ LOGGING = {
     }
 }
 
-# Only add console logging in DEBUG mode
-if DEBUG:
-    LOGGING['handlers']['console'] = {
-        'class': 'logging.StreamHandler',
-        'formatter': 'verbose',
-        'level': 'INFO'
-    }
-    # Add console handler to each logger
-    for logger in LOGGING['loggers'].values():
-        logger['handlers'].append('console')
-# Make sure debug messages are displayed in development
-if DEBUG:
-    for logger in LOGGING['loggers'].values():
-        logger['level'] = 'DEBUG'
 # # System user settings
 # SYSTEM_EMAIL = 'aidi@khcc.jo'
 # SYSTEM_NAME = 'AIDI System'
