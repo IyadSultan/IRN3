@@ -967,10 +967,17 @@ def version_history(request, submission_id):
         messages.error(request, "You don't have permission to view this submission.")
         return redirect('submission:dashboard')
 
-    # Get all versions from version history
-    histories = VersionHistory.objects.filter(
+    # Get all versions from version history ordered by version number
+    histories = list(VersionHistory.objects.filter(
         submission=submission
-    ).order_by('-version')
+    ).order_by('-version'))
+    
+    # Add previous_version attribute to each history object
+    for i in range(len(histories)):
+        if i < len(histories) - 1:  # If not the last item
+            histories[i].previous_version = histories[i + 1].version
+        else:
+            histories[i].previous_version = None
     
     # Check for pending forms for this user
     pending_forms = submission.get_pending_investigator_forms(request.user)
@@ -989,19 +996,14 @@ def version_history(request, submission_id):
     })
 
 @login_required
-def compare_version(request, submission_id, version):
-    """Compare a version with its previous version."""
+def compare_version(request, submission_id, version1, version2):
+    """Compare two versions of a submission."""
     submission = get_object_or_404(Submission, pk=submission_id)
     if not has_edit_permission(request.user, submission):
         messages.error(request, "You do not have permission to view this submission.")
         return redirect('submission:dashboard')
 
-    # Can't compare version 1 as it has no previous version
-    if version <= 1:
-        messages.error(request, "Version 1 cannot be compared as it has no previous version.")
-        return redirect('submission:version_history', submission_id=submission_id)
-
-    previous_version = version - 1
+    # Get entries for both versions
     comparison_data = []
     
     # Get all forms associated with this submission's study type
@@ -1009,21 +1011,21 @@ def compare_version(request, submission_id, version):
     
     for form in forms:
         # Get entries for both versions
-        entries_previous = FormDataEntry.objects.filter(
+        entries_version1 = FormDataEntry.objects.filter(
             submission=submission,
             form=form,
-            version=previous_version
+            version=version1
         ).select_related('form')
         
-        entries_current = FormDataEntry.objects.filter(
+        entries_version2 = FormDataEntry.objects.filter(
             submission=submission,
             form=form,
-            version=version
+            version=version2
         ).select_related('form')
 
         # Convert entries to dictionaries for easier comparison
-        data_previous = {entry.field_name: entry.value for entry in entries_previous}
-        data_current = {entry.field_name: entry.value for entry in entries_current}
+        data_version1 = {entry.field_name: entry.value for entry in entries_version1}
+        data_version2 = {entry.field_name: entry.value for entry in entries_version2}
 
         # Get field display names from form definition
         field_definitions = {
@@ -1033,34 +1035,34 @@ def compare_version(request, submission_id, version):
 
         # Compare fields
         form_changes = []
-        all_fields = sorted(set(data_previous.keys()) | set(data_current.keys()))
+        all_fields = sorted(set(data_version1.keys()) | set(data_version2.keys()))
         
         for field in all_fields:
             displayed_name = field_definitions.get(field, field)
-            value_previous = data_previous.get(field, 'Not provided')
-            value_current = data_current.get(field, 'Not provided')
+            value_version1 = data_version1.get(field, 'Not provided')
+            value_version2 = data_version2.get(field, 'Not provided')
 
             # Handle JSON array values (e.g., checkbox selections)
             try:
-                if isinstance(value_previous, str) and value_previous.startswith('['):
-                    value_previous_display = ', '.join(json.loads(value_previous))
+                if isinstance(value_version1, str) and value_version1.startswith('['):
+                    value_version1_display = ', '.join(json.loads(value_version1))
                 else:
-                    value_previous_display = value_previous
+                    value_version1_display = value_version1
                     
-                if isinstance(value_current, str) and value_current.startswith('['):
-                    value_current_display = ', '.join(json.loads(value_current))
+                if isinstance(value_version2, str) and value_version2.startswith('['):
+                    value_version2_display = ', '.join(json.loads(value_version2))
                 else:
-                    value_current_display = value_current
+                    value_version2_display = value_version2
             except json.JSONDecodeError:
-                value_previous_display = value_previous
-                value_current_display = value_current
+                value_version1_display = value_version1
+                value_version2_display = value_version2
 
             # Only add to changes if values are different
-            if value_previous != value_current:
+            if value_version1 != value_version2:
                 form_changes.append({
                     'field': displayed_name,
-                    'previous_value': value_previous_display,
-                    'current_value': value_current_display
+                    'version1_value': value_version1_display,
+                    'version2_value': value_version2_display
                 })
 
         # Only add form to comparison data if it has changes
@@ -1072,10 +1074,11 @@ def compare_version(request, submission_id, version):
 
     return render(request, 'submission/compare_versions.html', {
         'submission': submission,
-        'version': version,
-        'previous_version': previous_version,
+        'version1': version1,
+        'version2': version2,
         'comparison_data': comparison_data,
     })
+
 
 @login_required
 def download_submission_pdf(request, submission_id, version=None):

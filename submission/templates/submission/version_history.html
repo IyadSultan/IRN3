@@ -57,11 +57,13 @@
                                     </a>
                                     
                                     {% if not forloop.first %}
-                                    <a href="{% url 'submission:compare_versions' submission.temporary_id history.version submission.version %}" 
-                                       class="btn btn-sm btn-primary" 
-                                       title="Compare with Previous Version">
-                                        <i class="fas fa-code-compare"></i> Compare Changes
-                                    </a>
+                                        {% if history.previous_version %}
+                                            <a href="{% url 'submission:compare_version' submission.pk history.version history.previous_version %}" 
+                                               class="btn btn-sm btn-primary" 
+                                               title="Compare with Previous Version">
+                                                <i class="fas fa-code-compare"></i> Compare Changes
+                                            </a>
+                                        {% endif %}
                                     {% endif %}
                                 </div>
                             </td>
