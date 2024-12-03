@@ -1,3 +1,5 @@
+{% load static %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -660,6 +662,14 @@ document.addEventListener('click', function(e) {
         }
     </script>
 
-    {% block page_specific_js %}{% endblock %}
+{#notificationContainer .notification#}
+
+{# Add React and ReactDOM scripts here #}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="{% static 'js/components/NoteAlert.js' %}"></script>
+
+{% block page_specific_js %}{% endblock %}
+   
 </body>
 </html>

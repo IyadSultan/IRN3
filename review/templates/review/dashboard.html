@@ -126,6 +126,18 @@
         50% { opacity: 0.7; }
         100% { opacity: 1; }
     }
+    .note-button {
+    transition: background-color 0.3s ease;
+}
+
+.note-button:hover {
+    filter: brightness(90%);
+}
+
+.rounded-circle {
+    width: 10px;
+    height: 10px;
+}
 </style>
 {% endblock %}
 
@@ -356,14 +368,18 @@ function renderNotesButton(containerId, submissionId, groupName, hasUnreadNotes)
                                                     <i class="fas fa-hashtag"></i> KHCC #
                                                 </a>
                                             {% endif %}
-                                            <a href="{% url 'review:view_notepad' submission.pk group_name %}" 
-                                               class="btn {% if submission.has_unread_notes %}btn-danger{% else %}btn-info{% endif %} btn-sm"
-                                               style="width: 100px;">
-                                                <i class="fas fa-sticky-note"></i> Notes
-                                                {% if submission.has_unread_notes %}
-                                                    <span class="badge bg-warning">!</span>
-                                                {% endif %}
-                                            </a>
+                                           <!-- Replace the existing Notes button with this -->
+<a href="{% url 'review:view_notepad' submission.pk group_name %}" 
+class="btn btn-sm note-button position-relative" 
+id="note-btn-{{ submission.pk }}"
+style="width: 100px; {% if submission.has_unread_notes %}background-color: #dc3545; color: white;{% else %}background-color: #0dcaf0; color: white;{% endif %}">
+ Notes
+ {% if submission.has_unread_notes %}
+     <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle">
+         <span class="visually-hidden">New notes</span>
+     </span>
+ {% endif %}
+</a>
                                             <div id="notes-button-{{ submission.pk }}"></div>
                                             <script>
                                                 document.addEventListener('DOMContentLoaded', function() {
@@ -717,10 +733,60 @@ $(document).ready(function() {
 {% endblock %}
 
 {% block extra_js %}
-<!-- React Dependencies -->
-<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-<script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function checkNotesStatus(submissionId, notePadType, buttonElement) {
+        const url = `/review/api/notes/${submissionId}/${notePadType}/check/`;
+        console.log('Checking notes status:', url); // Debug log
+
+        fetch(url)
+            .then(response => {
+                console.log('Response status:', response.status); // Debug log
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data:', data); // Debug log
+                if (data.hasNewNotes) {
+                    buttonElement.style.backgroundColor = '#dc3545';
+                    // Add red dot if it doesn't exist
+                    if (!buttonElement.querySelector('.rounded-circle')) {
+                        const dot = document.createElement('span');
+                        dot.className = 'position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle';
+                        dot.innerHTML = '<span class="visually-hidden">New notes</span>';
+                        buttonElement.appendChild(dot);
+                    }
+                } else {
+                    buttonElement.style.backgroundColor = '#0dcaf0';
+                    // Remove red dot if it exists
+                    const dot = buttonElement.querySelector('.rounded-circle');
+                    if (dot) {
+                        dot.remove();
+                    }
+                }
+            })
+            .catch(error => console.error('Error checking notes:', error));
+    }
+
+    // Get all note buttons
+    const noteButtons = document.querySelectorAll('.note-button');
+    console.log('Found note buttons:', noteButtons.length); // Debug log
+    
+    // Check status for each button periodically
+    noteButtons.forEach(button => {
+        const submissionId = button.id.split('-')[2];
+        const notePadType = '{{ group_name }}';
+        console.log('Processing button:', submissionId, notePadType); // Debug log
+        
+        // Initial check
+        checkNotesStatus(submissionId, notePadType, button);
+        
+        // Check every 30 seconds
+        setInterval(() => {
+            checkNotesStatus(submissionId, notePadType, button);
+        }, 30000);
+    });
+});
+</script>
 {% endblock %}
 
 

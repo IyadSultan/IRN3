@@ -1539,12 +1539,19 @@ class QualityDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
 @login_required
 def check_notes_status(request, submission_id, notepad_type):
     """API endpoint to check for unread notes"""
+    print(f"Checking notes for submission {submission_id}, type {notepad_type}")  # Debug log
     try:
-        has_unread = has_unread_notes(submission_id, notepad_type, request.user)
+        unread_notes = NotepadEntry.objects.filter(
+            submission_id=submission_id,
+            notepad_type=notepad_type
+        ).exclude(read_by=request.user).exists()
+        
+        print(f"Has unread notes: {unread_notes}")  # Debug log
         return JsonResponse({
-            'hasNewNotes': has_unread
+            'hasNewNotes': unread_notes
         })
     except Exception as e:
+        print(f"Error checking notes: {str(e)}")  # Debug log
         return JsonResponse({
             'error': str(e)
         }, status=500)
