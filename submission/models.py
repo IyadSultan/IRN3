@@ -449,14 +449,19 @@ class ResearchAssistant(models.Model):
         return any([self.can_edit, self.can_submit, self.can_view_communications])
 
 class FormDataEntry(models.Model):
-    submission = models.ForeignKey(
-        Submission, related_name='form_data_entries', on_delete=models.CASCADE
-    )
+    submission = models.ForeignKey(Submission, related_name='form_data_entries', on_delete=models.CASCADE)
     form = models.ForeignKey(DynamicForm, on_delete=models.CASCADE)
     field_name = models.CharField(max_length=255)
     value = models.TextField()
     date_saved = models.DateTimeField(auto_now=True)
     version = models.PositiveIntegerField(default=1)
+    study_action = models.ForeignKey(
+        'StudyAction', 
+        null=True, 
+        blank=True, 
+        on_delete=models.CASCADE,
+        related_name='form_data_entries'
+    )
 
     class Meta:
         indexes = [
@@ -473,7 +478,7 @@ class FormDataEntry(models.Model):
             submission=submission,
             version=version
         ).select_related('form')
-        
+
         # Group data by form
         form_data = {}
         for entry in entries:
@@ -482,7 +487,7 @@ class FormDataEntry(models.Model):
                     'form': entry.form,
                     'fields': {}
                 }
-            
+
             # Handle JSON values
             try:
                 if isinstance(entry.value, str) and entry.value.startswith('['):
@@ -491,11 +496,12 @@ class FormDataEntry(models.Model):
                     value = entry.value
             except (json.JSONDecodeError, TypeError):
                 value = entry.value
-                
-            form_data[entry.form_id]['fields'][entry.field_name] = value
-            
-        return form_data
 
+            form_data[entry.form_id]['fields'][entry.field_name] = value
+
+        return form_data
+    
+    
 class Document(models.Model):
     submission = models.ForeignKey(
         Submission, related_name='documents', on_delete=models.CASCADE

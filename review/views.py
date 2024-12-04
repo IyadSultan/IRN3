@@ -13,7 +13,9 @@ from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMix
 from django.core.exceptions import PermissionDenied
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.db.models import Q, Count, Avg, F
+from django.db.models import (
+    Q, Count, Avg, F, Prefetch
+)
 from django.db.models.functions import TruncMonth
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
@@ -41,10 +43,13 @@ from .utils.notifications import (
     send_review_completion_notification,
     send_irb_decision_notification
 )
-from .utils.pdf_generator import generate_review_pdf
-from django.db.models import Prefetch
+# Models
+from submission.models import Submission, StudyAction  # Import StudyAction from submission.models
+from .models import Review, ReviewRequest, NotepadEntry
 
-
+# Utils
+from users.utils import get_system_user
+from .utils.notifications import send_irb_decision_notification
 ######################
 # Review Dashboard
 # URL: path('', ReviewDashboardView.as_view(), name='review_dashboard'),
@@ -608,19 +613,15 @@ class ViewReviewView(LoginRequiredMixin, TemplateView):
 # URL: path('submission/<int:submission_id>/summary/', ReviewSummaryView.as_view(), name='review_summary'),
 ######################
 
+
 class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
-    """
-    View for displaying a comprehensive summary of a submission's reviews
-    and handling submission decisions.
-    """
+    """View for displaying a comprehensive summary of a submission's reviews"""
     template_name = 'review/review_summary.html'
 
     def setup(self, request, *args, **kwargs):
         """Initialize common attributes used by multiple methods"""
         super().setup(request, *args, **kwargs)
         self.submission = get_object_or_404(Submission, pk=kwargs.get('submission_id'))
-        
-        # Get user groups
         self.is_osar = request.user.groups.filter(name='OSAR').exists()
         self.is_irb = request.user.groups.filter(name='IRB').exists()
         self.is_rc = request.user.groups.filter(name='RC').exists()
@@ -628,13 +629,9 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         """Verify user permission to access the submission"""
         user = self.request.user
-
-        # OSAR members can view all submissions
-        if user.groups.filter(name='OSAR').exists():
-            return True
-
-        # IRB members can view all submissions
-        if user.groups.filter(name='IRB').exists():
+        
+        # Check group permissions
+        if user.groups.filter(name__in=['OSAR', 'IRB']).exists():
             return True
 
         # RC members can view submissions in their department
@@ -642,54 +639,42 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
             return user.userprofile.department == self.submission.primary_investigator.userprofile.department
 
         # Check direct involvement
-        return user in [
-            self.submission.primary_investigator,
-            *self.submission.coinvestigators.all(),
-            *self.submission.research_assistants.all()
-        ]
+        return any([
+            user == self.submission.primary_investigator,
+            self.submission.coinvestigators.filter(user=user).exists(),
+            self.submission.research_assistants.filter(user=user).exists()
+        ])
 
     def handle_no_permission(self):
         """Route users to appropriate dashboard when access is denied"""
         messages.error(self.request, "You don't have permission to view this submission's details.")
         
-        user = self.request.user
-        if user.groups.filter(name='OSAR').exists():
+        if self.is_osar:
             return redirect('review:osar_dashboard')
-        elif user.groups.filter(name='RC').exists():
+        elif self.is_rc:
             return redirect('review:rc_dashboard')
-        elif user.groups.filter(name='IRB').exists():
+        elif self.is_irb:
             return redirect('review:irb_dashboard')
         return redirect('submission:dashboard')
 
     def get_review_requests(self):
         """Get filtered review requests based on user group"""
+        base_query = self.submission.review_requests.select_related(
+            'requested_to__userprofile',
+            'requested_by__userprofile'
+        ).prefetch_related('review_set')
+
         if self.is_irb:
-            return self.submission.review_requests.filter(
+            return base_query.filter(
                 Q(requested_to__groups__name='IRB') |
                 Q(requested_by__groups__name='IRB')
-            ).select_related(
-                'requested_to__userprofile',
-                'requested_by__userprofile'
-            ).prefetch_related(
-                'review_set'
             )
         elif self.is_rc:
-            return self.submission.review_requests.filter(
+            return base_query.filter(
                 Q(requested_to__groups__name='RC') |
                 Q(requested_by__groups__name='RC')
-            ).select_related(
-                'requested_to__userprofile',
-                'requested_by__userprofile'
-            ).prefetch_related(
-                'review_set'
             )
-        else:  # OSAR or other users
-            return self.submission.review_requests.all().select_related(
-                'requested_to__userprofile',
-                'requested_by__userprofile'
-            ).prefetch_related(
-                'review_set'
-            )
+        return base_query.all()
 
     def get_version_histories(self):
         """Get submission version history"""
@@ -697,14 +682,13 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def get_user_permissions(self, user):
         """Determine user-specific permissions"""
-        is_irb = user.groups.filter(name='IRB').exists()
         return {
-            'can_make_decision': is_irb,  # Updated to allow IRB members to make decisions
+            'can_make_decision': self.is_irb,
             'can_download_pdf': True,
-            'can_assign_irb': is_irb and not self.submission.khcc_number,
-            'is_osar': user.groups.filter(name='OSAR').exists(),
-            'is_rc': user.groups.filter(name='RC').exists(),
-            'is_irb': is_irb,
+            'can_assign_irb': self.is_irb and not self.submission.khcc_number,
+            'is_osar': self.is_osar,
+            'is_rc': self.is_rc,
+            'is_irb': self.is_irb,
             'can_create_review': any([
                 user.groups.filter(name=role).exists() 
                 for role in ['OSAR', 'IRB', 'RC']
@@ -713,23 +697,69 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def get_submission_stats(self, review_requests):
         """Calculate submission statistics"""
-        now = timezone.now().date()
-        submission_date = self.submission.date_submitted.date() if self.submission.date_submitted else now
-        
+        submission_date = self.submission.date_submitted or timezone.now()
+        days_since = (timezone.now().date() - submission_date.date()).days
+
         return {
             'total_reviews': review_requests.count(),
             'completed_reviews': review_requests.filter(status='completed').count(),
             'pending_reviews': review_requests.filter(status='pending').count(),
-            'days_since_submission': (now - submission_date).days
+            'days_since_submission': max(0, days_since)
+        }
+
+    def prepare_context(self):
+        """Prepare all context data"""
+        review_requests = self.get_review_requests()
+        user_permissions = self.get_user_permissions(self.request.user)
+        version_histories = self.get_version_histories()
+
+        # Get study actions
+        actions = StudyAction.objects.filter(
+            submission=self.submission
+        ).select_related(
+            'performed_by__userprofile'
+        ).prefetch_related(
+            'documents'
+        ).order_by('-date_created')
+
+        # Format actions for template
+        formatted_actions = [{
+            'id': action.id,
+            'action_type': action.get_action_type_display(),
+            'performed_by': action.performed_by.get_full_name(),
+            'date_created': action.date_created.strftime('%Y-%m-%d %H:%M'),
+            'status': action.status,
+            'notes': action.notes,
+            'pdf_url': reverse('submission:download_action_pdf', kwargs={
+                'submission_id': self.submission.temporary_id,
+                'action_id': action.id
+            }) if action.documents.exists() else None
+        } for action in actions]
+
+        return {
+            'submission': self.submission,
+            'review_requests': review_requests,
+            'version_histories': version_histories,
+            'stats': self.get_submission_stats(review_requests),
+            'has_active_reviews': review_requests.filter(
+                status__in=['pending', 'in_progress']
+            ).exists(),
+            'has_reviews': review_requests.exists(),
+            'study_actions': formatted_actions,
+            'can_process_actions': self.request.user.groups.filter(
+                name__in=['OSAR', 'IRB', 'RC']
+            ).exists(),
+            'is_osar': self.is_osar,
+            'is_irb': self.is_irb,
+            'is_rc': self.is_rc,
+            **user_permissions
         }
 
     def get(self, request, *args, **kwargs):
         """Handle GET requests"""
         if not self.test_func():
             return self.handle_no_permission()
-
-        context = self.get_context_data()
-        return render(request, self.template_name, context)
+        return render(request, self.template_name, self.prepare_context())
 
     def post(self, request, *args, **kwargs):
         """Handle POST requests for submission decisions"""
@@ -745,70 +775,29 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
 
         try:
             with transaction.atomic():
-                # Update submission status based on action
+                # Update submission status and lock state
                 if action == 'revision_requested':
                     self.submission.status = 'revision_requested'
                     self.submission.is_locked = False
-                elif action == 'rejected':
-                    self.submission.status = 'rejected'
-                    self.submission.is_locked = True
-                elif action == 'accepted':
-                    self.submission.status = 'accepted'
+                elif action in ['rejected', 'accepted']:
+                    self.submission.status = action
                     self.submission.is_locked = True
                 else:
                     messages.error(request, "Invalid action specified.")
                     return redirect('review:review_summary', submission_id=self.submission.pk)
 
                 self.submission.save()
-
-                # Send notification
                 send_irb_decision_notification(self.submission, action, comments)
-
+                
                 messages.success(
                     request,
                     f"Submission successfully marked as {action.replace('_', ' ').title()}"
                 )
                 
-                return redirect('review:review_summary', submission_id=self.submission.pk)
-
         except Exception as e:
             messages.error(request, f"Error processing decision: {str(e)}")
-            return redirect('review:review_summary', submission_id=self.submission.pk)
-
-    def get_context_data(self):
-        """Prepare context data for template rendering"""
-        review_requests = self.get_review_requests()
-        user_permissions = self.get_user_permissions(self.request.user)
-        version_histories = self.get_version_histories()
-
-        # Calculate stats if reviews exist
-        submission_stats = self.get_submission_stats(review_requests) if review_requests.exists() else {
-            'total_reviews': 0,
-            'completed_reviews': 0,
-            'pending_reviews': 0,
-            'days_since_submission': (
-                timezone.now().date() - 
-                self.submission.date_submitted.date()
-            ).days if self.submission.date_submitted else 0
-        }
-
-        # Check for active reviews
-        has_active_reviews = review_requests.filter(
-            status__in=['pending', 'in_progress']
-        ).exists() if review_requests.exists() else False
-
-        return {
-            'submission': self.submission,
-            'review_requests': review_requests,
-            'version_histories': version_histories,
-            'stats': submission_stats,
-            'has_active_reviews': has_active_reviews,
-            'has_reviews': review_requests.exists(),
-            'is_osar': self.is_osar,
-            'is_irb': self.is_irb,
-            'is_rc': self.is_rc,
-            **user_permissions
-        }
+        
+        return redirect('review:review_summary', submission_id=self.submission.pk)
 ######################
 # Process IRB Decision
 # URL: path('submission/<int:submission_id>/decision/', ProcessIRBDecisionView.as_view(), name='process_decision'),
@@ -1577,3 +1566,164 @@ def check_notes_status(request, submission_id, notepad_type):
         return JsonResponse({
             'error': str(e)
         }, status=500)
+    
+
+
+@login_required 
+def process_action(request, submission_id, action_id):
+    """Process a study action (approve/reject) with custom message"""
+    submission = get_object_or_404(Submission, pk=submission_id)
+    action = get_object_or_404(StudyAction, pk=action_id, submission=submission)
+
+    if not request.user.groups.filter(name__in=['OSAR', 'IRB', 'RC']).exists():
+        return JsonResponse({
+            'status': 'error',
+            'message': 'You do not have permission to process actions'
+        }, status=403)
+
+    if request.method == 'POST':
+        try:
+            decision = request.POST.get('decision')
+            comments = request.POST.get('comments', '').strip()
+            letter_text = request.POST.get('letter_text', '').strip()
+            
+            if not comments or not letter_text:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Both comments and letter text are required'
+                }, status=400)
+
+            with transaction.atomic():
+                # Update action status
+                action.status = 'completed' if decision == 'approve' else 'cancelled'
+                action.notes = comments
+                action.save()
+
+                # Get notification recipients
+                recipients = [action.performed_by]  # Person who submitted the action
+                if action.performed_by != submission.primary_investigator:
+                    recipients.append(submission.primary_investigator)
+
+                # Create notification with customized letter
+                message = Message.objects.create(
+                    sender=get_system_user(),
+                    subject=f'Study Action {decision.title()}d - {submission.title}',
+                    body=f"""
+Dear {action.performed_by.get_full_name()},
+
+Regarding your {action.get_action_type_display()} request for submission "{submission.title}":
+
+{letter_text}
+
+Additional Comments from Reviewer:
+{comments}
+
+Action Details:
+- Submission ID: {submission.temporary_id}
+- Action Type: {action.get_action_type_display()}
+- Decision: {decision.title()}
+- Processed by: {request.user.get_full_name()}
+- Date: {timezone.now().strftime('%Y-%m-%d %H:%M')}
+
+Best regards,
+{request.user.get_full_name()}
+                    """.strip(),
+                    related_submission=submission,
+                    message_type='decision'
+                )
+                
+                # Add recipients
+                for recipient in recipients:
+                    message.recipients.add(recipient)
+
+                # If action was approved, process necessary changes
+                if decision == 'approve':
+                    if action.action_type == 'closure':
+                        submission.status = 'closed'
+                        submission.is_locked = True
+                    elif action.action_type == 'withdrawal':
+                        submission.status = 'withdrawn'
+                        submission.is_locked = True
+                    submission.save()
+
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Action {decision}d successfully'
+                })
+
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)
+
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    }, status=400)
+
+
+
+def generate_action_pdf(action, as_buffer=False):
+    """Generate PDF for a study action"""
+    try:
+        logger.info(f"Generating PDF for action {action.id}")
+        
+        buffer = BytesIO()
+        pdf_generator = PDFGenerator(buffer, action.submission, action.version, action.performed_by)
+        
+        # Add basic submission info
+        pdf_generator.add_header()
+        pdf_generator.add_basic_info()
+        
+        # Add action details
+        pdf_generator.add_study_action_details(action)
+        
+        # Add form responses
+        pdf_generator.add_dynamic_forms()
+        
+        # Add footer
+        pdf_generator.add_footer()
+        pdf_generator.canvas.save()
+        
+        if as_buffer:
+            buffer.seek(0)
+            return buffer
+        
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        filename = f"study_action_{action.get_action_type_display()}_{action.date_created.strftime('%Y%m%d')}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+            
+    except Exception as e:
+        logger.error(f"Error generating action PDF: {str(e)}")
+        logger.error("PDF generation error details:", exc_info=True)
+        return None
+    
+
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from django.contrib.auth.decorators import login_required
+from submission.models import StudyAction
+from .utils.pdf_generator import generate_action_pdf
+
+@login_required
+def download_action_pdf(request, action_id):
+    """
+    View function to generate and download a PDF for a study action.
+    """
+    # Get the action or return 404
+    action = get_object_or_404(StudyAction, pk=action_id)
+    
+    # Check if user has permission to view this action
+    if not request.user.groups.filter(name__in=['OSAR', 'IRB', 'RC']).exists():
+        return HttpResponse('Permission denied', status=403)
+    
+    # Generate the PDF
+    pdf_response = generate_action_pdf(action)
+    
+    if pdf_response is None:
+        return HttpResponse('Error generating PDF', status=500)
+    
+    return pdf_response

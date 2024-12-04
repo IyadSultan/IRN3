@@ -39,4 +39,10 @@ urlpatterns = [
     path('download-action-pdf/<int:submission_id>/<int:action_id>/', 
          views.download_action_pdf, 
          name='download_action_pdf'),
+
+    # urls.py
+    path('action/<int:action_id>/pdf/', 
+         views.download_action_pdf, 
+         name='download_action_pdf'),
 ]
+

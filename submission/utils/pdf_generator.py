@@ -290,6 +290,53 @@ class PDFGenerator:
         for info in action_info:
             self.write_wrapped_text(info)
 
+    def add_dynamic_forms_for_action(self, form_entries):
+        """Add dynamic form data specific to a study action"""
+        logger.info(f"Adding dynamic forms for action")
+        
+        if not form_entries.exists():
+            logger.warning("No form entries found for this action")
+            self.write_wrapped_text("No form data available")
+            return
+            
+        # Group entries by form for better organization
+        entries_by_form = {}
+        for entry in form_entries:
+            if entry.form not in entries_by_form:
+                entries_by_form[entry.form] = []
+            entries_by_form[entry.form].append(entry)
+        
+        # Process each form
+        for dynamic_form, entries in entries_by_form.items():
+            logger.info(f"Processing form: {dynamic_form.name}")
+            
+            # Add form name as section header
+            self.add_section_header(dynamic_form.name)
+            
+            # Get field definitions with proper display names
+            field_definitions = {
+                field.name: field.displayed_name 
+                for field in dynamic_form.fields.all()
+            }
+            
+            # Process each entry
+            for entry in entries:
+                try:
+                    displayed_name = field_definitions.get(entry.field_name, entry.field_name)
+                    formatted_value = self.format_field_value(entry.value)
+                    
+                    logger.debug(f"Writing field: {displayed_name} = {formatted_value}")
+                    
+                    self.write_wrapped_text(f"{displayed_name}:", bold=True)
+                    if formatted_value:
+                        self.write_wrapped_text(formatted_value, x_offset=20)
+                    else:
+                        self.write_wrapped_text("No value provided", x_offset=20)
+                        
+                except Exception as e:
+                    logger.error(f"Error processing entry {entry.id}: {str(e)}")
+                    continue
+
     def generate(self):
         """Generate the complete PDF"""
         self.add_header()
@@ -300,6 +347,7 @@ class PDFGenerator:
         self.add_footer()
         self.canvas.save()
 
+    
 
 def generate_submission_pdf(submission, version, user, as_buffer=False, action_type=None, action_date=None):
     """Generate PDF for a submission"""
@@ -332,6 +380,63 @@ def generate_submission_pdf(submission, version, user, as_buffer=False, action_t
         logger.error(f"Error generating PDF: {str(e)}")
         logger.error("PDF generation error details:", exc_info=True)
         return None
+
+
+def generate_action_pdf(submission, study_action, form_entries, user, as_buffer=False):
+    """Generate PDF for a study action"""
+    try:
+        logger.info(f"Generating PDF for action {study_action.id} of submission {submission.temporary_id}")
+        
+        buffer = BytesIO()
+        pdf_generator = PDFGenerator(buffer, submission, study_action.version, user)
+        
+        # Add header
+        pdf_generator.add_header()
+        
+        # Add basic submission identifier
+        pdf_generator.write_wrapped_text(f"Submission ID: {submission.temporary_id}")
+        pdf_generator.write_wrapped_text(f"Title: {submission.title}")
+        pdf_generator.y -= pdf_generator.line_height
+        
+        # Add action-specific information
+        pdf_generator.add_section_header(f"{study_action.get_action_type_display()}")
+        pdf_generator.write_wrapped_text(f"Date: {study_action.date_created.strftime('%Y-%m-%d %H:%M')}")
+        pdf_generator.write_wrapped_text(f"Submitted by: {study_action.performed_by.get_full_name()}")
+        pdf_generator.y -= pdf_generator.line_height
+        
+        # Add only the form entries for this action
+        pdf_generator.add_section_header("Form Details")
+        pdf_generator.add_dynamic_forms_for_action(form_entries)
+        
+        # Add any documents attached to this action
+        action_documents = study_action.documents.all()
+        if action_documents:
+            pdf_generator.add_section_header("Attached Documents")
+            for doc in action_documents:
+                pdf_generator.write_wrapped_text(f"- {doc.filename()}")
+        
+        # Add footer
+        pdf_generator.add_footer()
+        pdf_generator.canvas.save()
+        
+        if as_buffer:
+            buffer.seek(0)
+            return buffer
+        else:
+            buffer.seek(0)
+            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+            response['Content-Disposition'] = (
+                f'attachment; filename="submission_{submission.temporary_id}_'
+                f'{study_action.action_type}_{study_action.date_created.strftime("%Y%m%d")}.pdf"'
+            )
+            return response
+            
+    except Exception as e:
+        logger.error(f"Error generating action PDF: {str(e)}")
+        logger.error("Action PDF generation error details:", exc_info=True)
+        return None
+
+
 
 
 if __name__ == "__main__":

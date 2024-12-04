@@ -1,54 +1,58 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.utils import timezone
-from django.http import HttpResponse, JsonResponse
-from django.core.files.base import ContentFile
-from django.db import transaction
-from django.contrib.auth.models import User
-from django.urls import reverse
-from django.db import IntegrityError
-from dal import autocomplete
-import json
-from io import BytesIO
-import logging
+# Django imports
 from django import forms
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.core.cache import cache
+from django.core.files.base import ContentFile
+from django.db import IntegrityError, transaction
+from django.db.models import Q
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 
-from .models import (
-    Submission,
-    CoInvestigator,
-    ResearchAssistant,
-    FormDataEntry,
-    Document,
-    VersionHistory,
-    InvestigatorFormSubmission,
-    PermissionChangeLog,
-    StudyAction,
-    StudyActionDocument,
-)
+# Third party imports
+from dal import autocomplete
+from io import BytesIO
+import json
+import logging
 
+# Local imports
 from .forms import (
-    SubmissionForm,
-    ResearchAssistantForm,
     CoInvestigatorForm,
     DocumentForm,
+    ResearchAssistantForm,
+    SubmissionForm,
     generate_django_form,
 )
 from forms_builder.models import DynamicForm
 from messaging.models import Message, MessageAttachment
+from .models import (
+    CoInvestigator,
+    Document,
+    FormDataEntry,
+    InvestigatorFormSubmission,
+    PermissionChangeLog,
+    ResearchAssistant,
+    StudyAction,
+    StudyActionDocument,
+    Submission,
+    VersionHistory,
+)
 from users.models import SystemSettings, UserProfile
 from .utils import (
-    PDFGenerator, 
-    has_edit_permission, 
-    check_researcher_documents, 
-    get_next_form, 
-    get_previous_form
+    PDFGenerator,
+    check_researcher_documents,
+    get_next_form,
+    get_previous_form,
+    has_edit_permission,
 )
-from .utils.pdf_generator import generate_submission_pdf
-from .gpt_analysis import ResearchAnalyzer
-from django.core.cache import cache
+from .utils.pdf_generator import generate_submission_pdf, generate_action_pdf
 from .utils.permissions import check_submission_permission
-from django.db.models import Q
+from .gpt_analysis import ResearchAnalyzer
+from submission.utils.pdf_generator import PDFGenerator, generate_submission_pdf
+
 
 logger = logging.getLogger(__name__)
 def get_system_user():
@@ -1499,7 +1503,10 @@ def view_submission(request, submission_id):
 
 
 # Add to views.py
+# submission/views.py
 
+
+@login_required
 def handle_study_action_form(request, submission_id, form_name, action_type):
     """Generic handler for study action forms"""
     submission = get_object_or_404(Submission, pk=submission_id)
@@ -1537,14 +1544,15 @@ def handle_study_action_form(request, submission_id, form_name, action_type):
                         status='completed'
                     )
                     
-                    # Save form data
+                    # Save form data and associate with the study action
                     for field_name, value in form.cleaned_data.items():
                         FormDataEntry.objects.create(
                             submission=submission,
                             form=dynamic_form,
                             field_name=field_name,
                             value=value,
-                            version=submission.version
+                            version=submission.version,
+                            study_action=study_action  # Associate with the action
                         )
                     
                     # Handle specific actions
@@ -1588,8 +1596,7 @@ AIDI System
                     
                     # Add OSAR recipients
                     osar_users = User.objects.filter(groups__name='OSAR')
-                    for user in osar_users:
-                        osar_message.recipients.add(user)
+                    osar_message.recipients.add(*osar_users)
                     
                     # Notify research team
                     team_message = Message.objects.create(
@@ -1611,11 +1618,10 @@ AIDI System
                     )
                     
                     # Add research team recipients
-                    team_message.recipients.add(submission.primary_investigator)
-                    for coinv in submission.coinvestigators.all():
-                        team_message.recipients.add(coinv.user)
-                    for ra in submission.research_assistants.all():
-                        team_message.recipients.add(ra.user)
+                    team_recipients = [submission.primary_investigator]
+                    team_recipients += [ci.user for ci in submission.coinvestigators.all()]
+                    team_recipients += [ra.user for ra in submission.research_assistants.all()]
+                    team_message.recipients.add(*team_recipients)
 
                     messages.success(request, f"{action_msg} successfully.")
                     return redirect('submission:version_history', submission_id=submission.temporary_id)
@@ -1632,6 +1638,7 @@ AIDI System
         'submission': submission,
         'dynamic_form': dynamic_form,
     })
+
 
 @login_required
 def study_withdrawal(request, submission_id):
@@ -1668,6 +1675,8 @@ def submission_actions(request, submission_id):
     }
     return render(request, 'submission/submission_actions.html', context)
 
+# submission/views.py
+
 @login_required
 def download_action_pdf(request, submission_id, action_id):
     """Generate and download PDF for a specific study action."""
@@ -1675,30 +1684,39 @@ def download_action_pdf(request, submission_id, action_id):
         submission = get_object_or_404(Submission, pk=submission_id)
         action = get_object_or_404(StudyAction, pk=action_id, submission=submission)
         
-        # Use a fallback version if action.version is None
-        version = action.version or submission.version
+        # Check permissions
+        if not submission.can_user_view(request.user):
+            messages.error(request, "You do not have permission to view this submission.")
+            return redirect('submission:dashboard')
+        
+        # Get form entries specifically for this action
+        form_entries = FormDataEntry.objects.filter(
+            submission=submission,
+            version=action.version,
+            study_action=action  # This is crucial - make sure entries are linked to this action
+        ).select_related('form')
+        
+        logger.info(f"Found {form_entries.count()} form entries for action {action_id}")
+        
+        if form_entries.count() == 0:
+            logger.warning(f"No form entries found for action {action_id}. Checking action details:")
+            logger.warning(f"Action type: {action.action_type}")
+            logger.warning(f"Action version: {action.version}")
+            logger.warning(f"Action submission: {action.submission_id}")
         
         # Generate PDF
-        response = generate_submission_pdf(
+        response = generate_action_pdf(
             submission=submission,
-            version=version,
-            user=request.user,
-            as_buffer=False,
-            action_type=action.action_type,  # Pass action_type instead of action object
-            action_date=action.date_created  # Pass action date if needed
+            study_action=action,
+            form_entries=form_entries,
+            user=request.user
         )
         
         if response is None:
             messages.error(request, "Error generating PDF. Please try again later.")
             logger.error(f"PDF generation failed for action {action_id}")
             return redirect('submission:version_history', submission_id=submission_id)
-            
-        # Modify the filename to include action type
-        response['Content-Disposition'] = (
-            f'attachment; filename="submission_{submission.temporary_id}_'
-            f'{action.action_type}_{action.date_created.strftime("%Y%m%d")}.pdf"'
-        )
-            
+                
         return response
 
     except Exception as e:
@@ -1706,7 +1724,7 @@ def download_action_pdf(request, submission_id, action_id):
         logger.error("Error details:", exc_info=True)
         messages.error(request, "An error occurred while generating the PDF.")
         return redirect('submission:version_history', submission_id=submission_id)
-    
+
 
 def notify_pending_forms(submission):
     """Notify team members of their pending forms."""
@@ -1830,3 +1848,4 @@ AIDI System
     # Add OSAR members as recipients
     for member in osar_members:
         message.recipients.add(member)
+
