@@ -5,7 +5,14 @@ from django.contrib.auth.models import User
 from .models import Submission, Document
 from dal import autocomplete
 from django.db.models import Q
+from django import forms
+from django.contrib.auth.models import User
+from .models import ResearchAssistant, Submission  # Import all needed models
 
+from django import forms
+from django.contrib.auth.models import User
+from users.models import Role
+from .models import ResearchAssistant, CoInvestigator, Submission
 # class MessageForm(forms.ModelForm):
 #     recipients = forms.ModelMultipleChoiceField(
 #         queryset=User.objects.all(),
@@ -43,20 +50,15 @@ class SubmissionForm(forms.ModelForm):
             # Keep empty queryset initially - will be populated via AJAX
             self.fields['primary_investigator'].queryset = User.objects.none()
             
-        # Filter out study types that start with IRB/irb
+        # Filter out study types that start with IRB/irb or are Evaluation/Actions
         study_type_field = self.fields['study_type']
         study_type_field.queryset = study_type_field.queryset.exclude(
-            Q(name__istartswith='irb')
+            Q(name__istartswith='irb') |
+            Q(name__iexact='evaluation') |
+            Q(name__iexact='actions')
         )
 
-from django import forms
-from django.contrib.auth.models import User
-from .models import ResearchAssistant, Submission  # Import all needed models
 
-from django import forms
-from django.contrib.auth.models import User
-from users.models import Role
-from .models import ResearchAssistant, CoInvestigator, Submission
 
 class ResearchAssistantForm(forms.ModelForm):
     assistant = forms.ModelChoiceField(
