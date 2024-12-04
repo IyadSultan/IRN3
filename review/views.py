@@ -208,11 +208,16 @@ class RCDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 ######################
 
 
-class CreateReviewRequestView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
+class CreateReviewRequestView(LoginRequiredMixin, CreateView):
     model = ReviewRequest
     form_class = ReviewRequestForm
     template_name = 'review/create_review_request.html'
-    permission_required = 'review.can_create_review_request'
+    
+    def dispatch(self, request, *args, **kwargs):
+        self.submission = get_object_or_404(Submission, pk=kwargs['submission_id'])
+        if not ReviewRequest.can_create_review_request(request.user):
+            raise PermissionDenied("You don't have permission to create review requests.")
+        return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
         initial = super().get_initial()

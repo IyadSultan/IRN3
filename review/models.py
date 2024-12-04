@@ -84,6 +84,12 @@ class ReviewRequest(models.Model):
         help_text="Whether this reviewer can forward to others"
     )
 
+    @classmethod
+    def can_create_review_request(cls, user):
+        """Check if the user can create a review request."""
+        # Check if the user is in any of the required groups
+        return user.groups.filter(name__in=['IRB', 'OSAR', 'RC']).exists()
+
     @property
     def is_overdue(self):
         return self.deadline < timezone.now().date()
