@@ -158,25 +158,52 @@ iRN System
 
 def send_irb_decision_notification(submission, decision, comments):
     """Create notification message for IRB decisions."""
-    message = Message.objects.create(
-        sender=get_system_user(),
-        subject=f'IRB Decision - {submission.title}',
-        body=f"""
+    
+    # Format the decision text for display
+    decision_display = decision.replace('_', ' ').title()
+    
+    # Determine message type and any additional instructions
+    message_type = 'decision'
+    additional_instructions = ''
+    if decision == 'revision_requested':
+        additional_instructions = 'Please review the comments and submit a revised version.'
+    elif decision == 'accepted':
+        additional_instructions = 'Congratulations! Your submission has been accepted.'
+    elif decision == 'rejected':
+        additional_instructions = 'If you have any questions, please contact the OSAR office.'
+
+    # Create the message body
+    message_body = f"""
 Dear {submission.primary_investigator.userprofile.full_name},
 
-The IRB has made a decision regarding your submission "{submission.title}".
+The OSAR office has made a decision regarding your submission "{submission.title}".
 
-Decision: {decision.replace('_', ' ').title()}
+Decision: {decision_display}
 
-{comments if comments else ''}
+Comments:
+{comments if comments else 'No additional comments provided.'}
 
-{'Please review the comments and submit a revised version.' if decision == 'revision_required' else ''}
+{additional_instructions}
 
 Best regards,
 AIDI System
-        """.strip(),
-        # study_name=submission.title,
+    """.strip()
+
+    # Create and save the message
+    message = Message.objects.create(
+        sender=get_system_user(),
+        subject=f'Submission Decision - {submission.title}',
+        body=message_body,
+        message_type=message_type,
         related_submission=submission
     )
+
+    # Add the primary investigator as recipient
     message.recipients.add(submission.primary_investigator)
+
+    # Add CC recipients (optional - research team members)
+    research_team = submission.get_research_team()
+    if research_team:
+        message.cc.add(*research_team)
+
     return message

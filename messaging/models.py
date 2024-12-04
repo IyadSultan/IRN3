@@ -56,6 +56,15 @@ class Message(models.Model):
         related_name='related_messages'
     )
     objects = MessageManager()
+    message_type = models.CharField(
+    max_length=20,
+        choices=[
+            ('decision', 'Decision'),
+            ('notification', 'Notification'),
+            ('general', 'General'),
+        ],
+        default='general'
+)
 
     def get_recipients_display(self):
         """Returns a formatted string of recipient names."""

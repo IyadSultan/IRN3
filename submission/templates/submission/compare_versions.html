@@ -27,10 +27,18 @@
                                         <tr>
                                             <td class="fw-bold">{{ change.field }}</td>
                                             <td class="bg-light-yellow">
-                                                {{ change.previous_value }}
+                                                {% if change.previous_value != None %}
+                                                    {{ change.previous_value|linebreaks }}
+                                                {% else %}
+                                                    <em>No value</em>
+                                                {% endif %}
                                             </td>
                                             <td class="bg-light-green">
-                                                {{ change.current_value }}
+                                                {% if change.current_value != None %}
+                                                    {{ change.current_value|linebreaks }}
+                                                {% else %}
+                                                    <em>No value</em>
+                                                {% endif %}
                                             </td>
                                         </tr>
                                     {% endfor %}

@@ -56,14 +56,12 @@
                                         <i class="fas fa-file-pdf"></i> Download
                                     </a>
                                     
-                                    {% if not forloop.first %}
-                                        {% if history.previous_version %}
-                                            <a href="{% url 'submission:compare_version' submission.pk history.version history.previous_version %}" 
-                                               class="btn btn-sm btn-primary" 
-                                               title="Compare with Previous Version">
-                                                <i class="fas fa-code-compare"></i> Compare Changes
-                                            </a>
-                                        {% endif %}
+                                    {% if not forloop.last %}
+                                        <a href="{% url 'submission:compare_version' submission.pk history.version history.previous_version %}" 
+                                           class="btn btn-sm btn-primary" 
+                                           title="Compare with Previous Version">
+                                            <i class="fas fa-code-compare"></i> Compare Changes
+                                        </a>
                                     {% endif %}
                                 </div>
                             </td>
@@ -254,7 +252,50 @@
                         </div>
                     </div>
                 </div>
-                
+                <!-- OSAR Decision History -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4 class="mb-0">Review Decisions History</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Decision</th>
+                                        <th>Made By</th>
+                                        <th>Comments</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% with decision_messages=submission.messages.all|dictsort:'-created_at' %}
+                                    {% for message in decision_messages %}
+                                        {% if message.message_type == 'decision' %}
+                                        <tr>
+                                            <td>{{ message.created_at|date:"Y-m-d H:i" }}</td>
+                                            <td>
+                                                <span class="badge {% if 'accept' in message.subject|lower %}bg-success
+                                                            {% elif 'reject' in message.subject|lower %}bg-danger
+                                                            {% else %}bg-warning{% endif %}">
+                                                    {{ message.subject|cut:"Submission Decision - " }}
+                                                </span>
+                                            </td>
+                                            <td>{{ message.sender.userprofile.full_name }}</td>
+                                            <td>{{ message.body|linebreaksbr }}</td>
+                                        </tr>
+                                        {% endif %}
+                                    {% empty %}
+                                        <tr>
+                                            <td colspan="4" class="text-center">No decisions have been made yet.</td>
+                                        </tr>
+                                    {% endfor %}
+                                    {% endwith %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
                 <!-- Navigation -->
                 <div class="mt-4">
                     <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
