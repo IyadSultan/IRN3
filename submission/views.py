@@ -1004,85 +1004,53 @@ def version_history(request, submission_id):
 @login_required
 def compare_version(request, submission_id, version1, version2):
     """Compare two versions of a submission."""
-    submission = get_object_or_404(Submission, pk=submission_id)
-    if not has_edit_permission(request.user, submission):
-        messages.error(request, "You do not have permission to view this submission.")
+    submission = get_object_or_404(Submission, temporary_id=submission_id)
+    
+    # Check permission
+    if not submission.can_user_view(request.user):
+        messages.error(request, "You don't have permission to view this submission.")
         return redirect('submission:dashboard')
-
-    # Get entries for both versions
+    
+    # Get data for both versions
+    data_version1 = FormDataEntry.get_version_data(submission, version1)
+    data_version2 = FormDataEntry.get_version_data(submission, version2)
+    
+    # Combine all form IDs from both versions
+    all_form_ids = set(data_version1.keys()) | set(data_version2.keys())
+    
     comparison_data = []
-    
-    # Get all forms associated with this submission's study type
-    forms = submission.study_type.forms.all()
-    
-    for form in forms:
-        # Get entries for both versions
-        entries_version1 = FormDataEntry.objects.filter(
-            submission=submission,
-            form=form,
-            version=version1
-        ).select_related('form')
+    for form_id in all_form_ids:
+        form_v1 = data_version1.get(form_id, {'fields': {}})
+        form_v2 = data_version2.get(form_id, {'fields': {}})
         
-        entries_version2 = FormDataEntry.objects.filter(
-            submission=submission,
-            form=form,
-            version=version2
-        ).select_related('form')
-
-        # Convert entries to dictionaries for easier comparison
-        data_version1 = {entry.field_name: entry.value for entry in entries_version1}
-        data_version2 = {entry.field_name: entry.value for entry in entries_version2}
-
-        # Get field display names from form definition
-        field_definitions = {
-            field.name: field.displayed_name 
-            for field in form.fields.all()
-        }
-
-        # Compare fields
-        form_changes = []
-        all_fields = sorted(set(data_version1.keys()) | set(data_version2.keys()))
+        # Get all fields from both versions
+        all_fields = set(form_v1['fields'].keys()) | set(form_v2['fields'].keys())
         
-        for field in all_fields:
-            displayed_name = field_definitions.get(field, field)
-            value_version1 = data_version1.get(field, 'Not provided')
-            value_version2 = data_version2.get(field, 'Not provided')
-
-            # Handle JSON array values (e.g., checkbox selections)
-            try:
-                if isinstance(value_version1, str) and value_version1.startswith('['):
-                    value_version1_display = ', '.join(json.loads(value_version1))
-                else:
-                    value_version1_display = value_version1
-                    
-                if isinstance(value_version2, str) and value_version2.startswith('['):
-                    value_version2_display = ', '.join(json.loads(value_version2))
-                else:
-                    value_version2_display = value_version2
-            except json.JSONDecodeError:
-                value_version1_display = value_version1
-                value_version2_display = value_version2
-
-            # Only add to changes if values are different
-            if value_version1 != value_version2:
-                form_changes.append({
-                    'field': displayed_name,
-                    'version1_value': value_version1_display,
-                    'version2_value': value_version2_display
+        changes = []
+        for field in sorted(all_fields):
+            v1_value = form_v1['fields'].get(field, 'Not provided')
+            v2_value = form_v2['fields'].get(field, 'Not provided')
+            
+            # Only include if values are different
+            if v1_value != v2_value:
+                changes.append({
+                    'field': field,
+                    'previous_value': v1_value,
+                    'current_value': v2_value
                 })
-
-        # Only add form to comparison data if it has changes
-        if form_changes:
+        
+        if changes:
+            form_name = (form_v1.get('form') or form_v2.get('form')).name
             comparison_data.append({
-                'form_name': form.name,
-                'changes': form_changes
+                'form_name': form_name,
+                'changes': changes
             })
-
+    
     return render(request, 'submission/compare_versions.html', {
         'submission': submission,
-        'version1': version1,
-        'version2': version2,
-        'comparison_data': comparison_data,
+        'previous_version': version1,
+        'version': version2,
+        'comparison_data': comparison_data
     })
 
 

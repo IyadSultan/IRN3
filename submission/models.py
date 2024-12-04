@@ -8,6 +8,7 @@ from django.core.cache import cache
 from django.db.utils import OperationalError
 from django.apps import apps
 from iRN.constants import get_submission_status_choices
+import json
 
 class StatusChoice(models.Model):
     code = models.CharField(max_length=50, unique=True)
@@ -285,19 +286,6 @@ class Submission(models.Model):
             models.Q(show_in_irb=True, primary_investigator__groups__name='IRB') |
             models.Q(show_in_rc=True, primary_investigator__groups__name='RC')
         ).distinct()
-from django.db import models
-from django.contrib.auth.models import User
-from users.models import Role  # Add this import
-
-
-
-from django.db import models
-from django.contrib.auth.models import User
-
-# submission/models.py
-from django.db import models
-from django.contrib.auth.models import User
-from iRN.constants import COINVESTIGATOR_ROLES
 
 class CoInvestigator(models.Model):
     submission = models.ForeignKey(
@@ -387,6 +375,7 @@ class CoInvestigator(models.Model):
                     role='co_investigator',
                     notes=f'Roles changed from: {old_roles} to: {new_roles}'
                 )
+
 class ResearchAssistant(models.Model):
     submission = models.ForeignKey(
         'Submission',
@@ -476,6 +465,36 @@ class FormDataEntry(models.Model):
 
     def __str__(self):
         return f"{self.submission} - {self.form.name} - {self.field_name}"
+
+    @classmethod
+    def get_version_data(cls, submission, version):
+        """Get all form data for a specific version of a submission."""
+        entries = cls.objects.filter(
+            submission=submission,
+            version=version
+        ).select_related('form')
+        
+        # Group data by form
+        form_data = {}
+        for entry in entries:
+            if entry.form_id not in form_data:
+                form_data[entry.form_id] = {
+                    'form': entry.form,
+                    'fields': {}
+                }
+            
+            # Handle JSON values
+            try:
+                if isinstance(entry.value, str) and entry.value.startswith('['):
+                    value = ', '.join(json.loads(entry.value))
+                else:
+                    value = entry.value
+            except (json.JSONDecodeError, TypeError):
+                value = entry.value
+                
+            form_data[entry.form_id]['fields'][entry.field_name] = value
+            
+        return form_data
 
 class Document(models.Model):
     submission = models.ForeignKey(
