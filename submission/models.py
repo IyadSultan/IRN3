@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.core.cache import cache
 from django.db.utils import OperationalError
 from django.apps import apps
-from iRN.constants import get_submission_status_choices
+from iRN.constants import get_submission_status_choices, COINVESTIGATOR_ROLES
 import json
 
 class StatusChoice(models.Model):
