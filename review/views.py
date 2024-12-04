@@ -1670,23 +1670,29 @@ Best regards,
 
 
 
-def generate_action_pdf(action, as_buffer=False):
+def generate_action_pdf(study_action, form_entries, user, submission, as_buffer=False):
     """Generate PDF for a study action"""
     try:
-        logger.info(f"Generating PDF for action {action.id}")
+        logger.info(f"Generating PDF for action {study_action.id}")
         
         buffer = BytesIO()
-        pdf_generator = PDFGenerator(buffer, action.submission, action.version, action.performed_by)
+        pdf_generator = PDFGenerator(
+            buffer, 
+            submission, 
+            study_action.version, 
+            user
+        )
         
         # Add basic submission info
         pdf_generator.add_header()
         pdf_generator.add_basic_info()
         
         # Add action details
-        pdf_generator.add_study_action_details(action)
+        pdf_generator.add_study_action_details(study_action)
         
-        # Add form responses
-        pdf_generator.add_dynamic_forms()
+        # Add form responses if any
+        if form_entries:
+            pdf_generator.add_dynamic_forms(form_entries)
         
         # Add footer
         pdf_generator.add_footer()
@@ -1698,7 +1704,7 @@ def generate_action_pdf(action, as_buffer=False):
         
         buffer.seek(0)
         response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-        filename = f"study_action_{action.get_action_type_display()}_{action.date_created.strftime('%Y%m%d')}.pdf"
+        filename = f"study_action_{study_action.get_action_type_display()}_{study_action.date_created.strftime('%Y%m%d')}.pdf"
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
             
@@ -1720,14 +1726,25 @@ def download_action_pdf(request, action_id):
     View function to generate and download a PDF for a study action.
     """
     # Get the action or return 404
-    action = get_object_or_404(StudyAction, pk=action_id)
+    action = get_object_or_404(StudyAction.objects.select_related(
+        'submission',
+        'performed_by'
+    ), pk=action_id)
     
     # Check if user has permission to view this action
     if not request.user.groups.filter(name__in=['OSAR', 'IRB', 'RC']).exists():
         return HttpResponse('Permission denied', status=403)
     
+    # Get form entries related to this action
+    form_entries = []  # You might need to adjust this based on your data model
+    
     # Generate the PDF
-    pdf_response = generate_action_pdf(action)
+    pdf_response = generate_action_pdf(
+        study_action=action,
+        form_entries=form_entries,
+        user=request.user,
+        submission=action.submission
+    )
     
     if pdf_response is None:
         return HttpResponse('Error generating PDF', status=500)
