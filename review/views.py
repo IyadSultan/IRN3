@@ -612,9 +612,11 @@ class ViewReviewView(LoginRequiredMixin, TemplateView):
 # Review Summary
 # URL: path('submission/<int:submission_id>/summary/', ReviewSummaryView.as_view(), name='review_summary'),
 ######################
+from django.shortcuts import render, get_object_or_404
+from submission.models import Submission, VersionHistory
 
 
-class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
+class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     """View for displaying a comprehensive summary of a submission's reviews"""
     template_name = 'review/review_summary.html'
 
@@ -678,7 +680,13 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def get_version_histories(self):
         """Get submission version history"""
-        return self.submission.version_histories.all().order_by('-version')
+        version_histories = list(self.submission.version_histories.all().order_by('-version'))
+        for i, version in enumerate(version_histories):
+            if i < len(version_histories) - 1:
+                version.next_version = version_histories[i + 1].version
+            else:
+                version.next_version = None
+        return version_histories
 
     def get_user_permissions(self, user):
         """Determine user-specific permissions"""
@@ -1276,7 +1284,6 @@ def get_context_data(self, **kwargs):
         )
     
     return context
-
 # review/views.py
 class ProcessSubmissionDecisionView(LoginRequiredMixin, PermissionRequiredMixin, View):
     permission_required = 'submission.change_submission_status'
@@ -1534,7 +1541,6 @@ class QualityDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
             'page_title': 'Quality Dashboard',
         })
         return context
-
     def handle_no_permission(self):
         messages.error(
             self.request, 
@@ -1727,3 +1733,4 @@ def download_action_pdf(request, action_id):
         return HttpResponse('Error generating PDF', status=500)
     
     return pdf_response
+

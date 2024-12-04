@@ -40,12 +40,21 @@
                             <td>{{ version.version }}</td>
                             <td>{{ version.date|date }}</td>
                             <td>
-                                {% if can_download_pdf %}
-                                    <a href="{% url 'submission:download_submission_pdf_version' submission_id=submission.temporary_id version=version.version %}" 
-                                       class="btn btn-primary btn-sm">
-                                        <i class="fas fa-file-pdf"></i> Download PDF
-                                    </a>
-                                {% endif %}
+                                <div class="btn-group" role="group">
+                                    {% if can_download_pdf %}
+                                        <a href="{% url 'submission:download_submission_pdf_version' submission_id=submission.temporary_id version=version.version %}" 
+                                           class="btn btn-primary btn-sm">
+                                            <i class="fas fa-file-pdf"></i> Download PDF
+                                        </a>
+                                    {% endif %}
+                                    
+                                    {% if version.next_version %}
+                                        <a href="{% url 'submission:compare_version' submission.pk version.version version.next_version %}" 
+                                           class="btn btn-info btn-sm">
+                                            <i class="fas fa-code-compare"></i> Compare Changes
+                                        </a>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                     {% empty %}
