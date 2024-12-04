@@ -149,8 +149,8 @@ class Submission(models.Model):
                 self.research_assistants.filter(user=user).exists()):
             return []
 
-        # If user has submit rights and submission is submitted/pending, no forms are pending
-        if user in self.get_submitters() and self.status in ['submitted', 'document_missing']:
+        # If user has submit rights and submission is not in 'draft', no forms are pending
+        if user in self.get_submitters() and self.status != 'draft':
             return []
 
         required_forms = self.get_required_investigator_forms()
@@ -218,7 +218,7 @@ class Submission(models.Model):
         non_submitters = self.get_non_submitters()
         
         # For new submissions, include submitters in check
-        if self.status not in ['submitted', 'document_missing']:
+        if self.status not in ['submitted', 'documents_pending']:
             non_submitters.extend(self.get_submitters())
 
         # Check each form
