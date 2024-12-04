@@ -118,6 +118,13 @@ class Submission(models.Model):
         non_submitters.extend([ra.user for ra in self.research_assistants.filter(can_submit=False)])
         return non_submitters
 
+    def get_research_team(self):
+        """Get all research assistants and co-investigators."""
+        team = []
+        team.extend([ci.user for ci in self.coinvestigators.all()])
+        team.extend([ra.user for ra in self.research_assistants.all()])
+        return team
+
     def has_submitted_form(self, user, form):
         """Check if a user has submitted a specific form."""
         # Direct submission check

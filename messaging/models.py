@@ -65,7 +65,7 @@ class Message(models.Model):
         ],
         default='general'
 )
-
+    
     def get_recipients_display(self):
         """Returns a formatted string of recipient names."""
         recipients = self.recipients.all()

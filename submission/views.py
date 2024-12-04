@@ -782,10 +782,7 @@ AIDI System
                 messages.error(request, f"Error during submission: {str(e)}")
                 return redirect('submission:dashboard')
 
-        elif action == 'back':
-                logger.error(f"Error in submission finalization: {str(e)}")
-                messages.error(request, f"Error during submission: {str(e)}")
-                return redirect('submission:dashboard')    
+        
         if request.method == 'POST':
             action = request.POST.get('action')
             
@@ -986,13 +983,22 @@ def version_history(request, submission_id):
     # Get form status for all team members
     form_status = submission.get_investigator_form_status()
     
+    # Get decision messages - using sent_at instead of created_at
+    decision_messages = Message.objects.filter(
+        related_submission=submission,
+        message_type='decision'
+    ).select_related(
+        'sender__userprofile'
+    ).order_by('-sent_at')  # Changed from created_at to sent_at
+
     return render(request, 'submission/version_history.html', {
         'submission': submission,
         'histories': histories,
         'pending_forms': pending_forms,
         'show_form_alert': show_form_alert,
         'form_status': form_status,
-        'can_submit': submission.can_user_submit(request.user)
+        'can_submit': submission.can_user_submit(request.user),
+        'decision_messages': decision_messages
     })
 
 @login_required

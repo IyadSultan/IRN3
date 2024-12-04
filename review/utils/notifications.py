@@ -156,25 +156,29 @@ iRN System
     return message
 
 
+
 def send_irb_decision_notification(submission, decision, comments):
-    """Create notification message for IRB decisions."""
-    
-    # Format the decision text for display
+    system_user = get_system_user()
     decision_display = decision.replace('_', ' ').title()
     
-    # Determine message type and any additional instructions
-    message_type = 'decision'
-    additional_instructions = ''
-    if decision == 'revision_requested':
-        additional_instructions = 'Please review the comments and submit a revised version.'
-    elif decision == 'accepted':
-        additional_instructions = 'Congratulations! Your submission has been accepted.'
-    elif decision == 'rejected':
-        additional_instructions = 'If you have any questions, please contact the OSAR office.'
+    instructions = {
+        'revision_requested': 'Please review the comments and submit a revised version.',
+        'accepted': 'Congratulations! Your submission has been accepted.',
+        'rejected': 'If you have any questions, please contact the OSAR office.'
+    }.get(decision, '')
 
-    # Create the message body
-    message_body = f"""
-Dear {submission.primary_investigator.userprofile.full_name},
+    # Decision record message
+    decision_msg = Message.objects.create(
+        sender=system_user,
+        subject=f'Submission Decision - {decision_display}',
+        body=comments,
+        message_type='decision',
+        related_submission=submission
+    )
+    decision_msg.recipients.add(submission.primary_investigator)
+
+    # Notification message 
+    notif_body = f"""Dear {submission.primary_investigator.userprofile.full_name},
 
 The OSAR office has made a decision regarding your submission "{submission.title}".
 
@@ -183,27 +187,21 @@ Decision: {decision_display}
 Comments:
 {comments if comments else 'No additional comments provided.'}
 
-{additional_instructions}
+{instructions}
 
 Best regards,
-AIDI System
-    """.strip()
+AIDI System""".strip()
 
-    # Create and save the message
-    message = Message.objects.create(
-        sender=get_system_user(),
-        subject=f'Submission Decision - {submission.title}',
-        body=message_body,
-        message_type=message_type,
+    notification = Message.objects.create(
+        sender=system_user,
+        subject=f'Notification: {submission.title} - {decision_display}',
+        body=notif_body,
+        message_type='notification', 
         related_submission=submission
     )
 
-    # Add the primary investigator as recipient
-    message.recipients.add(submission.primary_investigator)
+    notification.recipients.add(submission.primary_investigator)
+    if research_team := submission.get_research_team():
+        notification.cc.add(*research_team)
 
-    # Add CC recipients (optional - research team members)
-    research_team = submission.get_research_team()
-    if research_team:
-        message.cc.add(*research_team)
-
-    return message
+    return decision_msg, notification
