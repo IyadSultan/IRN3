@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'users/base.html' %}
 
 {% block content %}
 <div class="container">
@@ -9,38 +9,81 @@
             <div class="table-of-contents mb-4">
                 <h2>Table of Contents</h2>
                 <ul>
-                    <li><a href="#getting-started">Getting Started</a></li>
+                    <li><a href="#login-profile">Login & Profile Management</a></li>
+                    <li><a href="#dashboard">Dashboard & Submissions</a></li>
                     <li><a href="#submission-process">Submission Process</a></li>
                     <li><a href="#review-process">Review Process</a></li>
-                    <li><a href="#version-control">Version Control</a></li>
-                    <li><a href="#communication">Communication System</a></li>
-                    <li><a href="#dashboards">Dashboard Management</a></li>
+                    <li><a href="#messaging">Messaging & Communication</a></li>
                 </ul>
             </div>
 
-            <section id="getting-started">
-                <h2>Getting Started</h2>
-                <h3>User Registration and Profile Requirements</h3>
+            <section id="login-profile">
+                <h2>Login & Profile Management</h2>
                 <div class="card mb-3">
                     <div class="card-body">
+                        <h4>Profile Access & Management</h4>
+                        <ul>
+                            <li>Access your profile via your name in the top right corner</li>
+                            <li>Click "Profile" to update your information</li>
+                            <li>Access profile using username or email</li>
+                        </ul>
+
                         <h4>Required Documents</h4>
                         <ul>
-                            <li>Good Clinical Practice (GCP) Certificate
+                            <li>Good Clinical Practice (GCP) Certificate</li>
+                            <li>Qualitative Record Certificate (QRC)</li>
+                            <li>Consent Training Certificate (CTC)</li>
+                            <li>Curriculum Vitae (CV)</li>
+                        </ul>
+                        <p class="text-warning"><i class="fas fa-exclamation-triangle"></i> All documents must be valid and up-to-date to submit applications</p>
+
+                        <h4>Document Management</h4>
+                        <ul>
+                            <li>System tracks document expiration dates</li>
+                            <li>Indicates valid/invalid status</li>
+                            <li>Access document history through "View Document History"</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="dashboard">
+                <h2>Dashboard & Submissions</h2>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>My Submissions Dashboard</h4>
+                        <p>View all submissions where you are involved as:</p>
+                        <ul>
+                            <li>Primary Investigator</li>
+                            <li>Co-Investigator</li>
+                            <li>Research Assistant</li>
+                        </ul>
+
+                        <h4>Submission Information Display</h4>
+                        <ul>
+                            <li>System-generated ID</li>
+                            <li>KHCC number (assigned after OSAR review)</li>
+                            <li>Study title</li>
+                            <li>Primary investigator name</li>
+                            <li>Version number (updates with each submission)</li>
+                            <li>Creation date</li>
+                            <li>Last modification date</li>
+                        </ul>
+
+                        <h4>Available Actions</h4>
+                        <ul>
+                            <li>Edit submission (when permissions allow)</li>
+                            <li>View version history</li>
+                            <li>Download PDF versions</li>
+                            <li>Compare different versions</li>
+                            <li>View actions history</li>
+                            <li>Review decisions</li>
+                            <li>Additional actions:
                                 <ul>
-                                    <li>Must be valid and not expired</li>
-                                    <li>System tracks expiration dates</li>
-                                </ul>
-                            </li>
-                            <li>Curriculum Vitae (CV)
-                                <ul>
-                                    <li>Must be current and signed</li>
-                                    <li>Include research experience</li>
-                                </ul>
-                            </li>
-                            <li>For KHCC Investigators Only:
-                                <ul>
-                                    <li>Qualitative Record Certificate (QRC)</li>
-                                    <li>Consent Training Certificate (CTC)</li>
+                                    <li>Withdraw study</li>
+                                    <li>Submit progress report</li>
+                                    <li>Request study amendment</li>
+                                    <li>Process study closure</li>
                                 </ul>
                             </li>
                         </ul>
@@ -50,253 +93,88 @@
 
             <section id="submission-process">
                 <h2>Submission Process</h2>
-                
-                <h3>Starting a New Submission</h3>
                 <div class="card mb-3">
                     <div class="card-body">
-                        <h4>Initial Setup</h4>
+                        <h4>Starting a New Submission</h4>
                         <ol>
-                            <li>Click "Start New Submission" from dashboard</li>
-                            <li>Enter basic information:
+                            <li>Provide study title</li>
+                            <li>Select study type (determines required forms)</li>
+                            <li>Specify primary investigator role</li>
+                            <li>Add team members:
                                 <ul>
-                                    <li>Study title</li>
-                                    <li>Study type selection</li>
-                                    <li>Primary investigator details</li>
-                                    <li>KHCC # (if applicable)</li>
+                                    <li>Research assistants (specify permissions for editing, submission, communication)</li>
+                                    <li>Co-investigators (define roles and access)</li>
                                 </ul>
                             </li>
+                            <li>Complete required forms based on study type</li>
+                            <li>Upload supporting documents (unlimited)</li>
+                            <li>Review submission quality using KHCC Brain</li>
+                            <li>Submit application</li>
                         </ol>
-
-                        <h4>Research Team Setup</h4>
-                        <ol>
-                            <li>Add co-investigators:
-                                <ul>
-                                    <li>Define roles and permissions</li>
-                                    <li>Set document access levels</li>
-                                    <li>Specify editing rights</li>
-                                </ul>
-                            </li>
-                            <li>Add research assistants:
-                                <ul>
-                                    <li>Set access permissions</li>
-                                    <li>Define communication rights</li>
-                                </ul>
-                            </li>
-                        </ol>
-
-                        <h4>Form Completion</h4>
-                        <ol>
-                            <li>Complete dynamic forms in sequence</li>
-                            <li>Upload required documentation</li>
-                            <li>Save progress (draft mode available)</li>
-                            <li>Validate all sections before submission</li>
-                        </ol>
-                    </div>
-                </div>
-
-                <h3>Submission Statuses and Workflow</h3>
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <ul>
-                            <li><span class="badge badge-draft">Draft</span> 
-                                <ul>
-                                    <li>Initial state</li>
-                                    <li>Can be edited freely</li>
-                                    <li>Not visible to reviewers</li>
-                                </ul>
-                            </li>
-                            <li><span class="badge badge-submitted">Submitted</span>
-                                <ul>
-                                    <li>Under initial review</li>
-                                    <li>Locked for editing</li>
-                                    <li>Awaiting reviewer assignment</li>
-                                </ul>
-                            </li>
-                            <li><span class="badge badge-revision_requested">Revision Requested</span>
-                                <ul>
-                                    <li>Changes required</li>
-                                    <li>Specific feedback provided</li>
-                                    <li>Temporarily unlocked for editing</li>
-                                </ul>
-                            </li>
-                            <li><span class="badge badge-under_revision">Under Revision</span>
-                                <ul>
-                                    <li>Active revision in progress</li>
-                                    <li>New version being created</li>
-                                    <li>Previous version archived</li>
-                                </ul>
-                            </li>
-                            <li><span class="badge badge-accepted">Accepted</span>
-                                <ul>
-                                    <li>Final approval granted</li>
-                                    <li>KHCC # assigned</li>
-                                    <li>Ready for implementation</li>
-                                </ul>
-                            </li>
-                            <li><span class="badge badge-rejected">Rejected</span>
-                                <ul>
-                                    <li>Submission not approved</li>
-                                    <li>Detailed rejection reasons provided</li>
-                                    <li>New submission may be required</li>
-                                </ul>
-                            </li>
-                        </ul>
                     </div>
                 </div>
             </section>
 
             <section id="review-process">
                 <h2>Review Process</h2>
-                
-                <h3>For OSAR Members</h3>
                 <div class="card mb-3">
                     <div class="card-body">
-                        <h4>Review Assignment</h4>
-                        <ol>
-                            <li>Access Review Dashboard</li>
-                            <li>View submissions needing review</li>
-                            <li>Create review requests:
-                                <ul>
-                                    <li>Select appropriate reviewers</li>
-                                    <li>Set review deadlines</li>
-                                    <li>Specify forms for review</li>
-                                    <li>Add review instructions</li>
-                                </ul>
-                            </li>
-                        </ol>
-
-                        <h4>Review Monitoring</h4>
+                        <h4>Reviewer Access</h4>
                         <ul>
-                            <li>Track review status:
+                            <li>OSAR members can:
                                 <ul>
-                                    <li>⏳ Pending</li>
-                                    <li>✅ Completed</li>
-                                    <li>❌ Declined</li>
+                                    <li>View group submissions</li>
+                                    <li>Request reviews from IRB/Research Council</li>
+                                    <li>Assign KHCC numbers</li>
                                 </ul>
                             </li>
-                            <li>Monitor deadlines and progress</li>
-                            <li>Handle extension requests</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <h3>For Reviewers</h3>
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h4>Review Process</h4>
-                        <ol>
-                            <li>Receive review request notification</li>
-                            <li>Accept or decline review assignment</li>
-                            <li>Access assigned submissions</li>
-                            <li>Complete review by deadline:
+                            <li>IRB/Research Council members can:
                                 <ul>
-                                    <li>Provide detailed feedback</li>
-                                    <li>Submit recommendations</li>
-                                    <li>Request clarifications if needed</li>
-                                </ul>
-                            </li>
-                        </ol>
-                    </div>
-                </div>
-
-                <h3>IRB Decision Process</h3>
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h4>Available Decisions</h4>
-                        <ul>
-                            <li>Approve
-                                <ul>
-                                    <li>Grant final approval</li>
-                                    <li>Assign KHCC #</li>
-                                    <li>Generate approval documentation</li>
-                                </ul>
-                            </li>
-                            <li>Request Revision
-                                <ul>
-                                    <li>Specify required changes</li>
-                                    <li>Set revision deadline</li>
-                                    <li>Unlock for editing</li>
-                                </ul>
-                            </li>
-                            <li>Reject
-                                <ul>
-                                    <li>Provide detailed reasoning</li>
-                                    <li>Include recommendations</li>
-                                    <li>Explain appeal process</li>
+                                    <li>View assigned submissions</li>
+                                    <li>Leave notes (visible to other members)</li>
+                                    <li>Make decisions:
+                                        <ul>
+                                            <li>Request revision</li>
+                                            <li>Reject submission</li>
+                                            <li>Accept submission</li>
+                                        </ul>
+                                    </li>
                                 </ul>
                             </li>
                         </ul>
-                    </div>
-                </div>
-            </section>
 
-            <section id="version-control">
-                <h2>Version Control</h2>
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h4>Version Management</h4>
+                        <h4>Review Management</h4>
                         <ul>
-                            <li>Track all submission versions</li>
-                            <li>Compare versions side-by-side</li>
-                            <li>Download version-specific PDFs</li>
-                            <li>View complete change history</li>
-                        </ul>
-
-                        <h4>Version Features</h4>
-                        <ul>
-                            <li>Automatic version numbering</li>
-                            <li>Change tracking and highlighting</li>
-                            <li>Version-specific comments</li>
-                            <li>Document archiving</li>
-                        </ul>
-                    </div>
-                </div>
-            </section>
-
-            <section id="communication">
-                <h2>Communication System</h2>
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h4>Messaging Features</h4>
-                        <ul>
-                            <li>Direct messaging between users</li>
-                            <li>File attachments support</li>
-                            <li>Message tracking and status</li>
-                            <li>Automated notifications</li>
-                        </ul>
-
-                        <h4>Notification Types</h4>
-                        <ul>
-                            <li>Status changes</li>
-                            <li>Review assignments</li>
-                            <li>Deadline reminders</li>
-                            <li>Document updates</li>
-                            <li>System announcements</li>
-                        </ul>
-                    </div>
-                </div>
-            </section>
-
-            <section id="dashboards">
-                <h2>Dashboard Management</h2>
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h4>Investigator Dashboard</h4>
-                        <ul>
-                            <li>View all submissions</li>
-                            <li>Track submission status</li>
-                            <li>Access version history</li>
-                            <li>Download PDFs</li>
-                            <li>Edit submissions (when unlocked)</li>
-                        </ul>
-
-                        <h4>Reviewer Dashboard</h4>
-                        <ul>
-                            <li>View assigned reviews</li>
-                            <li>Track deadlines</li>
-                            <li>Access submission details</li>
+                            <li>Track pending reviews</li>
                             <li>Submit reviews</li>
-                            <li>View completed reviews</li>
+                            <li>Request deadline extensions</li>
+                            <li>Request additional details</li>
+                            <li>Access submission PDFs</li>
+                            <li>View all versions and previous reviews</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="messaging">
+                <h2>Messaging & Communication</h2>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>Messaging System Features</h4>
+                        <ul>
+                            <li>Standard inbox functionality</li>
+                            <li>Compose and send messages</li>
+                            <li>View sent messages</li>
+                            <li>Receive system notifications</li>
+                            <li>Email notifications for all communications</li>
+                            <li>Complete documentation of all research-related communications</li>
+                        </ul>
+
+                        <h4>Additional Resources</h4>
+                        <ul>
+                            <li>Operation manual</li>
+                            <li>Frequently asked questions (FAQ)</li>
+                            <li>Feedback submission system</li>
                         </ul>
                     </div>
                 </div>
@@ -362,4 +240,4 @@
         margin-top: 0.5rem;
     }
 </style>
-{% endblock %} 
+{% endblock %}

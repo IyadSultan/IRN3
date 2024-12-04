@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'users/base.html' %}
 
 {% block content %}
 <div class="container">
@@ -10,160 +10,176 @@
             </h1>
 
             <div class="accordion" id="faqAccordion">
-                <!-- Submission Timeline -->
+                <!-- Login & Profile -->
                 <div class="accordion-item">
                     <h2 class="accordion-header" id="headingOne">
                         <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">
-                            When do members of the research office see my submission?
+                            How do I manage my profile and documents?
                         </button>
                     </h2>
                     <div id="collapseOne" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion">
                         <div class="accordion-body">
                             <div class="d-flex align-items-start">
-                                <i class="fas fa-clock text-primary mt-1 me-3"></i>
+                                <i class="fas fa-user text-primary mt-1 me-3"></i>
                                 <div>
-                                    <p>Your submission will be reviewed by the research office on the next working day after submission. The system automatically notifies OSAR members when new submissions are received.</p>
-                                    <div class="alert alert-info">
-                                        <i class="fas fa-info-circle"></i> Initial review typically begins within 24 hours (on working days).
+                                    <h5>Profile Access</h5>
+                                    <ul>
+                                        <li>Access your profile via your name in the top right corner</li>
+                                        <li>Click "Profile" to update your information</li>
+                                        <li>Access profile using username or email</li>
+                                    </ul>
+
+                                    <h5>Required Documents</h5>
+                                    <ul>
+                                        <li>Good Clinical Practice (GCP) Certificate</li>
+                                        <li>Qualitative Record Certificate (QRC)</li>
+                                        <li>Consent Training Certificate (CTC)</li>
+                                        <li>Curriculum Vitae (CV)</li>
+                                    </ul>
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-exclamation-triangle"></i> All documents must be valid and up-to-date to submit applications
                                     </div>
+
+                                    <h5>Document Management</h5>
+                                    <ul>
+                                        <li>System tracks document expiration dates</li>
+                                        <li>Indicates valid/invalid status</li>
+                                        <li>Access document history through "View Document History"</li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Review Timeline -->
+                <!-- Dashboard & Submissions -->
                 <div class="accordion-item">
                     <h2 class="accordion-header" id="headingTwo">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo">
-                            How long does it take to get my answer?
+                            How do I use the dashboard and manage submissions?
                         </button>
                     </h2>
                     <div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
                         <div class="accordion-body">
                             <div class="d-flex align-items-start">
-                                <i class="fas fa-calendar-alt text-primary mt-1 me-3"></i>
+                                <i class="fas fa-tachometer-alt text-primary mt-1 me-3"></i>
                                 <div>
-                                    <p>The review timeline depends on the type of submission but should be completed within a maximum of 4 weeks.</p>
-                                    <ul class="timeline-list">
-                                        <li>Initial review: 1-2 working days</li>
-                                        <li>Full review process: Up to 4 weeks</li>
-                                        <li>Revision reviews: 1-2 weeks</li>
+                                    <h5>My Submissions Dashboard</h5>
+                                    <p>View all submissions where you are involved as:</p>
+                                    <ul>
+                                        <li>Primary Investigator</li>
+                                        <li>Co-Investigator</li>
+                                        <li>Research Assistant</li>
                                     </ul>
-                                    <div class="alert alert-warning">
-                                        <i class="fas fa-exclamation-triangle"></i> <strong>Important:</strong> When you receive a revision request, please respond as soon as possible to maintain timeline efficiency.
-                                    </div>
+
+                                    <h5>Submission Information Display</h5>
+                                    <ul>
+                                        <li>System-generated ID</li>
+                                        <li>KHCC number (assigned after OSAR review)</li>
+                                        <li>Study title</li>
+                                        <li>Primary investigator name</li>
+                                        <li>Version number (updates with each submission)</li>
+                                        <li>Creation and modification dates</li>
+                                    </ul>
+
+                                    <h5>Available Actions</h5>
+                                    <ul>
+                                        <li>Edit submission (if permissions allow)</li>
+                                        <li>View version history and pending documents</li>
+                                        <li>Compare different versions</li>
+                                        <li>View actions history</li>
+                                        <li>Generate PDF</li>
+                                        <li>Archive submission</li>
+                                    </ul>
+
+                                    <h5>Submission Process</h5>
+                                    <ol>
+                                        <li>Enter title and select study type</li>
+                                        <li>Specify roles (PI, co-investigator, research assistant)</li>
+                                        <li>Set permissions for research assistants</li>
+                                        <li>Complete required forms based on study type</li>
+                                        <li>Review qualifications and missing fields</li>
+                                        <li>Upload supporting documents</li>
+                                        <li>Optional quality check using KHCC Brain</li>
+                                        <li>Submit application</li>
+                                    </ol>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- System Security -->
+                <!-- Review Process -->
                 <div class="accordion-item">
                     <h2 class="accordion-header" id="headingThree">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree">
-                            How secure is the system?
+                            How does the review process work?
                         </button>
                     </h2>
                     <div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
                         <div class="accordion-body">
                             <div class="d-flex align-items-start">
-                                <i class="fas fa-shield-alt text-primary mt-1 me-3"></i>
+                                <i class="fas fa-tasks text-primary mt-1 me-3"></i>
                                 <div>
-                                    <h5>Security Measures</h5>
-                                    <ul class="security-features">
-                                        <li>Data Encryption
-                                            <ul>
-                                                <li>All data is encrypted at rest using AES-256 encryption</li>
-                                                <li>SSL/TLS encryption for all data in transit</li>
-                                                <li>Secure file storage with encrypted backups</li>
-                                            </ul>
-                                        </li>
-                                        <li>Access Control
-                                            <ul>
-                                                <li>Role-based access control (RBAC)</li>
-                                                <li>Multi-factor authentication (MFA)</li>
-                                                <li>IP-based access restrictions</li>
-                                                <li>Automatic session timeout</li>
-                                            </ul>
-                                        </li>
-                                        <li>Audit Trail
-                                            <ul>
-                                                <li>Complete activity logging</li>
-                                                <li>Version control for all documents</li>
-                                                <li>User action tracking</li>
-                                            </ul>
-                                        </li>
-                                        <li>Compliance
-                                            <ul>
-                                                <li>HIPAA compliance measures</li>
-                                                <li>Regular security audits</li>
-                                                <li>Automated vulnerability scanning</li>
-                                            </ul>
-                                        </li>
+                                    <h5>Reviewer Access</h5>
+                                    <ul>
+                                        <li>OSAR, IRB, and Research Council members see group submissions</li>
+                                        <li>OSAR can request reviews from IRB/Research Council heads</li>
+                                        <li>Reviews can be forwarded to privileged members</li>
                                     </ul>
-                                    <div class="alert alert-success">
-                                        <i class="fas fa-shield-alt"></i> The system is hosted on secure KHCC servers with enterprise-level security protocols.
-                                    </div>
+
+                                    <h5>Review Features</h5>
+                                    <ul>
+                                        <li>KHCC number assignment</li>
+                                        <li>Note system with visual indicators</li>
+                                        <li>Review submission options:
+                                            <ul>
+                                                <li>Request revision</li>
+                                                <li>Accept submission</li>
+                                                <li>Reject submission</li>
+                                            </ul>
+                                        </li>
+                                        <li>Manage pending reviews</li>
+                                        <li>Request extensions or additional details</li>
+                                        <li>View submission versions and previous reviews</li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- System Development -->
+                <!-- Communication -->
                 <div class="accordion-item">
                     <h2 class="accordion-header" id="headingFour">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour">
-                            Who developed the system?
+                            How do I communicate within the system?
                         </button>
                     </h2>
                     <div id="collapseFour" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
                         <div class="accordion-body">
                             <div class="d-flex align-items-start">
-                                <i class="fas fa-code text-primary mt-1 me-3"></i>
-                                <div>
-                                    <p>The iRN system was developed by:</p>
-                                    <div class="developer-info">
-                                        <strong>The Artificial Intelligence and Data Innovation Office at KHCC</strong>
-                                        <br>in collaboration with
-                                        <br><strong>The Research Office (OSAR)</strong>
-                                    </div>
-                                    <div class="alert alert-info mt-3">
-                                        <i class="fas fa-info-circle"></i> The system is continuously updated and maintained to meet research community needs.
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Messaging System -->
-                <div class="accordion-item">
-                    <h2 class="accordion-header" id="headingFive">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFive">
-                            Can I use the messaging system for communication?
-                        </button>
-                    </h2>
-                    <div id="collapseFive" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
-                        <div class="accordion-body">
-                            <div class="d-flex align-items-start">
                                 <i class="fas fa-comments text-primary mt-1 me-3"></i>
                                 <div>
-                                    <p><strong>We highly recommend using the messaging system for all submission-related communications.</strong></p>
-                                    
-                                    <h5>Benefits of Using the System:</h5>
-                                    <ul class="messaging-benefits">
-                                        <li>All communications are stored and archived</li>
-                                        <li>Messages can be easily retrieved for reference</li>
-                                        <li>Maintains a complete communication history</li>
-                                        <li>Ensures transparency in the review process</li>
-                                        <li>Facilitates efficient communication tracking</li>
+                                    <h5>Messaging System Features</h5>
+                                    <ul>
+                                        <li>Standard inbox functionality</li>
+                                        <li>Compose new messages</li>
+                                        <li>View sent messages</li>
+                                        <li>Receive system notifications</li>
+                                        <li>Email notifications for all communications</li>
                                     </ul>
+
                                     <div class="alert alert-info">
-                                        <i class="fas fa-lightbulb"></i> Using the system's messaging feature helps maintain a complete record of all submission-related communications.
+                                        <i class="fas fa-info-circle"></i> All research-related communications must use the system messaging for documentation purposes.
                                     </div>
+
+                                    <h5>Additional Resources</h5>
+                                    <ul>
+                                        <li>Operation manual for detailed guidance</li>
+                                        <li>FAQ section for common questions</li>
+                                        <li>Feedback system for suggestions and issues</li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
@@ -187,46 +203,31 @@
         border-color: rgba(0,0,0,.125);
     }
 
-    .timeline-list li {
-        margin-bottom: 0.5rem;
+    .accordion-body ul, .accordion-body ol {
         padding-left: 1.5rem;
-        position: relative;
     }
 
-    .timeline-list li:before {
-        content: "•";
-        color: var(--primary-color);
-        position: absolute;
-        left: 0;
+    .accordion-body li {
+        margin-bottom: 0.5rem;
     }
 
-    .security-features > li {
+    .accordion-body ul ul {
+        margin-top: 0.5rem;
+    }
+
+    .alert {
+        margin-top: 1rem;
         margin-bottom: 1rem;
     }
 
-    .security-features ul {
-        margin-top: 0.5rem;
-        margin-left: 1.5rem;
-    }
-
-    .developer-info {
-        padding: 1rem;
-        background: #f8f9fa;
-        border-radius: 0.5rem;
-        margin-top: 1rem;
-    }
-
-    .messaging-benefits li {
-        margin-bottom: 0.5rem;
-        padding-left: 1.5rem;
-        position: relative;
-    }
-
-    .messaging-benefits li:before {
-        content: "✓";
+    h5 {
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
         color: var(--primary-color);
-        position: absolute;
-        left: 0;
+    }
+
+    h5:first-child {
+        margin-top: 0;
     }
 </style>
-{% endblock %} 
+{% endblock %}

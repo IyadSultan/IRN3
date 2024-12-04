@@ -370,22 +370,25 @@
                             <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
                                href="{% url 'submission:dashboard' %}">
                                 <i class="fas fa-tachometer-alt"></i>
-                                <span>Dashboard</span>
+                                <span>My Submissions</span>
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link {% if request.resolver_match.url_name == 'start_submission' %}active{% endif %}" 
                                href="{% url 'submission:start_submission' %}">
                                 <i class="fas fa-plus-circle"></i>
-                                <span>Start New Submission</span>
+                                <span>Start Submission</span>
                             </a>
                         </li>
                         <li class="nav-item">
+                            {% if request.user.groups.all|dictsort:"name"|join:"," in "IRB,OSAR,RC" %}
                             <a class="nav-link {% if request.resolver_match.url_name == 'review_dashboard' %}active{% endif %}" 
                                href="{% url 'review:review_dashboard' %}">
                                 <i class="fas fa-clipboard-check"></i>
                                 <span>Review Dashboard</span>
                             </a>
+                            {% endif %}
+                             
                         </li>
                         <li class="nav-item">
                             <a href="{% url 'review:quality_dashboard' %}" class="nav-link">

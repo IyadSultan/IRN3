@@ -1,5 +1,5 @@
 # Combined Python and HTML files
-# Generated from directory: C:\Users\isultan\Documents\IRN3\review
+# Generated from directory: C:\Users\isult\Dropbox\AI\Projects\IRN3\review
 # Total files found: 62
 
 
@@ -293,45 +293,39 @@
 <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
 <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.3/css/buttons.bootstrap4.min.css">
 <style>
-    .btn-green {
-        background-color: #28a745;
-        border-color: #28a745;
-        color: #fff;
-    }
-    .btn-green:hover {
-        background-color: #218838;
-        border-color: #1e7e34;
-        color: #fff;
+    /* Root CSS Variables */
+    :root {
+        /* Status Colors */
+        --draft-color: #6c757d;
+        --draft-border-color: #5a6268;
+        
+        --submitted-color: #007bff;
+        --submitted-border-color: #0056b3;
+        
+        --under-review-color: #ffc107;
+        --under-review-border-color: #d39e00;
+        
+        --revision-requested-color: #f8f9fa;
+        --revision-requested-text-color: #212529;
+        --revision-requested-border-color: #dae0e5;
+        
+        --rejected-color: #dc3545;
+        --rejected-border-color: #bd2130;
+        
+        --accepted-color: #28a745;
+        --accepted-border-color: #1e7e34;
+        
+        --closed-color: #343a40;
+        --closed-border-color: #1d2124;
+        
+        --withdrawn-color: #6610f2;
+        --withdrawn-border-color: #520dc2;
+        
+        --document-missing-color: #fd7e14;
+        --document-missing-border-color: #c96a0c;
     }
     
-    .form-switch {
-        padding-left: 2.5em;
-    }
-    
-    .form-check-input {
-        cursor: pointer;
-    }
-    
-    .visibility-toggles {
-        padding: 0.5rem;
-    }
-
-    .filter-section {
-        background-color: #f8f9fa;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-radius: 0.25rem;
-    }
-    
-    .filter-section select {
-        min-width: 200px;
-    }
-
-    .action-buttons .btn {
-        margin-right: 0.25rem;
-        margin-bottom: 0.25rem;
-    }
-
+    /* Status Badge Base Styles */
     .status-badge {
         display: inline-block;
         padding: 0.375rem 0.75rem;
@@ -343,52 +337,127 @@
         vertical-align: middle;
         border-radius: 0.25rem;
         transition: all 0.15s ease-in-out;
-        min-width: 100px;
+        min-width: 85px;
     }
-
-    .status-badge.draft { 
-        background-color: #6c757d;
+    
+    /* Status Badge Variations */
+    .status-badge.draft {
+        background-color: var(--draft-color);
         color: white;
-        border: 1px solid #5a6268;
+        border: 1px solid var(--draft-border-color);
     }
-    .status-badge.submitted { 
-        background-color: #007bff;
+    
+    .status-badge.submitted {
+        background-color: var(--submitted-color);
         color: white;
-        border: 1px solid #0056b3;
+        border: 1px solid var(--submitted-border-color);
     }
-    .status-badge.under-review { 
-        background-color: #17a2b8;
-        color: white;
-        border: 1px solid #138496;
-    }
-    .status-badge.revision-requested { 
-        background-color: #ffc107;
+    
+    .status-badge.under-review {
+        background-color: var(--under-review-color);
         color: #000;
-        border: 1px solid #d39e00;
+        border: 1px solid var(--under-review-border-color);
     }
-    .status-badge.rejected { 
-        background-color: #dc3545;
+    
+    .status-badge.revision-requested {
+        background-color: var(--revision-requested-color);
+        color: var(--revision-requested-text-color);
+        border: 1px solid var(--revision-requested-border-color);
+    }
+    
+    .status-badge.rejected {
+        background-color: var(--rejected-color);
         color: white;
-        border: 1px solid #bd2130;
+        border: 1px solid var(--rejected-border-color);
     }
-    .status-badge.accepted { 
+    
+    .status-badge.accepted {
+        background-color: var(--accepted-color);
+        color: white;
+        border: 1px solid var(--accepted-border-color);
+    }
+    
+    .status-badge.closed {
+        background-color: var(--closed-color);
+        color: white;
+        border: 1px solid var(--closed-border-color);
+    }
+    
+    .status-badge.withdrawn {
+        background-color: var(--withdrawn-color);
+        color: white;
+        border: 1px solid var(--withdrawn-border-color);
+    }
+    
+    .status-badge.document-missing {
+        background-color: var(--document-missing-color);
+        color: white;
+        border: 1px solid var(--document-missing-border-color);
+    }
+    
+    /* Badge Hover Effects */
+    .status-badge:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+    
+    /* Button Styles */
+    .btn-green {
         background-color: #28a745;
-        color: white;
-        border: 1px solid #1e7e34;
+        border-color: #28a745;
+        color: #fff;
     }
-
-    /* Filter section styling */
+    
+    .btn-green:hover {
+        background-color: #218838;
+        border-color: #1e7e34;
+        color: #fff;
+    }
+    
+    /* Form Switch Styles */
+    .form-switch {
+        padding-left: 2.5em;
+    }
+    
+    .form-check-input {
+        cursor: pointer;
+    }
+    
+    /* Visibility Toggles */
+    .visibility-toggles {
+        padding: 0.5rem;
+    }
+    
+    /* Filter Section Styles */
+    .filter-section {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 0.25rem;
+    }
+    
+    .filter-section select {
+        min-width: 200px;
+    }
+    
+    /* Action Buttons */
+    .action-buttons .btn {
+        margin-right: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    /* Card and Form Styles */
     .card-title {
         font-size: 1.5rem;
         font-weight: 500;
         margin-bottom: 0;
     }
-
+    
     .form-label {
         font-weight: 500;
         margin-bottom: 0.5rem;
     }
-
+    
     .form-select, .form-control {
         height: calc(1.5em + 0.75rem + 2px);
         padding: 0.375rem 0.75rem;
@@ -398,13 +467,32 @@
         border-radius: 0.25rem;
         transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
     }
-
+    
     .form-select:focus, .form-control:focus {
         border-color: #80bdff;
         outline: 0;
         box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
     }
-</style>
+    
+    /* Debug Styles - Remove in production */
+    .status-badge:not([class*='draft']):not([class*='submitted']):not([class*='under-review'])
+    :not([class*='revision-requested']):not([class*='rejected']):not([class*='accepted'])
+    :not([class*='closed']):not([class*='withdrawn']):not([class*='document-missing']) {
+        border: 2px dashed red !important;
+        position: relative;
+    }
+    
+    .status-badge:not([class*='draft']):not([class*='submitted']):not([class*='under-review'])
+    :not([class*='revision-requested']):not([class*='rejected']):not([class*='accepted'])
+    :not([class*='closed']):not([class*='withdrawn']):not([class*='document-missing']):after {
+        content: 'No matching class!';
+        position: absolute;
+        bottom: -20px;
+        left: 0;
+        font-size: 10px;
+        color: red;
+    }
+    </style>
 {% endblock %}
 
 {% block content %}
@@ -526,6 +614,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                         <table id="osarSubmissionsTable" class="table table-hover">
                             <thead>
                                 <tr>
+                                    <th>KHCC #</th>
                                     <th>Title</th>
                                     <th>Submission Date</th>
                                     <th>Primary Investigator</th>
@@ -534,16 +623,19 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                     <th>Days</th>
                                     <th>✅</th>
                                     <th>Status</th>
-                                    <th>KHCC #</th>
                                     {% if is_osar %}
                                         <th>Visibility</th>
                                     {% endif %}
                                     <th>Actions</th>
+                                    {% if submission.status == 'under_review' and is_osar %}
+                                        <th>Decision</th>
+                                    {% endif %}
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for submission in submissions %}
                                 <tr>
+                                    <td>{{ submission.khcc_number|default:"-" }}</td>
                                     <td>{{ submission.title }}</td>
                                     <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
                                     <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
@@ -556,7 +648,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                                     <strong>
                                                         <a href="{% url 'messaging:compose_message' %}?recipient={{ request.requested_to.id }}&submission={{ submission.id }}" 
                                                            class="text-primary text-decoration-none">
-                                                            {{ request.requested_to.userprofile.user}}
+                                                            {{ request.requested_to.user}}
                                                         </a>
                                                     </strong>
                                                 </li>
@@ -607,7 +699,6 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                             {{ submission.get_status_display }}
                                         </span>
                                     </td>
-                                    <td>{{ submission.khcc_number|default:"-" }}</td>
                                     {% if is_osar %}
                                         <td>
                                             <div id="toggle-container-{{ submission.temporary_id }}" class="visibility-toggles"></div>
@@ -630,59 +721,61 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                         <div class="action-buttons">
                                             {% if is_osar %}
                                                 <a href="{% url 'review:create_review_request' submission.pk%}" 
-                                                   class="btn btn-primary btn-sm" style="width: 100px;">
+                                                   class="btn btn-primary btn-sm" style="width: 85px;">
                                                     <i class="fas fa-plus"></i> Request
                                                 </a>
                                             {% endif %}
                                             <a href="{% url 'review:review_summary' submission.pk %}" 
-                                               class="btn btn-success btn-sm" style="width: 100px;">
+                                               class="btn btn-success btn-sm" style="width: 85px;">
                                                 <i class="fas fa-info-circle"></i> Details
                                             </a>
                                             {% if is_osar and not submission.khcc_number %}
                                                 <a href="{% url 'review:assign_irb' submission.pk %}" 
-                                                   class="btn btn-info btn-sm" style="width: 100px;">
+                                                   class="btn btn-info btn-sm" style="width: 85px;">
                                                     <i class="fas fa-hashtag"></i> KHCC #
                                                 </a>
                                             {% endif %}
                                             <a href="{% url 'review:view_notepad' submission.pk group_name %}" 
                                                class="btn {% if submission.has_unread_notes %}btn-danger{% else %}btn-info{% endif %} btn-sm" 
-                                               style="width: 100px;">
+                                               style="width: 85px;">
                                                 <i class="fas fa-sticky-note"></i> Notes
                                                
                                             </a>
-
-                                            {% if submission.status == 'under_review' and is_osar %}
-                                                <!-- Decision buttons only shown for IRB members -->
-                                                <button type="button" 
-                                                        class="btn btn-warning btn-sm decision-btn" 
-                                                        style="width: 100px;"
-                                                        data-bs-toggle="modal" 
-                                                        data-bs-target="#decisionModal"
-                                                        data-submission-id="{{ submission.pk }}"
-                                                        data-action="revision_requested">
-                                                    <i class="fas fa-undo"></i> Revision
-                                                </button>
-                                                <button type="button" 
-                                                        class="btn btn-danger btn-sm decision-btn" 
-                                                        style="width: 100px;"
-                                                        data-bs-toggle="modal" 
-                                                        data-bs-target="#decisionModal"
-                                                        data-submission-id="{{ submission.pk }}"
-                                                        data-action="rejected">
-                                                    <i class="fas fa-times"></i> Reject
-                                                </button>
-                                                <button type="button" 
-                                                        class="btn btn-success btn-sm decision-btn" 
-                                                        data-bs-toggle="modal" 
-                                                        style="width: 100px;"
-                                                        data-bs-target="#decisionModal"
-                                                        data-submission-id="{{ submission.pk }}"
-                                                        data-action="accepted">
-                                                    <i class="fas fa-check"></i> Accept
-                                                </button>
-                                            {% endif %}
                                         </div>
                                     </td>
+                                    {% if submission.status == 'under_review' and is_osar %}
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button type="button" 
+                                                    class="btn btn-warning btn-sm decision-btn" 
+                                                    style="width: 85px;"
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#decisionModal"
+                                                    data-submission-id="{{ submission.pk }}"
+                                                    data-action="revision_requested">
+                                                <i class="fas fa-undo"></i>Revision
+                                            </button>
+                                            <button type="button" 
+                                                    class="btn btn-danger btn-sm decision-btn" 
+                                                    style="width: 85px;"
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#decisionModal"
+                                                    data-submission-id="{{ submission.pk }}"
+                                                    data-action="rejected">
+                                                <i class="fas fa-times"></i> Reject
+                                            </button>
+                                            <button type="button" 
+                                                    class="btn btn-success btn-sm decision-btn" 
+                                                    data-bs-toggle="modal" 
+                                                    style="width: 85px;"
+                                                    data-bs-target="#decisionModal"
+                                                    data-submission-id="{{ submission.pk }}"
+                                                    data-action="accepted">
+                                                <i class="fas fa-check"></i> Accept
+                                            </button>
+                                        </div>
+                                    </td>
+                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -771,7 +864,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                         <i class="fas fa-clock"></i> Request Extension
                                     </a>
                                     <a href="{% url 'review:review_summary' review.submission.pk %}" class="btn btn-success btn-sm">
-                                        <i class="fas fa-info-circle"></i> Details
+                                        <i class="fas fa-info-circle"></i>  Details
                                     </a>
                                 </div>
                             </td>
@@ -4648,6 +4741,12 @@ class ReviewRequest(models.Model):
         help_text="Whether this reviewer can forward to others"
     )
 
+    @classmethod
+    def can_create_review_request(cls, user):
+        """Check if the user can create a review request."""
+        # Check if the user is in any of the required groups
+        return user.groups.filter(name__in=['IRB', 'OSAR', 'RC']).exists()
+
     @property
     def is_overdue(self):
         return self.deadline < timezone.now().date()
@@ -5467,30 +5566,55 @@ iRN System
     return message
 
 
+
 def send_irb_decision_notification(submission, decision, comments):
-    """Create notification message for IRB decisions."""
-    message = Message.objects.create(
-        sender=get_system_user(),
-        subject=f'IRB Decision - {submission.title}',
-        body=f"""
-Dear {submission.primary_investigator.userprofile.full_name},
+    system_user = get_system_user()
+    decision_display = decision.replace('_', ' ').title()
+    
+    instructions = {
+        'revision_requested': 'Please review the comments and submit a revised version.',
+        'accepted': 'Congratulations! Your submission has been accepted.',
+        'rejected': 'If you have any questions, please contact the OSAR office.'
+    }.get(decision, '')
 
-The IRB has made a decision regarding your submission "{submission.title}".
-
-Decision: {decision.replace('_', ' ').title()}
-
-{comments if comments else ''}
-
-{'Please review the comments and submit a revised version.' if decision == 'revision_required' else ''}
-
-Best regards,
-AIDI System
-        """.strip(),
-        # study_name=submission.title,
+    # Decision record message
+    decision_msg = Message.objects.create(
+        sender=system_user,
+        subject=f'Submission Decision - {decision_display}',
+        body=comments,
+        message_type='decision',
         related_submission=submission
     )
-    message.recipients.add(submission.primary_investigator)
-    return message
+    decision_msg.recipients.add(submission.primary_investigator)
+
+    # Notification message 
+    notif_body = f"""Dear {submission.primary_investigator.userprofile.full_name},
+
+The OSAR office has made a decision regarding your submission "{submission.title}".
+
+Decision: {decision_display}
+
+Comments:
+{comments if comments else 'No additional comments provided.'}
+
+{instructions}
+
+Best regards,
+AIDI System""".strip()
+
+    notification = Message.objects.create(
+        sender=system_user,
+        subject=f'Notification: {submission.title} - {decision_display}',
+        body=notif_body,
+        message_type='notification', 
+        related_submission=submission
+    )
+
+    notification.recipients.add(submission.primary_investigator)
+    if research_team := submission.get_research_team():
+        notification.cc.add(*research_team)
+
+    return decision_msg, notification
 
 # Contents from: .\utils\pdf_generator.py
 # review/utils/pdf_generator.py
@@ -5868,11 +5992,16 @@ class RCDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 ######################
 
 
-class CreateReviewRequestView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
+class CreateReviewRequestView(LoginRequiredMixin, CreateView):
     model = ReviewRequest
     form_class = ReviewRequestForm
     template_name = 'review/create_review_request.html'
-    permission_required = 'review.can_create_review_request'
+    
+    def dispatch(self, request, *args, **kwargs):
+        self.submission = get_object_or_404(Submission, pk=kwargs['submission_id'])
+        if not ReviewRequest.can_create_review_request(request.user):
+            raise PermissionDenied("You don't have permission to create review requests.")
+        return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
         initial = super().get_initial()
