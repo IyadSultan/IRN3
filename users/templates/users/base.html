@@ -269,10 +269,16 @@
             background-color: #fd7e14 !important;  /* orange */
             color: white !important;
         }
-        .badge-under_revision {
+        .badge-under_review {
             background-color: #0dcaf0 !important;  /* light blue */
             color: white !important;
         }
+
+        .badge-documents_pending {
+            background-color: #0dcaf0 !important;  /* light blue */
+            color: white !important;
+        }
+
         .badge-rejected {
             background-color: #dc3545 !important;  /* red */
             color: white !important;
@@ -286,6 +292,10 @@
             background-color: #6c757d !important;  /* gray */
             color: white !important;
         }
+        .badge-pending_irb_decision {
+            background-color: #20c997 !important;  /* teal */
+            color: white !important;
+        }
 
         /* Message Status Badges */
         .badge-read {
@@ -295,6 +305,29 @@
         .badge-unread {
             background-color: #0d6efd !important;  /* blue */
             color: white !important;
+        }
+
+        /* Table Styles */
+        .table td {
+            vertical-align: middle;
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+        }
+
+        /* Notification dot */
+        .position-absolute.bg-danger {
+            width: 2px;
+            height: 2px;
+            margin-top: -3px;
+            border: 1.5px solid #fff;
+        }
+
+        /* Dot position */
+        .btn-info.position-relative .position-absolute {
+            transform: translate(-50%, -50%);
+            left: 75%;
         }
     </style>
 

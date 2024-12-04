@@ -49,7 +49,7 @@
                             <td>{{ submission.title|default:"" }}</td>
                             <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
                             <td>
-                                <span class="badge badge-{{ submission.status|lower }}">
+                                <span class="badge badge-{{ submission.status|slugify }}">
                                     {{ submission.get_status_display|default:"" }}
                                 </span>
                             </td>
@@ -173,64 +173,3 @@ $(document).ready(function() {
 </script>
 {% endblock %}
 
-{% block extra_css %}
-<style>
-    .btn-group {
-        gap: 0.5rem;
-    }
-    
-    .badge {
-        padding: 0.5em 0.8em;
-        font-size: 0.9em;
-        font-weight: 500;
-    }
-
-    .badge-Under_Review {
-        background-color: #d1831d;
-        color: #fff;
-    }
-
-
-    .badge-submitted {
-        background-color: #28a745;
-        color: #fff;
-    }
-
-    .badge-draft {
-        background-color: #6c757d;
-        color: #fff;
-    }
-
-    .badge-document_missing {
-        background-color: #6f42c1;
-        color: #fff;
-    }
-
-    .badge-withdrawn {
-        background-color: #6c757d;
-        color: #fff;
-    }
-
-    .table td {
-        vertical-align: middle;
-    }
-
-    .btn-sm {
-        padding: 0.25rem 0.5rem;
-    }
-
-    /* Adjusted notification dot */
-    .position-absolute.bg-danger {
-        width: 2px;
-        height: 2px;
-        margin-top: -3px;
-        border: 1.5px solid #fff;
-    }
-
-    /* Adjusted dot position */
-    .btn-info.position-relative .position-absolute {
-        transform: translate(-50%, -50%);
-        left: 75%;
-    }
-</style>
-{% endblock %}
