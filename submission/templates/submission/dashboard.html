@@ -88,7 +88,7 @@
                                 {% else %}
                                     <a href="{% url 'submission:version_history' submission.temporary_id %}" 
                                        class="btn btn-sm btn-info" 
-                                       title="Version History">
+                                       title="History">
                                         <i class="fas fa-history"></i>
                                     </a>
                                         {% endif %}
@@ -185,10 +185,11 @@ $(document).ready(function() {
         font-weight: 500;
     }
 
-    .badge-document_missing {
-        background-color: #ffc107;
-        color: #000;
+    .badge-Under_Review {
+        background-color: #d1831d;
+        color: #fff;
     }
+
 
     .badge-submitted {
         background-color: #28a745;
