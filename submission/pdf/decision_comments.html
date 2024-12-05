@@ -1,0 +1,73 @@
+{# templates/submission/pdf/decision_comments.html #}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 30px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 20px 0;
+        }
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #666;
+        }
+        .decision {
+            padding: 10px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .comments {
+            white-space: pre-wrap;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Review Decision Details</h1>
+        <p>Generated on: {{ decision_date|date:"F d, Y H:i" }}</p>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Submission Information</div>
+        <p><strong>Title:</strong> {{ submission.title }}</p>
+        <p><strong>Primary Investigator:</strong> {{ submission.primary_investigator.userprofile.full_name }}</p>
+        <p><strong>Study Type:</strong> {{ submission.study_type }}</p>
+        <p><strong>KHCC #:</strong> {{ submission.khcc_number|default:"Not assigned" }}</p>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Decision Information</div>
+        <p><strong>Decision Date:</strong> {{ decision_date|date:"F d, Y H:i" }}</p>
+        <p><strong>Decided By:</strong> {{ decided_by }}</p>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Comments</div>
+        <div class="comments">
+            {{ comments }}
+        </div>
+    </div>
+
+    <div class="footer">
+        Generated from iRN System - Confidential
+    </div>
+</body>
+</html>

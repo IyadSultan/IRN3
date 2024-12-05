@@ -786,7 +786,10 @@ AIDI System
                 messages.error(request, f"Error during submission: {str(e)}")
                 return redirect('submission:dashboard')
 
-        
+        elif action == 'back':
+                logger.error(f"Error in submission finalization: {str(e)}")
+                messages.error(request, f"Error during submission: {str(e)}")
+                return redirect('submission:dashboard')    
         if request.method == 'POST':
             action = request.POST.get('action')
             
@@ -942,7 +945,6 @@ AIDI System
     }
 
     return render(request, 'submission/submission_review.html', context)
-
 
 @login_required
 def document_delete(request, submission_id, document_id):

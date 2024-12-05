@@ -1,8 +1,83 @@
 # Combined Python and HTML files
-# Generated from directory: C:\Users\isult\Dropbox\AI\Projects\IRN3\submission
-# Total files found: 68
+# Generated from directory: C:\Users\isultan\Documents\IRN3\submission
+# Total files found: 73
 
 
+
+# Contents from: .\pdf\decision_comments.html
+{# templates/submission/pdf/decision_comments.html #}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 30px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 20px 0;
+        }
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #666;
+        }
+        .decision {
+            padding: 10px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .comments {
+            white-space: pre-wrap;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Review Decision Details</h1>
+        <p>Generated on: {{ decision_date|date:"F d, Y H:i" }}</p>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Submission Information</div>
+        <p><strong>Title:</strong> {{ submission.title }}</p>
+        <p><strong>Primary Investigator:</strong> {{ submission.primary_investigator.userprofile.full_name }}</p>
+        <p><strong>Study Type:</strong> {{ submission.study_type }}</p>
+        <p><strong>KHCC #:</strong> {{ submission.khcc_number|default:"Not assigned" }}</p>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Decision Information</div>
+        <p><strong>Decision Date:</strong> {{ decision_date|date:"F d, Y H:i" }}</p>
+        <p><strong>Decided By:</strong> {{ decided_by }}</p>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Comments</div>
+        <div class="comments">
+            {{ comments }}
+        </div>
+    </div>
+
+    <div class="footer">
+        Generated from iRN System - Confidential
+    </div>
+</body>
+</html>
 
 # Contents from: .\templates\submission\add_coinvestigator.html
 {% extends 'users/base.html' %}
@@ -600,7 +675,7 @@ $(document).ready(function() {
                             <td>{{ submission.title|default:"" }}</td>
                             <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
                             <td>
-                                <span class="badge badge-{{ submission.status|lower }}">
+                                <span class="badge badge-{{ submission.status|slugify }}">
                                     {{ submission.get_status_display|default:"" }}
                                 </span>
                             </td>
@@ -724,67 +799,7 @@ $(document).ready(function() {
 </script>
 {% endblock %}
 
-{% block extra_css %}
-<style>
-    .btn-group {
-        gap: 0.5rem;
-    }
-    
-    .badge {
-        padding: 0.5em 0.8em;
-        font-size: 0.9em;
-        font-weight: 500;
-    }
 
-    .badge-Under_Review {
-        background-color: #d1831d;
-        color: #fff;
-    }
-
-
-    .badge-submitted {
-        background-color: #28a745;
-        color: #fff;
-    }
-
-    .badge-draft {
-        background-color: #6c757d;
-        color: #fff;
-    }
-
-    .badge-document_missing {
-        background-color: #6f42c1;
-        color: #fff;
-    }
-
-    .badge-withdrawn {
-        background-color: #6c757d;
-        color: #fff;
-    }
-
-    .table td {
-        vertical-align: middle;
-    }
-
-    .btn-sm {
-        padding: 0.25rem 0.5rem;
-    }
-
-    /* Adjusted notification dot */
-    .position-absolute.bg-danger {
-        width: 2px;
-        height: 2px;
-        margin-top: -3px;
-        border: 1.5px solid #fff;
-    }
-
-    /* Adjusted dot position */
-    .btn-info.position-relative .position-absolute {
-        transform: translate(-50%, -50%);
-        left: 75%;
-    }
-</style>
-{% endblock %}
 
 # Contents from: .\templates\submission\dynamic_actions.html
 {# submission/dynamic_form.html #}
@@ -2204,50 +2219,46 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                 </div>
-                <!-- OSAR Decision History -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h4 class="mb-0">Review Decisions History</h4>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Decision</th>
-                                        <th>Made By</th>
-                                        <th>Comments</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% with decision_messages=submission.messages.all|dictsort:'-created_at' %}
-                                    {% for message in decision_messages %}
-                                        {% if message.message_type == 'decision' %}
-                                        <tr>
-                                            <td>{{ message.created_at|date:"Y-m-d H:i" }}</td>
-                                            <td>
-                                                <span class="badge {% if 'accept' in message.subject|lower %}bg-success
-                                                            {% elif 'reject' in message.subject|lower %}bg-danger
-                                                            {% else %}bg-warning{% endif %}">
-                                                    {{ message.subject|cut:"Submission Decision - " }}
-                                                </span>
-                                            </td>
-                                            <td>{{ message.sender.userprofile.full_name }}</td>
-                                            <td>{{ message.body|linebreaksbr }}</td>
-                                        </tr>
-                                        {% endif %}
-                                    {% empty %}
-                                        <tr>
-                                            <td colspan="4" class="text-center">No decisions have been made yet.</td>
-                                        </tr>
-                                    {% endfor %}
-                                    {% endwith %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+<!-- In version_history.html -->
+<!-- OSAR Decision History -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h4 class="mb-0">Review Decisions History</h4>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Decision</th>                      
+                        <th>Comments</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for message in decision_messages %}
+                    <tr>
+                        <td>{{ message.sent_at|date:"Y-m-d H:i" }}</td>
+                        <td>
+                            <span class="badge {% if 'accept' in message.subject|lower %}bg-success
+                                           {% elif 'reject' in message.subject|lower %}bg-danger
+                                           {% else %}bg-warning{% endif %}">
+                                {{ message.subject|cut:"Submission Decision - "|title }}
+                            </span>
+                        </td>
+
+                        <td>{{ message.body|linebreaksbr }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center">No decisions have been made yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
                 <!-- Navigation -->
                 <div class="mt-4">
                     <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
@@ -2612,7 +2623,14 @@ from django.contrib.auth.models import User
 from .models import Submission, Document
 from dal import autocomplete
 from django.db.models import Q
+from django import forms
+from django.contrib.auth.models import User
+from .models import ResearchAssistant, Submission  # Import all needed models
 
+from django import forms
+from django.contrib.auth.models import User
+from users.models import Role
+from .models import ResearchAssistant, CoInvestigator, Submission
 # class MessageForm(forms.ModelForm):
 #     recipients = forms.ModelMultipleChoiceField(
 #         queryset=User.objects.all(),
@@ -2650,20 +2668,15 @@ class SubmissionForm(forms.ModelForm):
             # Keep empty queryset initially - will be populated via AJAX
             self.fields['primary_investigator'].queryset = User.objects.none()
             
-        # Filter out study types that start with IRB/irb
+        # Filter out study types that start with IRB/irb or are Evaluation/Actions
         study_type_field = self.fields['study_type']
         study_type_field.queryset = study_type_field.queryset.exclude(
-            Q(name__istartswith='irb')
+            Q(name__istartswith='irb') |
+            Q(name__iexact='evaluation') |
+            Q(name__iexact='actions')
         )
 
-from django import forms
-from django.contrib.auth.models import User
-from .models import ResearchAssistant, Submission  # Import all needed models
 
-from django import forms
-from django.contrib.auth.models import User
-from users.models import Role
-from .models import ResearchAssistant, CoInvestigator, Submission
 
 class ResearchAssistantForm(forms.ModelForm):
     assistant = forms.ModelChoiceField(
@@ -4189,6 +4202,75 @@ class Migration(migrations.Migration):
     ]
 
 
+# Contents from: .\migrations\0024_submission_forms_complete.py
+# Generated by Django 5.1.3 on 2024-12-04 15:37
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("submission", "0023_versionhistory_submitted_by"),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name="submission",
+            name="forms_complete",
+            field=models.BooleanField(default=False),
+        ),
+    ]
+
+
+# Contents from: .\migrations\0025_remove_submission_forms_complete.py
+# Generated by Django 5.1.3 on 2024-12-04 15:45
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("submission", "0024_submission_forms_complete"),
+    ]
+
+    operations = [
+        migrations.RemoveField(
+            model_name="submission",
+            name="forms_complete",
+        ),
+    ]
+
+
+# Contents from: .\migrations\0026_formdataentry_study_action.py
+# Generated by Django 5.1.3 on 2024-12-04 21:24
+
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("submission", "0025_remove_submission_forms_complete"),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name="formdataentry",
+            name="study_action",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="form_data_entries",
+                to="submission.studyaction",
+            ),
+        ),
+    ]
+
+
 # Contents from: .\migrations\__init__.py
 
 
@@ -4202,7 +4284,8 @@ from django.utils import timezone
 from django.core.cache import cache
 from django.db.utils import OperationalError
 from django.apps import apps
-from iRN.constants import get_submission_status_choices
+from iRN.constants import get_submission_status_choices, COINVESTIGATOR_ROLES
+import json
 
 class StatusChoice(models.Model):
     code = models.CharField(max_length=50, unique=True)
@@ -4313,6 +4396,13 @@ class Submission(models.Model):
         non_submitters.extend([ra.user for ra in self.research_assistants.filter(can_submit=False)])
         return non_submitters
 
+    def get_research_team(self):
+        """Get all research assistants and co-investigators."""
+        team = []
+        team.extend([ci.user for ci in self.coinvestigators.all()])
+        team.extend([ra.user for ra in self.research_assistants.all()])
+        return team
+
     def has_submitted_form(self, user, form):
         """Check if a user has submitted a specific form."""
         # Direct submission check
@@ -4337,8 +4427,8 @@ class Submission(models.Model):
                 self.research_assistants.filter(user=user).exists()):
             return []
 
-        # If user has submit rights and submission is submitted/pending, no forms are pending
-        if user in self.get_submitters() and self.status in ['submitted', 'document_missing']:
+        # If user has submit rights and submission is not in 'draft', no forms are pending
+        if user in self.get_submitters() and self.status != 'draft':
             return []
 
         required_forms = self.get_required_investigator_forms()
@@ -4406,7 +4496,7 @@ class Submission(models.Model):
         non_submitters = self.get_non_submitters()
         
         # For new submissions, include submitters in check
-        if self.status not in ['submitted', 'document_missing']:
+        if self.status not in ['submitted', 'documents_pending']:
             non_submitters.extend(self.get_submitters())
 
         # Check each form
@@ -4473,19 +4563,6 @@ class Submission(models.Model):
             models.Q(show_in_irb=True, primary_investigator__groups__name='IRB') |
             models.Q(show_in_rc=True, primary_investigator__groups__name='RC')
         ).distinct()
-from django.db import models
-from django.contrib.auth.models import User
-from users.models import Role  # Add this import
-
-
-
-from django.db import models
-from django.contrib.auth.models import User
-
-# submission/models.py
-from django.db import models
-from django.contrib.auth.models import User
-from iRN.constants import COINVESTIGATOR_ROLES
 
 class CoInvestigator(models.Model):
     submission = models.ForeignKey(
@@ -4575,6 +4652,7 @@ class CoInvestigator(models.Model):
                     role='co_investigator',
                     notes=f'Roles changed from: {old_roles} to: {new_roles}'
                 )
+
 class ResearchAssistant(models.Model):
     submission = models.ForeignKey(
         'Submission',
@@ -4648,14 +4726,19 @@ class ResearchAssistant(models.Model):
         return any([self.can_edit, self.can_submit, self.can_view_communications])
 
 class FormDataEntry(models.Model):
-    submission = models.ForeignKey(
-        Submission, related_name='form_data_entries', on_delete=models.CASCADE
-    )
+    submission = models.ForeignKey(Submission, related_name='form_data_entries', on_delete=models.CASCADE)
     form = models.ForeignKey(DynamicForm, on_delete=models.CASCADE)
     field_name = models.CharField(max_length=255)
     value = models.TextField()
     date_saved = models.DateTimeField(auto_now=True)
     version = models.PositiveIntegerField(default=1)
+    study_action = models.ForeignKey(
+        'StudyAction', 
+        null=True, 
+        blank=True, 
+        on_delete=models.CASCADE,
+        related_name='form_data_entries'
+    )
 
     class Meta:
         indexes = [
@@ -4665,6 +4748,37 @@ class FormDataEntry(models.Model):
     def __str__(self):
         return f"{self.submission} - {self.form.name} - {self.field_name}"
 
+    @classmethod
+    def get_version_data(cls, submission, version):
+        """Get all form data for a specific version of a submission."""
+        entries = cls.objects.filter(
+            submission=submission,
+            version=version
+        ).select_related('form')
+
+        # Group data by form
+        form_data = {}
+        for entry in entries:
+            if entry.form_id not in form_data:
+                form_data[entry.form_id] = {
+                    'form': entry.form,
+                    'fields': {}
+                }
+
+            # Handle JSON values
+            try:
+                if isinstance(entry.value, str) and entry.value.startswith('['):
+                    value = ', '.join(json.loads(entry.value))
+                else:
+                    value = entry.value
+            except (json.JSONDecodeError, TypeError):
+                value = entry.value
+
+            form_data[entry.form_id]['fields'][entry.field_name] = value
+
+        return form_data
+    
+    
 class Document(models.Model):
     submission = models.ForeignKey(
         Submission, related_name='documents', on_delete=models.CASCADE
@@ -4880,6 +4994,16 @@ def divide(value, arg):
         return float(value) / float(arg)
     except (ValueError, TypeError, ZeroDivisionError):
         return '' 
+
+# Contents from: .\templatetags\submission_tags.py
+from django import template
+
+register = template.Library()
+
+@register.filter
+def replace_underscore(value):
+    return value.replace('_', '-')
+
 
 # Contents from: .\tests\__init__.py
 
@@ -5211,7 +5335,13 @@ urlpatterns = [
     path('download-action-pdf/<int:submission_id>/<int:action_id>/', 
          views.download_action_pdf, 
          name='download_action_pdf'),
+
+    # urls.py
+    path('action/<int:action_id>/pdf/', 
+         views.download_action_pdf, 
+         name='download_action_pdf'),
 ]
+
 
 
 # Contents from: .\utils.py
@@ -5853,6 +5983,53 @@ class PDFGenerator:
         for info in action_info:
             self.write_wrapped_text(info)
 
+    def add_dynamic_forms_for_action(self, form_entries):
+        """Add dynamic form data specific to a study action"""
+        logger.info(f"Adding dynamic forms for action")
+        
+        if not form_entries.exists():
+            logger.warning("No form entries found for this action")
+            self.write_wrapped_text("No form data available")
+            return
+            
+        # Group entries by form for better organization
+        entries_by_form = {}
+        for entry in form_entries:
+            if entry.form not in entries_by_form:
+                entries_by_form[entry.form] = []
+            entries_by_form[entry.form].append(entry)
+        
+        # Process each form
+        for dynamic_form, entries in entries_by_form.items():
+            logger.info(f"Processing form: {dynamic_form.name}")
+            
+            # Add form name as section header
+            self.add_section_header(dynamic_form.name)
+            
+            # Get field definitions with proper display names
+            field_definitions = {
+                field.name: field.displayed_name 
+                for field in dynamic_form.fields.all()
+            }
+            
+            # Process each entry
+            for entry in entries:
+                try:
+                    displayed_name = field_definitions.get(entry.field_name, entry.field_name)
+                    formatted_value = self.format_field_value(entry.value)
+                    
+                    logger.debug(f"Writing field: {displayed_name} = {formatted_value}")
+                    
+                    self.write_wrapped_text(f"{displayed_name}:", bold=True)
+                    if formatted_value:
+                        self.write_wrapped_text(formatted_value, x_offset=20)
+                    else:
+                        self.write_wrapped_text("No value provided", x_offset=20)
+                        
+                except Exception as e:
+                    logger.error(f"Error processing entry {entry.id}: {str(e)}")
+                    continue
+
     def generate(self):
         """Generate the complete PDF"""
         self.add_header()
@@ -5863,6 +6040,7 @@ class PDFGenerator:
         self.add_footer()
         self.canvas.save()
 
+    
 
 def generate_submission_pdf(submission, version, user, as_buffer=False, action_type=None, action_date=None):
     """Generate PDF for a submission"""
@@ -5895,6 +6073,63 @@ def generate_submission_pdf(submission, version, user, as_buffer=False, action_t
         logger.error(f"Error generating PDF: {str(e)}")
         logger.error("PDF generation error details:", exc_info=True)
         return None
+
+
+def generate_action_pdf(submission, study_action, form_entries, user, as_buffer=False):
+    """Generate PDF for a study action"""
+    try:
+        logger.info(f"Generating PDF for action {study_action.id} of submission {submission.temporary_id}")
+        
+        buffer = BytesIO()
+        pdf_generator = PDFGenerator(buffer, submission, study_action.version, user)
+        
+        # Add header
+        pdf_generator.add_header()
+        
+        # Add basic submission identifier
+        pdf_generator.write_wrapped_text(f"Submission ID: {submission.temporary_id}")
+        pdf_generator.write_wrapped_text(f"Title: {submission.title}")
+        pdf_generator.y -= pdf_generator.line_height
+        
+        # Add action-specific information
+        pdf_generator.add_section_header(f"{study_action.get_action_type_display()}")
+        pdf_generator.write_wrapped_text(f"Date: {study_action.date_created.strftime('%Y-%m-%d %H:%M')}")
+        pdf_generator.write_wrapped_text(f"Submitted by: {study_action.performed_by.get_full_name()}")
+        pdf_generator.y -= pdf_generator.line_height
+        
+        # Add only the form entries for this action
+        pdf_generator.add_section_header("Form Details")
+        pdf_generator.add_dynamic_forms_for_action(form_entries)
+        
+        # Add any documents attached to this action
+        action_documents = study_action.documents.all()
+        if action_documents:
+            pdf_generator.add_section_header("Attached Documents")
+            for doc in action_documents:
+                pdf_generator.write_wrapped_text(f"- {doc.filename()}")
+        
+        # Add footer
+        pdf_generator.add_footer()
+        pdf_generator.canvas.save()
+        
+        if as_buffer:
+            buffer.seek(0)
+            return buffer
+        else:
+            buffer.seek(0)
+            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+            response['Content-Disposition'] = (
+                f'attachment; filename="submission_{submission.temporary_id}_'
+                f'{study_action.action_type}_{study_action.date_created.strftime("%Y%m%d")}.pdf"'
+            )
+            return response
+            
+    except Exception as e:
+        logger.error(f"Error generating action PDF: {str(e)}")
+        logger.error("Action PDF generation error details:", exc_info=True)
+        return None
+
+
 
 
 if __name__ == "__main__":
@@ -6096,57 +6331,61 @@ def check_team_certifications(submission):
     return certification_issues
 
 # Contents from: .\views.py
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.utils import timezone
-from django.http import HttpResponse, JsonResponse
-from django.core.files.base import ContentFile
-from django.db import transaction
-from django.contrib.auth.models import User
-from django.urls import reverse
-from django.db import IntegrityError
-from dal import autocomplete
-import json
-from io import BytesIO
-import logging
+# Django imports
 from django import forms
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.core.cache import cache
+from django.core.files.base import ContentFile
+from django.db import IntegrityError, transaction
+from django.db.models import Q
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 
-from .models import (
-    Submission,
-    CoInvestigator,
-    ResearchAssistant,
-    FormDataEntry,
-    Document,
-    VersionHistory,
-    InvestigatorFormSubmission,
-    PermissionChangeLog,
-    StudyAction,
-    StudyActionDocument,
-)
+# Third party imports
+from dal import autocomplete
+from io import BytesIO
+import json
+import logging
 
+# Local imports
 from .forms import (
-    SubmissionForm,
-    ResearchAssistantForm,
     CoInvestigatorForm,
     DocumentForm,
+    ResearchAssistantForm,
+    SubmissionForm,
     generate_django_form,
 )
 from forms_builder.models import DynamicForm
 from messaging.models import Message, MessageAttachment
+from .models import (
+    CoInvestigator,
+    Document,
+    FormDataEntry,
+    InvestigatorFormSubmission,
+    PermissionChangeLog,
+    ResearchAssistant,
+    StudyAction,
+    StudyActionDocument,
+    Submission,
+    VersionHistory,
+)
 from users.models import SystemSettings, UserProfile
 from .utils import (
-    PDFGenerator, 
-    has_edit_permission, 
-    check_researcher_documents, 
-    get_next_form, 
-    get_previous_form
+    PDFGenerator,
+    check_researcher_documents,
+    get_next_form,
+    get_previous_form,
+    has_edit_permission,
 )
-from .utils.pdf_generator import generate_submission_pdf
-from .gpt_analysis import ResearchAnalyzer
-from django.core.cache import cache
+from .utils.pdf_generator import generate_submission_pdf, generate_action_pdf
 from .utils.permissions import check_submission_permission
-from django.db.models import Q
+from .gpt_analysis import ResearchAnalyzer
+from submission.utils.pdf_generator import PDFGenerator, generate_submission_pdf
+
 
 logger = logging.getLogger(__name__)
 def get_system_user():
@@ -6880,10 +7119,7 @@ AIDI System
                 messages.error(request, f"Error during submission: {str(e)}")
                 return redirect('submission:dashboard')
 
-        elif action == 'back':
-                logger.error(f"Error in submission finalization: {str(e)}")
-                messages.error(request, f"Error during submission: {str(e)}")
-                return redirect('submission:dashboard')    
+        
         if request.method == 'POST':
             action = request.POST.get('action')
             
@@ -7084,97 +7320,74 @@ def version_history(request, submission_id):
     # Get form status for all team members
     form_status = submission.get_investigator_form_status()
     
+    # Get decision messages - using sent_at instead of created_at
+    decision_messages = Message.objects.filter(
+        related_submission=submission,
+        message_type='decision'
+    ).select_related(
+        'sender__userprofile'
+    ).order_by('-sent_at')  # Changed from created_at to sent_at
+
     return render(request, 'submission/version_history.html', {
         'submission': submission,
         'histories': histories,
         'pending_forms': pending_forms,
         'show_form_alert': show_form_alert,
         'form_status': form_status,
-        'can_submit': submission.can_user_submit(request.user)
+        'can_submit': submission.can_user_submit(request.user),
+        'decision_messages': decision_messages
     })
 
 @login_required
 def compare_version(request, submission_id, version1, version2):
     """Compare two versions of a submission."""
-    submission = get_object_or_404(Submission, pk=submission_id)
-    if not has_edit_permission(request.user, submission):
-        messages.error(request, "You do not have permission to view this submission.")
+    submission = get_object_or_404(Submission, temporary_id=submission_id)
+    
+    # Check permission
+    if not submission.can_user_view(request.user):
+        messages.error(request, "You don't have permission to view this submission.")
         return redirect('submission:dashboard')
-
-    # Get entries for both versions
+    
+    # Get data for both versions
+    data_version1 = FormDataEntry.get_version_data(submission, version1)
+    data_version2 = FormDataEntry.get_version_data(submission, version2)
+    
+    # Combine all form IDs from both versions
+    all_form_ids = set(data_version1.keys()) | set(data_version2.keys())
+    
     comparison_data = []
-    
-    # Get all forms associated with this submission's study type
-    forms = submission.study_type.forms.all()
-    
-    for form in forms:
-        # Get entries for both versions
-        entries_version1 = FormDataEntry.objects.filter(
-            submission=submission,
-            form=form,
-            version=version1
-        ).select_related('form')
+    for form_id in all_form_ids:
+        form_v1 = data_version1.get(form_id, {'fields': {}})
+        form_v2 = data_version2.get(form_id, {'fields': {}})
         
-        entries_version2 = FormDataEntry.objects.filter(
-            submission=submission,
-            form=form,
-            version=version2
-        ).select_related('form')
-
-        # Convert entries to dictionaries for easier comparison
-        data_version1 = {entry.field_name: entry.value for entry in entries_version1}
-        data_version2 = {entry.field_name: entry.value for entry in entries_version2}
-
-        # Get field display names from form definition
-        field_definitions = {
-            field.name: field.displayed_name 
-            for field in form.fields.all()
-        }
-
-        # Compare fields
-        form_changes = []
-        all_fields = sorted(set(data_version1.keys()) | set(data_version2.keys()))
+        # Get all fields from both versions
+        all_fields = set(form_v1['fields'].keys()) | set(form_v2['fields'].keys())
         
-        for field in all_fields:
-            displayed_name = field_definitions.get(field, field)
-            value_version1 = data_version1.get(field, 'Not provided')
-            value_version2 = data_version2.get(field, 'Not provided')
-
-            # Handle JSON array values (e.g., checkbox selections)
-            try:
-                if isinstance(value_version1, str) and value_version1.startswith('['):
-                    value_version1_display = ', '.join(json.loads(value_version1))
-                else:
-                    value_version1_display = value_version1
-                    
-                if isinstance(value_version2, str) and value_version2.startswith('['):
-                    value_version2_display = ', '.join(json.loads(value_version2))
-                else:
-                    value_version2_display = value_version2
-            except json.JSONDecodeError:
-                value_version1_display = value_version1
-                value_version2_display = value_version2
-
-            # Only add to changes if values are different
-            if value_version1 != value_version2:
-                form_changes.append({
-                    'field': displayed_name,
-                    'version1_value': value_version1_display,
-                    'version2_value': value_version2_display
+        changes = []
+        for field in sorted(all_fields):
+            v1_value = form_v1['fields'].get(field, 'Not provided')
+            v2_value = form_v2['fields'].get(field, 'Not provided')
+            
+            # Only include if values are different
+            if v1_value != v2_value:
+                changes.append({
+                    'field': field,
+                    'previous_value': v1_value,
+                    'current_value': v2_value
                 })
-
-        # Only add form to comparison data if it has changes
-        if form_changes:
+        
+        if changes:
+            form_name = (form_v1.get('form') or form_v2.get('form')).name
             comparison_data.append({
-                'form_name': form.name,
-                'changes': form_changes
+                'form_name': form_name,
+                'changes': changes
             })
-
+    
     return render(request, 'submission/compare_versions.html', {
         'submission': submission,
-        'version1': version1,
-        'version2': version2,
-        'comparison_data': comparison_data,
+        'previous_version': version1,
+        'version': version2,
+        'comparison_data': comparison_data
     })
 
 
@@ -7623,7 +7836,10 @@ def view_submission(request, submission_id):
 
 
 # Add to views.py
+# submission/views.py
 
+
+@login_required
 def handle_study_action_form(request, submission_id, form_name, action_type):
     """Generic handler for study action forms"""
     submission = get_object_or_404(Submission, pk=submission_id)
@@ -7661,14 +7877,15 @@ def handle_study_action_form(request, submission_id, form_name, action_type):
                         status='completed'
                     )
                     
-                    # Save form data
+                    # Save form data and associate with the study action
                     for field_name, value in form.cleaned_data.items():
                         FormDataEntry.objects.create(
                             submission=submission,
                             form=dynamic_form,
                             field_name=field_name,
                             value=value,
-                            version=submission.version
+                            version=submission.version,
+                            study_action=study_action  # Associate with the action
                         )
                     
                     # Handle specific actions
@@ -7712,8 +7929,7 @@ AIDI System
                     
                     # Add OSAR recipients
                     osar_users = User.objects.filter(groups__name='OSAR')
-                    for user in osar_users:
-                        osar_message.recipients.add(user)
+                    osar_message.recipients.add(*osar_users)
                     
                     # Notify research team
                     team_message = Message.objects.create(
@@ -7735,11 +7951,10 @@ AIDI System
                     )
                     
                     # Add research team recipients
-                    team_message.recipients.add(submission.primary_investigator)
-                    for coinv in submission.coinvestigators.all():
-                        team_message.recipients.add(coinv.user)
-                    for ra in submission.research_assistants.all():
-                        team_message.recipients.add(ra.user)
+                    team_recipients = [submission.primary_investigator]
+                    team_recipients += [ci.user for ci in submission.coinvestigators.all()]
+                    team_recipients += [ra.user for ra in submission.research_assistants.all()]
+                    team_message.recipients.add(*team_recipients)
 
                     messages.success(request, f"{action_msg} successfully.")
                     return redirect('submission:version_history', submission_id=submission.temporary_id)
@@ -7756,6 +7971,7 @@ AIDI System
         'submission': submission,
         'dynamic_form': dynamic_form,
     })
+
 
 @login_required
 def study_withdrawal(request, submission_id):
@@ -7792,6 +8008,8 @@ def submission_actions(request, submission_id):
     }
     return render(request, 'submission/submission_actions.html', context)
 
+# submission/views.py
+
 @login_required
 def download_action_pdf(request, submission_id, action_id):
     """Generate and download PDF for a specific study action."""
@@ -7799,30 +8017,39 @@ def download_action_pdf(request, submission_id, action_id):
         submission = get_object_or_404(Submission, pk=submission_id)
         action = get_object_or_404(StudyAction, pk=action_id, submission=submission)
         
-        # Use a fallback version if action.version is None
-        version = action.version or submission.version
+        # Check permissions
+        if not submission.can_user_view(request.user):
+            messages.error(request, "You do not have permission to view this submission.")
+            return redirect('submission:dashboard')
+        
+        # Get form entries specifically for this action
+        form_entries = FormDataEntry.objects.filter(
+            submission=submission,
+            version=action.version,
+            study_action=action  # This is crucial - make sure entries are linked to this action
+        ).select_related('form')
+        
+        logger.info(f"Found {form_entries.count()} form entries for action {action_id}")
+        
+        if form_entries.count() == 0:
+            logger.warning(f"No form entries found for action {action_id}. Checking action details:")
+            logger.warning(f"Action type: {action.action_type}")
+            logger.warning(f"Action version: {action.version}")
+            logger.warning(f"Action submission: {action.submission_id}")
         
         # Generate PDF
-        response = generate_submission_pdf(
+        response = generate_action_pdf(
             submission=submission,
-            version=version,
-            user=request.user,
-            as_buffer=False,
-            action_type=action.action_type,  # Pass action_type instead of action object
-            action_date=action.date_created  # Pass action date if needed
+            study_action=action,
+            form_entries=form_entries,
+            user=request.user
         )
         
         if response is None:
             messages.error(request, "Error generating PDF. Please try again later.")
             logger.error(f"PDF generation failed for action {action_id}")
             return redirect('submission:version_history', submission_id=submission_id)
-            
-        # Modify the filename to include action type
-        response['Content-Disposition'] = (
-            f'attachment; filename="submission_{submission.temporary_id}_'
-            f'{action.action_type}_{action.date_created.strftime("%Y%m%d")}.pdf"'
-        )
-            
+                
         return response
 
     except Exception as e:
@@ -7830,7 +8057,7 @@ def download_action_pdf(request, submission_id, action_id):
         logger.error("Error details:", exc_info=True)
         messages.error(request, "An error occurred while generating the PDF.")
         return redirect('submission:version_history', submission_id=submission_id)
-    
+
 
 def notify_pending_forms(submission):
     """Notify team members of their pending forms."""
@@ -7954,3 +8181,4 @@ AIDI System
     # Add OSAR members as recipients
     for member in osar_members:
         message.recipients.add(member)
+
