@@ -90,3 +90,34 @@ def send_review_completion_notification(review_request):
     # Add the recipient
     message.recipients.add(recipient)
     message.save()
+
+
+def send_decision_notification(submission, action, comments, decided_by):
+    """Send notification about submission decision."""
+    system_user = get_system_user()
+    action_display = action.replace('_', ' ').title()
+    
+    message_content = f"""
+    Your submission "{submission.title}" has been {action_display}.
+    
+    Decision made by: {decided_by.get_full_name() or decided_by.username}
+    Comments: {comments}
+    """
+    
+    # Get all users who need to be notified
+    users_to_notify = set([submission.primary_investigator])
+    users_to_notify.update(
+        submission.research_assistants.filter(can_submit=True).values_list('user', flat=True)
+    )
+    users_to_notify.update(
+        submission.coinvestigators.filter(can_submit=True).values_list('user', flat=True)
+    )
+    
+    # Send notification to each user
+    for user in users_to_notify:
+        Message.objects.create(
+            sender=system_user,
+            body=message_content,
+            subject=f"Submission {action_display} - {submission.title}",
+            related_submission=submission
+        ).recipients.set([user])

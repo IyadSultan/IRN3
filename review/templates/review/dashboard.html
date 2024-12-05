@@ -1,212 +1,9 @@
 {% extends 'base.html' %}
 {% load static %}
 {% load review_tags %}
+{% csrf_token %}
 
-{% block page_specific_css %}
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.3/css/buttons.bootstrap4.min.css">
-<style>
-    /* Root CSS Variables */
-    :root {
-        /* Status Colors */
-        --draft-color: #6c757d;
-        --draft-border-color: #5a6268;
-        
-        --submitted-color: #007bff;
-        --submitted-border-color: #0056b3;
-        
-        --under-review-color: #ffc107;
-        --under-review-border-color: #d39e00;
-        
-        --revision-requested-color: #f8f9fa;
-        --revision-requested-text-color: #212529;
-        --revision-requested-border-color: #dae0e5;
-        
-        --rejected-color: #dc3545;
-        --rejected-border-color: #bd2130;
-        
-        --accepted-color: #28a745;
-        --accepted-border-color: #1e7e34;
-        
-        --closed-color: #343a40;
-        --closed-border-color: #1d2124;
-        
-        --withdrawn-color: #6610f2;
-        --withdrawn-border-color: #520dc2;
-        
-        --document-missing-color: #fd7e14;
-        --document-missing-border-color: #c96a0c;
-    }
-    
-    /* Status Badge Base Styles */
-    .status-badge {
-        display: inline-block;
-        padding: 0.375rem 0.75rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        line-height: 1.5;
-        text-align: center;
-        white-space: nowrap;
-        vertical-align: middle;
-        border-radius: 0.25rem;
-        transition: all 0.15s ease-in-out;
-        min-width: 85px;
-    }
-    
-    /* Status Badge Variations */
-    .status-badge.draft {
-        background-color: var(--draft-color);
-        color: white;
-        border: 1px solid var(--draft-border-color);
-    }
-    
-    .status-badge.submitted {
-        background-color: var(--submitted-color);
-        color: white;
-        border: 1px solid var(--submitted-border-color);
-    }
-    
-    .status-badge.under-review {
-        background-color: var(--under-review-color);
-        color: #000;
-        border: 1px solid var(--under-review-border-color);
-    }
-    
-    .status-badge.revision-requested {
-        background-color: var(--revision-requested-color);
-        color: var(--revision-requested-text-color);
-        border: 1px solid var(--revision-requested-border-color);
-    }
-    
-    .status-badge.rejected {
-        background-color: var(--rejected-color);
-        color: white;
-        border: 1px solid var(--rejected-border-color);
-    }
-    
-    .status-badge.accepted {
-        background-color: var(--accepted-color);
-        color: white;
-        border: 1px solid var(--accepted-border-color);
-    }
-    
-    .status-badge.closed {
-        background-color: var(--closed-color);
-        color: white;
-        border: 1px solid var(--closed-border-color);
-    }
-    
-    .status-badge.withdrawn {
-        background-color: var(--withdrawn-color);
-        color: white;
-        border: 1px solid var(--withdrawn-border-color);
-    }
-    
-    .status-badge.document-missing {
-        background-color: var(--document-missing-color);
-        color: white;
-        border: 1px solid var(--document-missing-border-color);
-    }
-    
-    /* Badge Hover Effects */
-    .status-badge:hover {
-        opacity: 0.9;
-        transform: translateY(-1px);
-    }
-    
-    /* Button Styles */
-    .btn-green {
-        background-color: #28a745;
-        border-color: #28a745;
-        color: #fff;
-    }
-    
-    .btn-green:hover {
-        background-color: #218838;
-        border-color: #1e7e34;
-        color: #fff;
-    }
-    
-    /* Form Switch Styles */
-    .form-switch {
-        padding-left: 2.5em;
-    }
-    
-    .form-check-input {
-        cursor: pointer;
-    }
-    
-    /* Visibility Toggles */
-    .visibility-toggles {
-        padding: 0.5rem;
-    }
-    
-    /* Filter Section Styles */
-    .filter-section {
-        background-color: #f8f9fa;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-radius: 0.25rem;
-    }
-    
-    .filter-section select {
-        min-width: 200px;
-    }
-    
-    /* Action Buttons */
-    .action-buttons .btn {
-        margin-right: 0.25rem;
-        margin-bottom: 0.25rem;
-    }
-    
-    /* Card and Form Styles */
-    .card-title {
-        font-size: 1.5rem;
-        font-weight: 500;
-        margin-bottom: 0;
-    }
-    
-    .form-label {
-        font-weight: 500;
-        margin-bottom: 0.5rem;
-    }
-    
-    .form-select, .form-control {
-        height: calc(1.5em + 0.75rem + 2px);
-        padding: 0.375rem 0.75rem;
-        font-size: 1rem;
-        line-height: 1.5;
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem;
-        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-    }
-    
-    .form-select:focus, .form-control:focus {
-        border-color: #80bdff;
-        outline: 0;
-        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-    }
-    
-    /* Debug Styles - Remove in production */
-    .status-badge:not([class*='draft']):not([class*='submitted']):not([class*='under-review'])
-    :not([class*='revision-requested']):not([class*='rejected']):not([class*='accepted'])
-    :not([class*='closed']):not([class*='withdrawn']):not([class*='document-missing']) {
-        border: 2px dashed red !important;
-        position: relative;
-    }
-    
-    .status-badge:not([class*='draft']):not([class*='submitted']):not([class*='under-review'])
-    :not([class*='revision-requested']):not([class*='rejected']):not([class*='accepted'])
-    :not([class*='closed']):not([class*='withdrawn']):not([class*='document-missing']):after {
-        content: 'No matching class!';
-        position: absolute;
-        bottom: -20px;
-        left: 0;
-        font-size: 10px;
-        color: red;
-    }
-    </style>
-{% endblock %}
+
 
 {% block content %}
 <script type="text/babel">
@@ -327,22 +124,23 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                         <table id="osarSubmissionsTable" class="table table-hover">
                             <thead>
                                 <tr>
-                                    <th>KHCC #</th>
+                                    <th>KHCC#</th>
                                     <th>Title</th>
                                     <th>Submission Date</th>
                                     <th>Primary Investigator</th>
-                                    <th>Study Type</th>
                                     <th>Requests</th>
                                     <th>Days</th>
                                     <th>✅</th>
                                     <th>Status</th>
-                                    {% if is_osar %}
+                                    {% if is_osar%}
                                         <th>Visibility</th>
                                     {% endif %}
                                     <th>Actions</th>
-                                    {% if submission.status == 'under_review' and is_osar %}
-                                        <th>Decision</th>
-                                    {% endif %}
+                                    <th>
+                                        {% if is_osar or is_irb %}
+                                            Decision
+                                        {% endif %}
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -352,7 +150,6 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                     <td>{{ submission.title }}</td>
                                     <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
                                     <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
-                                    <td>{{ submission.study_type }}</td>
                                     <td>
                                         {% if submission.review_requests.exists %}
                                             <ul class="list-unstyled mb-0">
@@ -361,7 +158,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                                     <strong>
                                                         <a href="{% url 'messaging:compose_message' %}?recipient={{ request.requested_to.id }}&submission={{ submission.id }}" 
                                                            class="text-primary text-decoration-none">
-                                                            {{ request.requested_to.user}}
+                                                            {{ request.requested_to.userprofile.user}}
                                                         </a>
                                                     </strong>
                                                 </li>
@@ -408,8 +205,8 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <span class="status-badge {{ submission.status|slugify }}">
-                                            {{ submission.get_status_display }}
+                                        <span class="badge badge-{{ submission.status|slugify }}">
+                                            {{ submission.get_status_display|default:"" }}
                                         </span>
                                     </td>
                                     {% if is_osar %}
@@ -442,10 +239,10 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                                class="btn btn-success btn-sm" style="width: 85px;">
                                                 <i class="fas fa-info-circle"></i> Details
                                             </a>
-                                            {% if is_osar and not submission.khcc_number %}
+                                            {% if is_osar or is_irb and not submission.khcc_number %}
                                                 <a href="{% url 'review:assign_irb' submission.pk %}" 
                                                    class="btn btn-info btn-sm" style="width: 85px;">
-                                                    <i class="fas fa-hashtag"></i> KHCC #
+                                                    <i class="fas fa-hashtag"></i> KHCC#
                                                 </a>
                                             {% endif %}
                                             <a href="{% url 'review:view_notepad' submission.pk group_name %}" 
@@ -456,39 +253,41 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                             </a>
                                         </div>
                                     </td>
-                                    {% if submission.status == 'under_review' and is_osar %}
                                     <td>
-                                        <div class="action-buttons">
-                                            <button type="button" 
-                                                    class="btn btn-warning btn-sm decision-btn" 
-                                                    style="width: 85px;"
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#decisionModal"
-                                                    data-submission-id="{{ submission.pk }}"
-                                                    data-action="revision_requested">
-                                                <i class="fas fa-undo"></i>Revision
-                                            </button>
-                                            <button type="button" 
-                                                    class="btn btn-danger btn-sm decision-btn" 
-                                                    style="width: 85px;"
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#decisionModal"
-                                                    data-submission-id="{{ submission.pk }}"
-                                                    data-action="rejected">
-                                                <i class="fas fa-times"></i> Reject
-                                            </button>
-                                            <button type="button" 
-                                                    class="btn btn-success btn-sm decision-btn" 
-                                                    data-bs-toggle="modal" 
-                                                    style="width: 85px;"
-                                                    data-bs-target="#decisionModal"
-                                                    data-submission-id="{{ submission.pk }}"
-                                                    data-action="accepted">
-                                                <i class="fas fa-check"></i> Accept
-                                            </button>
-                                        </div>
+                                        {% if is_osar or is_irb %}
+                                            {% if submission.status not in 'accepted,rejected,closed,withdrawn'|stringformat:'s'|split_string %}
+                                                <div class="action-buttons">
+                                                    <button type="button" 
+                                                            class="btn btn-warning btn-sm decision-btn" 
+                                                            style="width: 85px;"
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#decisionModal"
+                                                            data-submission-id="{{ submission.pk }}"
+                                                            data-action="revision_requested">
+                                                        <i class="fas fa-undo"></i>Revision
+                                                    </button>
+                                                    <button type="button" 
+                                                            class="btn btn-danger btn-sm decision-btn" 
+                                                            style="width: 85px;"
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#decisionModal"
+                                                            data-submission-id="{{ submission.pk }}"
+                                                            data-action="rejected">
+                                                        <i class="fas fa-times"></i> Reject
+                                                    </button>
+                                                    <button type="button" 
+                                                            class="btn btn-success btn-sm decision-btn" 
+                                                            style="width: 85px;"
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#decisionModal"
+                                                            data-submission-id="{{ submission.pk }}"
+                                                            data-action="accepted">
+                                                        <i class="fas fa-check"></i> Accept
+                                                    </button>
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
                                     </td>
-                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -702,46 +501,65 @@ $(document).ready(function() {
         // Reset submit button
         submitButton.disabled = false;
         submitButton.innerHTML = 'Submit Decision';
+
+        console.log('Modal opened for submission:', currentSubmissionId, 'action:', decisionAction.value);
     });
 
-    // Handle decision submission
-    submitButton.addEventListener('click', function() {
-        const comments = document.getElementById('comments').value.trim();
-        if (!comments) {
-            alert('Please provide comments for your decision');
-            return;
+ // Handle decision submission
+submitButton.addEventListener('click', function() {
+    const comments = document.getElementById('comments').value.trim();
+    if (!comments) {
+        alert('Please provide comments for your decision');
+        return;
+    }
+
+    // Show loading state
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+
+    // Create the request data
+    const requestData = {
+        action: decisionAction.value,
+        comments: comments
+    };
+
+    console.log('Submitting decision:', requestData);
+
+    fetch(`/review/submission/${currentSubmissionId}/process-decision/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.status === 'success') {
+            // Hide modal before reload
+            const modalInstance = bootstrap.Modal.getInstance(decisionModal);
+            modalInstance.hide();
+            
+            // Show success message
+            alert('Decision submitted successfully!');
+            
+            // Reload page
+            window.location.reload();
+        } else {
+            throw new Error(data.message || 'An error occurred');
         }
-
-        // Show loading state
-        this.disabled = true;
-        this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
-
-        const formData = new FormData(decisionForm);
-        
-        fetch(`/review/submission/${currentSubmissionId}/process-decision/`, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                window.location.reload();
-            } else {
-                alert(data.message || 'An error occurred');
-                this.disabled = false;
-                this.innerHTML = 'Submit Decision';
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred. Please try again.');
-            this.disabled = false;
-            this.innerHTML = 'Submit Decision';
-        });
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred. Please try again.');
+        this.disabled = false;
+        this.innerHTML = 'Submit Decision';
     });
+});
 
     // Add color classes to status badges
     document.querySelectorAll('.status-badge').forEach(badge => {

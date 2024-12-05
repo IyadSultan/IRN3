@@ -1,6 +1,6 @@
 # Combined Python and HTML files
-# Generated from directory: C:\Users\isult\Dropbox\AI\Projects\IRN3\review
-# Total files found: 62
+# Generated from directory: C:\Users\USER\Documents\IRN3\review
+# Total files found: 63
 
 
 
@@ -289,211 +289,7 @@
 {% load static %}
 {% load review_tags %}
 
-{% block extra_css %}
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.3/css/buttons.bootstrap4.min.css">
-<style>
-    /* Root CSS Variables */
-    :root {
-        /* Status Colors */
-        --draft-color: #6c757d;
-        --draft-border-color: #5a6268;
-        
-        --submitted-color: #007bff;
-        --submitted-border-color: #0056b3;
-        
-        --under-review-color: #ffc107;
-        --under-review-border-color: #d39e00;
-        
-        --revision-requested-color: #f8f9fa;
-        --revision-requested-text-color: #212529;
-        --revision-requested-border-color: #dae0e5;
-        
-        --rejected-color: #dc3545;
-        --rejected-border-color: #bd2130;
-        
-        --accepted-color: #28a745;
-        --accepted-border-color: #1e7e34;
-        
-        --closed-color: #343a40;
-        --closed-border-color: #1d2124;
-        
-        --withdrawn-color: #6610f2;
-        --withdrawn-border-color: #520dc2;
-        
-        --document-missing-color: #fd7e14;
-        --document-missing-border-color: #c96a0c;
-    }
-    
-    /* Status Badge Base Styles */
-    .status-badge {
-        display: inline-block;
-        padding: 0.375rem 0.75rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        line-height: 1.5;
-        text-align: center;
-        white-space: nowrap;
-        vertical-align: middle;
-        border-radius: 0.25rem;
-        transition: all 0.15s ease-in-out;
-        min-width: 85px;
-    }
-    
-    /* Status Badge Variations */
-    .status-badge.draft {
-        background-color: var(--draft-color);
-        color: white;
-        border: 1px solid var(--draft-border-color);
-    }
-    
-    .status-badge.submitted {
-        background-color: var(--submitted-color);
-        color: white;
-        border: 1px solid var(--submitted-border-color);
-    }
-    
-    .status-badge.under-review {
-        background-color: var(--under-review-color);
-        color: #000;
-        border: 1px solid var(--under-review-border-color);
-    }
-    
-    .status-badge.revision-requested {
-        background-color: var(--revision-requested-color);
-        color: var(--revision-requested-text-color);
-        border: 1px solid var(--revision-requested-border-color);
-    }
-    
-    .status-badge.rejected {
-        background-color: var(--rejected-color);
-        color: white;
-        border: 1px solid var(--rejected-border-color);
-    }
-    
-    .status-badge.accepted {
-        background-color: var(--accepted-color);
-        color: white;
-        border: 1px solid var(--accepted-border-color);
-    }
-    
-    .status-badge.closed {
-        background-color: var(--closed-color);
-        color: white;
-        border: 1px solid var(--closed-border-color);
-    }
-    
-    .status-badge.withdrawn {
-        background-color: var(--withdrawn-color);
-        color: white;
-        border: 1px solid var(--withdrawn-border-color);
-    }
-    
-    .status-badge.document-missing {
-        background-color: var(--document-missing-color);
-        color: white;
-        border: 1px solid var(--document-missing-border-color);
-    }
-    
-    /* Badge Hover Effects */
-    .status-badge:hover {
-        opacity: 0.9;
-        transform: translateY(-1px);
-    }
-    
-    /* Button Styles */
-    .btn-green {
-        background-color: #28a745;
-        border-color: #28a745;
-        color: #fff;
-    }
-    
-    .btn-green:hover {
-        background-color: #218838;
-        border-color: #1e7e34;
-        color: #fff;
-    }
-    
-    /* Form Switch Styles */
-    .form-switch {
-        padding-left: 2.5em;
-    }
-    
-    .form-check-input {
-        cursor: pointer;
-    }
-    
-    /* Visibility Toggles */
-    .visibility-toggles {
-        padding: 0.5rem;
-    }
-    
-    /* Filter Section Styles */
-    .filter-section {
-        background-color: #f8f9fa;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-radius: 0.25rem;
-    }
-    
-    .filter-section select {
-        min-width: 200px;
-    }
-    
-    /* Action Buttons */
-    .action-buttons .btn {
-        margin-right: 0.25rem;
-        margin-bottom: 0.25rem;
-    }
-    
-    /* Card and Form Styles */
-    .card-title {
-        font-size: 1.5rem;
-        font-weight: 500;
-        margin-bottom: 0;
-    }
-    
-    .form-label {
-        font-weight: 500;
-        margin-bottom: 0.5rem;
-    }
-    
-    .form-select, .form-control {
-        height: calc(1.5em + 0.75rem + 2px);
-        padding: 0.375rem 0.75rem;
-        font-size: 1rem;
-        line-height: 1.5;
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem;
-        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-    }
-    
-    .form-select:focus, .form-control:focus {
-        border-color: #80bdff;
-        outline: 0;
-        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-    }
-    
-    /* Debug Styles - Remove in production */
-    .status-badge:not([class*='draft']):not([class*='submitted']):not([class*='under-review'])
-    :not([class*='revision-requested']):not([class*='rejected']):not([class*='accepted'])
-    :not([class*='closed']):not([class*='withdrawn']):not([class*='document-missing']) {
-        border: 2px dashed red !important;
-        position: relative;
-    }
-    
-    .status-badge:not([class*='draft']):not([class*='submitted']):not([class*='under-review'])
-    :not([class*='revision-requested']):not([class*='rejected']):not([class*='accepted'])
-    :not([class*='closed']):not([class*='withdrawn']):not([class*='document-missing']):after {
-        content: 'No matching class!';
-        position: absolute;
-        bottom: -20px;
-        left: 0;
-        font-size: 10px;
-        color: red;
-    }
-    </style>
-{% endblock %}
+
 
 {% block content %}
 <script type="text/babel">
@@ -614,20 +410,19 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                         <table id="osarSubmissionsTable" class="table table-hover">
                             <thead>
                                 <tr>
-                                    <th>KHCC #</th>
+                                    <th>KHCC#</th>
                                     <th>Title</th>
                                     <th>Submission Date</th>
                                     <th>Primary Investigator</th>
-                                    <th>Study Type</th>
                                     <th>Requests</th>
                                     <th>Days</th>
                                     <th>✅</th>
                                     <th>Status</th>
-                                    {% if is_osar %}
+                                    {% if is_osar%}
                                         <th>Visibility</th>
                                     {% endif %}
                                     <th>Actions</th>
-                                    {% if submission.status == 'under_review' and is_osar %}
+                                    {% if is_osar and submission.status not in 'accepted,rejected,closed,withdrawn'|stringformat:'s'|split_string or is_irb and submission.status not in 'accepted,rejected,closed,withdrawn'|stringformat:'s'|split_string %}
                                         <th>Decision</th>
                                     {% endif %}
                                 </tr>
@@ -639,7 +434,6 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                     <td>{{ submission.title }}</td>
                                     <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
                                     <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
-                                    <td>{{ submission.study_type }}</td>
                                     <td>
                                         {% if submission.review_requests.exists %}
                                             <ul class="list-unstyled mb-0">
@@ -695,8 +489,8 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <span class="status-badge {{ submission.status|slugify }}">
-                                            {{ submission.get_status_display }}
+                                        <span class="badge badge-{{ submission.status|slugify }}">
+                                            {{ submission.get_status_display|default:"" }}
                                         </span>
                                     </td>
                                     {% if is_osar %}
@@ -729,10 +523,10 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                                class="btn btn-success btn-sm" style="width: 85px;">
                                                 <i class="fas fa-info-circle"></i> Details
                                             </a>
-                                            {% if is_osar and not submission.khcc_number %}
+                                            {% if is_osar or is_irb and not submission.khcc_number %}
                                                 <a href="{% url 'review:assign_irb' submission.pk %}" 
                                                    class="btn btn-info btn-sm" style="width: 85px;">
-                                                    <i class="fas fa-hashtag"></i> KHCC #
+                                                    <i class="fas fa-hashtag"></i> KHCC#
                                                 </a>
                                             {% endif %}
                                             <a href="{% url 'review:view_notepad' submission.pk group_name %}" 
@@ -743,7 +537,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                             </a>
                                         </div>
                                     </td>
-                                    {% if submission.status == 'under_review' and is_osar %}
+                                    {% if is_osar and submission.status not in 'accepted,rejected,closed,withdrawn'|stringformat:'s'|split_string or is_irb and submission.status not in 'accepted,rejected,closed,withdrawn'|stringformat:'s'|split_string %}
                                     <td>
                                         <div class="action-buttons">
                                             <button type="button" 
@@ -3144,6 +2938,53 @@ $(document).ready(function() {
         </div>
     </div>
 
+    <!-- Submission Versions Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>Submission Versions</h3>
+        </div>
+        <div class="card-body">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Version</th>
+                        <th>Submission Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for version in version_histories %}
+                        <tr>
+                            <td>{{ version.version }}</td>
+                            <td>{{ version.date|date }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    {% if can_download_pdf %}
+                                        <a href="{% url 'submission:download_submission_pdf_version' submission_id=submission.temporary_id version=version.version %}" 
+                                           class="btn btn-primary btn-sm">
+                                            <i class="fas fa-file-pdf"></i> Download PDF
+                                        </a>
+                                    {% endif %}
+                                    
+                                    {% if version.next_version %}
+                                        <a href="{% url 'submission:compare_version' submission.pk version.version version.next_version %}" 
+                                           class="btn btn-info btn-sm">
+                                            <i class="fas fa-code-compare"></i> Compare Changes
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center">No version history available.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- Review Requests Section -->
     {% if is_osar or is_irb or is_rc %}
         <div class="card mb-4">
@@ -3210,44 +3051,6 @@ $(document).ready(function() {
         </div>
     {% endif %}
 
-    <!-- Submission Versions Section -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h3>Submission Versions</h3>
-        </div>
-        <div class="card-body">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Version</th>
-                        <th>Submission Date</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for version in version_histories %}
-                        <tr>
-                            <td>{{ version.version }}</td>
-                            <td>{{ version.date|date }}</td>
-                            <td>
-                                {% if can_download_pdf %}
-                                    <a href="{% url 'submission:download_submission_pdf_version' submission_id=submission.temporary_id version=version.version %}" 
-                                       class="btn btn-primary btn-sm">
-                                        <i class="fas fa-file-pdf"></i> Download PDF
-                                    </a>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% empty %}
-                        <tr>
-                            <td colspan="3" class="text-center">No version history available.</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
     <!-- Attached Files Section -->
     <div class="card mb-4">
         <div class="card-header">
@@ -3290,6 +3093,178 @@ $(document).ready(function() {
             {% endif %}
         </div>
     </div>
+
+    <!-- Study Actions History Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title mb-0">Study Actions History</h3>
+        </div>
+        <div class="card-body">
+            {% if study_actions %}
+                {% for action in study_actions %}
+                <div class="action-item mb-4 pb-4 border-bottom" data-action-id="{{ action.id }}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="mb-1">{{ action.action_type }}</h5>
+                            <p class="text-muted mb-1">
+                                Submitted by {{ action.performed_by }} 
+                                on {{ action.date_created }}
+                            </p>
+                        </div>
+                        <span class="badge {% if action.status == 'pending' %}bg-warning{% elif action.status == 'completed' %}bg-success{% else %}bg-danger{% endif %}">
+                            {{ action.status }}
+                        </span>
+                    </div>
+
+                    {% if action.notes %}
+                    <div class="mt-2 bg-light p-2 rounded">
+                        <small class="text-muted">Notes:</small>
+                        <p class="mb-0">{{ action.notes }}</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-3">
+                        {% if action.documents.exists %}
+                            <a href="{{ action.pdf_url }}" 
+                               class="btn btn-sm btn-outline-primary me-2">
+                                <i class="fas fa-file-pdf"></i> View Attached PDF
+                            </a>
+                        {% endif %}
+                        
+                        <a href="{% url 'review:download_action_pdf' action.id %}" 
+                           class="btn btn-sm btn-outline-secondary me-2">
+                            <i class="fas fa-print"></i> Print Action
+                        </a>
+
+                        {% if action.status == 'pending' and can_process_actions %}
+                            <button type="button" 
+                                    class="btn btn-sm btn-primary process-action-btn"
+                                    data-action-id="{{ action.id }}">
+                                Process Action
+                            </button>
+                        {% endif %}
+                    </div>
+
+                    <!-- Process Action Form -->
+                    <div class="process-action-form mt-3 bg-light p-3 rounded d-none" id="process-form-{{ action.id }}">
+                        <form>
+                            <div class="mb-3">
+                                <label for="letter-{{ action.id }}" class="form-label">Decision Letter</label>
+                                <textarea class="form-control" 
+                                          id="letter-{{ action.id }}" 
+                                          rows="5" 
+                                          required
+                                          placeholder="Enter your decision letter text here..."></textarea>
+                                <small class="form-text text-muted">This will be sent to the investigator.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label for="comments-{{ action.id }}" class="form-label">Internal Comments</label>
+                                <textarea class="form-control" 
+                                          id="comments-{{ action.id }}" 
+                                          rows="3" 
+                                          required
+                                          placeholder="Enter any internal comments about this decision..."></textarea>
+                                <small class="form-text text-muted">These comments will be stored with the action record.</small>
+                            </div>
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" 
+                                        class="btn btn-success approve-btn"
+                                        data-action-id="{{ action.id }}">
+                                    <i class="fas fa-check"></i> Approve
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-danger reject-btn"
+                                        data-action-id="{{ action.id }}">
+                                    <i class="fas fa-times"></i> Reject
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-muted mb-0">No actions have been recorded yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_specific_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const submissionId = "{{ submission.temporary_id }}";
+
+    // Initialize Process Action buttons
+    document.querySelectorAll('.process-action-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const actionId = this.dataset.actionId;
+            const form = document.getElementById(`process-form-${actionId}`);
+            form.classList.toggle('d-none');
+        });
+    });
+
+    // Process Action Function
+    async function processAction(actionId, decision, comments, letterText) {
+        try {
+            const response = await fetch(`/review/submission/${submissionId}/action/${actionId}/process/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: `decision=${decision}&comments=${encodeURIComponent(comments)}&letter_text=${encodeURIComponent(letterText)}`
+            });
+
+            const data = await response.json();
+            if (data.status === 'success') {
+                window.location.reload();
+            } else {
+                alert(data.message || 'Error processing action');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again.');
+        }
+    }
+
+    // Approve Button Click Handlers
+    document.querySelectorAll('.approve-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const actionId = this.dataset.actionId;
+            const comments = document.getElementById(`comments-${actionId}`).value.trim();
+            const letterText = document.getElementById(`letter-${actionId}`).value.trim();
+            
+            if (!comments || !letterText) {
+                alert('Please provide both a decision letter and internal comments.');
+                return;
+            }
+
+            if (confirm('Are you sure you want to approve this action?')) {
+                processAction(actionId, 'approve', comments, letterText);
+            }
+        });
+    });
+
+    // Reject Button Click Handlers
+    document.querySelectorAll('.reject-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const actionId = this.dataset.actionId;
+            const comments = document.getElementById(`comments-${actionId}`).value.trim();
+            const letterText = document.getElementById(`letter-${actionId}`).value.trim();
+            
+            if (!comments || !letterText) {
+                alert('Please provide both a decision letter and internal comments.');
+                return;
+            }
+
+            if (confirm('Are you sure you want to reject this action?')) {
+                processAction(actionId, 'reject', comments, letterText);
+            }
+        });
+    });
+});
+</script>
 {% endblock %}
 
 # Contents from: .\templates\review\submission_detail.html
@@ -4651,6 +4626,72 @@ class Migration(migrations.Migration):
     ]
 
 
+# Contents from: .\migrations\0018_submissiondecision.py
+# Generated by Django 5.1.3 on 2024-12-05 21:00
+
+import django.db.models.deletion
+from django.conf import settings
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("review", "0017_notepadentry_read_by_alter_notepadentry_created_by_and_more"),
+        ("submission", "0028_alter_submission_options_and_more"),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name="SubmissionDecision",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "decision",
+                    models.CharField(
+                        choices=[
+                            ("revision_requested", "Revision Requested"),
+                            ("rejected", "Rejected"),
+                            ("accepted", "Accepted"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("comments", models.TextField(blank=True)),
+                ("date_created", models.DateTimeField(auto_now_add=True)),
+                (
+                    "decided_by",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "submission",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="decisions",
+                        to="submission.submission",
+                    ),
+                ),
+            ],
+            options={
+                "db_table": "review_submission_decision",
+                "ordering": ["-date_created"],
+            },
+        ),
+    ]
+
+
 # Contents from: .\migrations\__init__.py
 
 
@@ -4836,6 +4877,31 @@ class NotepadEntry(models.Model):
         db_table = 'review_notepad_entry'
 
 
+######################
+# Submission Decision
+######################
+
+class SubmissionDecision(models.Model):
+    DECISION_CHOICES = [
+        ('revision_requested', 'Revision Requested'),
+        ('rejected', 'Rejected'),
+        ('accepted', 'Accepted'),
+    ]
+
+    submission = models.ForeignKey('submission.Submission', on_delete=models.CASCADE, related_name='decisions')
+    decision = models.CharField(max_length=20, choices=DECISION_CHOICES)
+    comments = models.TextField(blank=True)
+    decided_by = models.ForeignKey('auth.User', on_delete=models.CASCADE)
+    date_created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date_created']
+        db_table = 'review_submission_decision'
+
+    def __str__(self):
+        return f"{self.get_decision_display()} for {self.submission}"
+
+
 
 # Contents from: .\tasks.py
 # tasks.py
@@ -4923,6 +4989,14 @@ def timesince_in_days(value):
 @register.filter
 def intersect(queryset1, queryset2):
     return set(queryset1) & set(queryset2)
+
+@register.filter
+def split_string(value, delimiter=','):
+    """
+    Split a string into a list using the specified delimiter.
+    Usage: {{ "a,b,c"|split_string:"," }}
+    """
+    return value.split(delimiter)
 
 # Contents from: .\tests\__init__.py
 
@@ -5238,9 +5312,11 @@ from .views import (
     RequestExtensionView,
     DeclineReviewView,
     download_review_pdf,
+    download_action_pdf,
     QualityDashboardView,
     get_dashboard_data,
     check_notes_status,
+    process_action,
 )
 from submission.views import user_autocomplete
 
@@ -5292,6 +5368,9 @@ urlpatterns = [
     path('review/<int:review_request_id>/pdf/', 
          download_review_pdf, 
          name='download_review_pdf'),
+    path('action/<int:action_id>/pdf/', 
+         download_action_pdf, 
+         name='download_action_pdf'),
 
     # Utility URLs
     path('user-autocomplete/', 
@@ -5304,10 +5383,14 @@ urlpatterns = [
     path('api/dashboard-data/', 
          get_dashboard_data, 
          name='dashboard_data'),
-path('api/notes/<int:submission_id>/<str:notepad_type>/check/',
-     check_notes_status,
-     name='check_notes_status'),
-]
+     path('api/notes/<int:submission_id>/<str:notepad_type>/check/',
+          check_notes_status,
+          name='check_notes_status'),
+
+     path('submission/<int:submission_id>/action/<int:action_id>/process/',
+          process_action, 
+          name='process_action'),
+     ]
 
 # Contents from: .\utils.py
 # review/utils.py
@@ -5402,6 +5485,37 @@ def send_review_completion_notification(review_request):
     # Add the recipient
     message.recipients.add(recipient)
     message.save()
+
+
+def send_decision_notification(submission, action, comments, decided_by):
+    """Send notification about submission decision."""
+    system_user = get_system_user()
+    action_display = action.replace('_', ' ').title()
+    
+    message_content = f"""
+    Your submission "{submission.title}" has been {action_display}.
+    
+    Decision made by: {decided_by.get_full_name() or decided_by.username}
+    Comments: {comments}
+    """
+    
+    # Get all users who need to be notified
+    users_to_notify = set([submission.primary_investigator])
+    users_to_notify.update(
+        submission.research_assistants.filter(can_submit=True).values_list('user', flat=True)
+    )
+    users_to_notify.update(
+        submission.coinvestigators.filter(can_submit=True).values_list('user', flat=True)
+    )
+    
+    # Send notification to each user
+    for user in users_to_notify:
+        Message.objects.create(
+            sender=system_user,
+            body=message_content,
+            subject=f"Submission {action_display} - {submission.title}",
+            related_submission=submission
+        ).recipients.set([user])
 
 
 # Contents from: .\utils\__init__.py
@@ -5622,6 +5736,10 @@ AIDI System""".strip()
 from django.template.loader import render_to_string
 from django.http import HttpResponse
 from django.conf import settings
+from django.utils import timezone
+from django.core.exceptions import ObjectDoesNotExist
+from submission.models import FormDataEntry, StudyAction  # Add this import
+from review.models import FormResponse
 import os
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -5631,20 +5749,21 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, 
     TableStyle, PageBreak
 )
+from reportlab.lib.utils import simpleSplit
 from io import BytesIO
 import logging
-from reportlab.lib.utils import simpleSplit
-from django.utils import timezone
+import json
 
 logger = logging.getLogger(__name__)
 
-class ReviewPDFGenerator:
-    def __init__(self, buffer, review, submission, form_responses):
+class PDFGenerator:
+    """Base PDF Generator class with common functionality"""
+    def __init__(self, buffer, submission, version, user):
         """Initialize the PDF generator with basic settings"""
         self.buffer = buffer
-        self.review = review
         self.submission = submission
-        self.form_responses = form_responses
+        self.version = version
+        self.user = user
         self.canvas = canvas.Canvas(buffer, pagesize=letter)
         self.y = 750  # Starting y position
         self.line_height = 20
@@ -5656,18 +5775,12 @@ class ReviewPDFGenerator:
     def add_header(self):
         """Add header to the current page"""
         self.canvas.setFont("Helvetica-Bold", 16)
-        self.canvas.drawString(self.left_margin, self.y, "Intelligent Research Navigator (iRN) Review Report")
+        self.canvas.drawString(self.left_margin, self.y, "Intelligent Research Navigator (iRN) Report")
         self.y -= self.line_height * 1.5
         
         self.canvas.setFont("Helvetica-Bold", 14)
-        self.canvas.drawString(self.left_margin, self.y, f"Review for: {self.submission.title}")
+        self.canvas.drawString(self.left_margin, self.y, f"{self.submission.title} - Version {self.version}")
         self.y -= self.line_height * 1.5
-        
-        self.canvas.setFont("Helvetica", 10)
-        self.canvas.drawString(self.left_margin, self.y, f"Date of printing: {timezone.now().strftime('%Y-%m-%d %H:%M')}")
-        self.y -= self.line_height
-        self.canvas.drawString(self.left_margin, self.y, f"Reviewer: {self.review.reviewer.get_full_name()}")
-        self.y -= self.line_height * 2
 
     def add_footer(self):
         """Add footer to the current page"""
@@ -5718,6 +5831,46 @@ class ReviewPDFGenerator:
         self.canvas.drawString(self.left_margin, self.y, text)
         self.y -= self.line_height
 
+    def format_field_value(self, value):
+        """Format field value, handling special cases like JSON arrays"""
+        if value is None:
+            return "Not provided"
+            
+        if isinstance(value, str):
+            if value.strip() == "":
+                return "Not provided"
+            if value.startswith('['):
+                try:
+                    value_list = json.loads(value)
+                    return ", ".join(str(v) for v in value_list)
+                except json.JSONDecodeError:
+                    return value
+        
+        return str(value)
+
+class ReviewPDFGenerator(PDFGenerator):
+    def __init__(self, buffer, review, submission, form_responses):
+        """Initialize the PDF generator for reviews"""
+        super().__init__(buffer, submission, review.submission_version, review.reviewer)
+        self.review = review
+        self.form_responses = form_responses
+
+    def add_header(self):
+        """Override header for review PDFs"""
+        self.canvas.setFont("Helvetica-Bold", 16)
+        self.canvas.drawString(self.left_margin, self.y, "Intelligent Research Navigator (iRN) Review Report")
+        self.y -= self.line_height * 1.5
+        
+        self.canvas.setFont("Helvetica-Bold", 14)
+        self.canvas.drawString(self.left_margin, self.y, f"Review for: {self.submission.title}")
+        self.y -= self.line_height * 1.5
+        
+        self.canvas.setFont("Helvetica", 10)
+        self.canvas.drawString(self.left_margin, self.y, f"Date of printing: {timezone.now().strftime('%Y-%m-%d %H:%M')}")
+        self.y -= self.line_height
+        self.canvas.drawString(self.left_margin, self.y, f"Reviewer: {self.review.reviewer.get_full_name()}")
+        self.y -= self.line_height * 2
+
     def add_review_info(self):
         """Add basic review information"""
         self.add_section_header("Review Information")
@@ -5740,8 +5893,9 @@ class ReviewPDFGenerator:
             self.add_section_header(f"Form: {response.form.name}")
             
             for field_name, field_value in response.response_data.items():
+                formatted_value = self.format_field_value(field_value)
                 self.write_wrapped_text(f"{field_name}:", bold=True)
-                self.write_wrapped_text(str(field_value), x_offset=20)
+                self.write_wrapped_text(formatted_value, x_offset=20)
                 self.y -= self.line_height/2
 
     def add_comments(self):
@@ -5764,7 +5918,7 @@ class ReviewPDFGenerator:
             logger.error("PDF generation error details:", exc_info=True)
             raise
 
-def generate_review_pdf(review, submission, form_responses):
+def generate_review_pdf(review, submission, form_responses, as_buffer=False):
     """Generate PDF for a review"""
     try:
         logger.info(f"Generating PDF for review of submission {submission.temporary_id}")
@@ -5773,12 +5927,150 @@ def generate_review_pdf(review, submission, form_responses):
         pdf_generator = ReviewPDFGenerator(buffer, review, submission, form_responses)
         pdf_generator.generate()
         
+        if as_buffer:
+            buffer.seek(0)
+            return buffer
+            
         buffer.seek(0)
-        return buffer
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        filename = f"review_{submission.temporary_id}_v{review.submission_version}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
             
     except Exception as e:
         logger.error(f"Error generating review PDF: {str(e)}")
         logger.error("PDF generation error details:", exc_info=True)
+        return None
+    
+
+class ActionPDFGenerator(PDFGenerator):
+    def __init__(self, buffer, action, submission, form_responses):
+        """Initialize PDF generator for study actions"""
+        self.action = action
+        super().__init__(buffer, submission, action.version, action.performed_by)
+        self.form_responses = form_responses
+
+    def add_header(self):
+        """Override header for action PDFs"""
+        self.canvas.setFont("Helvetica-Bold", 16)
+        self.canvas.drawString(self.left_margin, self.y, "Intelligent Research Navigator (iRN) Study Action Report")
+        self.y -= self.line_height * 1.5
+        
+        self.canvas.setFont("Helvetica-Bold", 14)
+        self.canvas.drawString(self.left_margin, self.y, f"{self.action.get_action_type_display()}: {self.submission.title}")
+        self.y -= self.line_height * 1.5
+        
+        self.canvas.setFont("Helvetica", 10)
+        self.canvas.drawString(self.left_margin, self.y, f"Date of printing: {timezone.now().strftime('%Y-%m-%d %H:%M')}")
+        self.y -= self.line_height
+        self.canvas.drawString(self.left_margin, self.y, f"Performed by: {self.action.performed_by.get_full_name()}")
+        self.y -= self.line_height * 2
+
+    def add_study_action_details(self):
+        """Add study action details to the PDF"""
+        self.add_section_header("Action Details")
+        
+        action_info = [
+            f"Action Type: {self.action.get_action_type_display()}",
+            f"Status: {self.action.get_status_display()}",
+            f"Date Created: {self.action.date_created.strftime('%Y-%m-%d %H:%M')}",
+            f"Performed By: {self.action.performed_by.get_full_name()}",
+            f"Version: {self.action.version}",
+        ]
+        
+        if self.action.notes:
+            action_info.append(f"Notes: {self.action.notes}")
+            
+        for info in action_info:
+            self.write_wrapped_text(info)
+            
+        # Add a space after action details
+        self.y -= self.line_height
+
+    def add_form_responses(self):
+        """Add form responses to the PDF"""
+        if not self.form_responses:
+            return
+
+        self.add_section_header("Form Responses")
+        
+        for form_id, data in self.form_responses.items():
+            form = data['form']
+            self.write_wrapped_text(f"Form: {form.name}", bold=True)
+            self.y -= self.line_height/2
+            
+            for field_name, value in data['fields'].items():
+                # Handle JSON values for checkboxes
+                try:
+                    if isinstance(value, str) and value.startswith('['):
+                        value = ', '.join(json.loads(value))
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                
+                self.write_wrapped_text(f"{field_name}:", x_offset=20)
+                self.write_wrapped_text(str(value), x_offset=40)
+                self.y -= self.line_height/2
+
+            self.y -= self.line_height
+
+    def generate(self):
+        """Generate the complete PDF for an action"""
+        try:
+            self.add_header()
+            self.add_study_action_details()
+            self.add_form_responses()
+            self.add_footer()
+            self.canvas.save()
+        except Exception as e:
+            logger.error(f"Error generating action PDF: {str(e)}")
+            logger.error("PDF generation error details:", exc_info=True)
+            raise
+
+def generate_action_pdf(submission, study_action, form_entries, user, as_buffer=False):
+    """Generate PDF for a study action"""
+    try:
+        logger.info(f"Generating PDF for action {study_action.id} of submission {submission.temporary_id}")
+        
+        buffer = BytesIO()
+        pdf_generator = ActionPDFGenerator(buffer, study_action, submission, form_entries)
+        
+        # Add header
+        pdf_generator.add_header()
+        
+        # Add basic submission identifier
+        pdf_generator.write_wrapped_text(f"Submission ID: {submission.temporary_id}")
+        pdf_generator.write_wrapped_text(f"Title: {submission.title}")
+        pdf_generator.y -= pdf_generator.line_height
+        
+        # Add action-specific information
+        pdf_generator.add_section_header(f"{study_action.get_action_type_display()}")
+        pdf_generator.write_wrapped_text(f"Date: {study_action.date_created.strftime('%Y-%m-%d %H:%M')}")
+        pdf_generator.write_wrapped_text(f"Submitted by: {study_action.performed_by.get_full_name()}")
+        pdf_generator.y -= pdf_generator.line_height
+        
+        # Add only the form entries for this action
+        pdf_generator.add_section_header("Form Details")
+        pdf_generator.add_form_responses()
+        
+        # Add footer
+        pdf_generator.add_footer()
+        pdf_generator.canvas.save()
+        
+        if as_buffer:
+            buffer.seek(0)
+            return buffer
+        else:
+            buffer.seek(0)
+            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+            response['Content-Disposition'] = (
+                f'attachment; filename="submission_{submission.temporary_id}_'
+                f'{study_action.action_type}_{study_action.date_created.strftime("%Y%m%d")}.pdf"'
+            )
+            return response
+            
+    except Exception as e:
+        logger.error(f"Error generating action PDF: {str(e)}")
+        logger.error("Action PDF generation error details:", exc_info=True)
         return None
 
 # Contents from: .\views.py
@@ -5797,7 +6089,9 @@ from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMix
 from django.core.exceptions import PermissionDenied
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.db.models import Q, Count, Avg, F
+from django.db.models import (
+    Q, Count, Avg, F, Prefetch
+)
 from django.db.models.functions import TruncMonth
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
@@ -5816,6 +6110,7 @@ from submission.models import Submission
 from submission.utils.pdf_generator import PDFGenerator, generate_submission_pdf
 from users.utils import get_system_user
 
+
 from .forms import ReviewRequestForm
 from .models import ReviewRequest, Review, FormResponse, NotepadEntry
 from .utils.notifications import (
@@ -5825,10 +6120,13 @@ from .utils.notifications import (
     send_review_completion_notification,
     send_irb_decision_notification
 )
-from .utils.pdf_generator import generate_review_pdf
-from django.db.models import Prefetch
+# Models
+from submission.models import Submission, StudyAction  # Import StudyAction from submission.models
+from .models import Review, ReviewRequest, NotepadEntry, SubmissionDecision
 
-
+# Utils
+from users.utils import get_system_user
+from .utils.notifications import send_irb_decision_notification
 ######################
 # Review Dashboard
 # URL: path('', ReviewDashboardView.as_view(), name='review_dashboard'),
@@ -6391,20 +6689,18 @@ class ViewReviewView(LoginRequiredMixin, TemplateView):
 # Review Summary
 # URL: path('submission/<int:submission_id>/summary/', ReviewSummaryView.as_view(), name='review_summary'),
 ######################
+from django.shortcuts import render, get_object_or_404
+from submission.models import Submission, VersionHistory
 
-class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
-    """
-    View for displaying a comprehensive summary of a submission's reviews
-    and handling submission decisions.
-    """
+
+class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """View for displaying a comprehensive summary of a submission's reviews"""
     template_name = 'review/review_summary.html'
 
     def setup(self, request, *args, **kwargs):
         """Initialize common attributes used by multiple methods"""
         super().setup(request, *args, **kwargs)
         self.submission = get_object_or_404(Submission, pk=kwargs.get('submission_id'))
-        
-        # Get user groups
         self.is_osar = request.user.groups.filter(name='OSAR').exists()
         self.is_irb = request.user.groups.filter(name='IRB').exists()
         self.is_rc = request.user.groups.filter(name='RC').exists()
@@ -6412,13 +6708,9 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         """Verify user permission to access the submission"""
         user = self.request.user
-
-        # OSAR members can view all submissions
-        if user.groups.filter(name='OSAR').exists():
-            return True
-
-        # IRB members can view all submissions
-        if user.groups.filter(name='IRB').exists():
+        
+        # Check group permissions
+        if user.groups.filter(name__in=['OSAR', 'IRB']).exists():
             return True
 
         # RC members can view submissions in their department
@@ -6426,69 +6718,62 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
             return user.userprofile.department == self.submission.primary_investigator.userprofile.department
 
         # Check direct involvement
-        return user in [
-            self.submission.primary_investigator,
-            *self.submission.coinvestigators.all(),
-            *self.submission.research_assistants.all()
-        ]
+        return any([
+            user == self.submission.primary_investigator,
+            self.submission.coinvestigators.filter(user=user).exists(),
+            self.submission.research_assistants.filter(user=user).exists()
+        ])
 
     def handle_no_permission(self):
         """Route users to appropriate dashboard when access is denied"""
         messages.error(self.request, "You don't have permission to view this submission's details.")
         
-        user = self.request.user
-        if user.groups.filter(name='OSAR').exists():
+        if self.is_osar:
             return redirect('review:osar_dashboard')
-        elif user.groups.filter(name='RC').exists():
+        elif self.is_rc:
             return redirect('review:rc_dashboard')
-        elif user.groups.filter(name='IRB').exists():
+        elif self.is_irb:
             return redirect('review:irb_dashboard')
         return redirect('submission:dashboard')
 
     def get_review_requests(self):
         """Get filtered review requests based on user group"""
+        base_query = self.submission.review_requests.select_related(
+            'requested_to__userprofile',
+            'requested_by__userprofile'
+        ).prefetch_related('review_set')
+
         if self.is_irb:
-            return self.submission.review_requests.filter(
+            return base_query.filter(
                 Q(requested_to__groups__name='IRB') |
                 Q(requested_by__groups__name='IRB')
-            ).select_related(
-                'requested_to__userprofile',
-                'requested_by__userprofile'
-            ).prefetch_related(
-                'review_set'
             )
         elif self.is_rc:
-            return self.submission.review_requests.filter(
+            return base_query.filter(
                 Q(requested_to__groups__name='RC') |
                 Q(requested_by__groups__name='RC')
-            ).select_related(
-                'requested_to__userprofile',
-                'requested_by__userprofile'
-            ).prefetch_related(
-                'review_set'
             )
-        else:  # OSAR or other users
-            return self.submission.review_requests.all().select_related(
-                'requested_to__userprofile',
-                'requested_by__userprofile'
-            ).prefetch_related(
-                'review_set'
-            )
+        return base_query.all()
 
     def get_version_histories(self):
         """Get submission version history"""
-        return self.submission.version_histories.all().order_by('-version')
+        version_histories = list(self.submission.version_histories.all().order_by('-version'))
+        for i, version in enumerate(version_histories):
+            if i < len(version_histories) - 1:
+                version.next_version = version_histories[i + 1].version
+            else:
+                version.next_version = None
+        return version_histories
 
     def get_user_permissions(self, user):
         """Determine user-specific permissions"""
-        is_irb = user.groups.filter(name='IRB').exists()
         return {
-            'can_make_decision': is_irb,  # Updated to allow IRB members to make decisions
+            'can_make_decision': self.is_irb,
             'can_download_pdf': True,
-            'can_assign_irb': is_irb and not self.submission.khcc_number,
-            'is_osar': user.groups.filter(name='OSAR').exists(),
-            'is_rc': user.groups.filter(name='RC').exists(),
-            'is_irb': is_irb,
+            'can_assign_irb': self.is_irb and not self.submission.khcc_number,
+            'is_osar': self.is_osar,
+            'is_rc': self.is_rc,
+            'is_irb': self.is_irb,
             'can_create_review': any([
                 user.groups.filter(name=role).exists() 
                 for role in ['OSAR', 'IRB', 'RC']
@@ -6497,23 +6782,69 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def get_submission_stats(self, review_requests):
         """Calculate submission statistics"""
-        now = timezone.now().date()
-        submission_date = self.submission.date_submitted.date() if self.submission.date_submitted else now
-        
+        submission_date = self.submission.date_submitted or timezone.now()
+        days_since = (timezone.now().date() - submission_date.date()).days
+
         return {
             'total_reviews': review_requests.count(),
             'completed_reviews': review_requests.filter(status='completed').count(),
             'pending_reviews': review_requests.filter(status='pending').count(),
-            'days_since_submission': (now - submission_date).days
+            'days_since_submission': max(0, days_since)
+        }
+
+    def prepare_context(self):
+        """Prepare all context data"""
+        review_requests = self.get_review_requests()
+        user_permissions = self.get_user_permissions(self.request.user)
+        version_histories = self.get_version_histories()
+
+        # Get study actions
+        actions = StudyAction.objects.filter(
+            submission=self.submission
+        ).select_related(
+            'performed_by__userprofile'
+        ).prefetch_related(
+            'documents'
+        ).order_by('-date_created')
+
+        # Format actions for template
+        formatted_actions = [{
+            'id': action.id,
+            'action_type': action.get_action_type_display(),
+            'performed_by': action.performed_by.get_full_name(),
+            'date_created': action.date_created.strftime('%Y-%m-%d %H:%M'),
+            'status': action.status,
+            'notes': action.notes,
+            'pdf_url': reverse('submission:download_action_pdf', kwargs={
+                'submission_id': self.submission.temporary_id,
+                'action_id': action.id
+            }) if action.documents.exists() else None
+        } for action in actions]
+
+        return {
+            'submission': self.submission,
+            'review_requests': review_requests,
+            'version_histories': version_histories,
+            'stats': self.get_submission_stats(review_requests),
+            'has_active_reviews': review_requests.filter(
+                status__in=['pending', 'in_progress']
+            ).exists(),
+            'has_reviews': review_requests.exists(),
+            'study_actions': formatted_actions,
+            'can_process_actions': self.request.user.groups.filter(
+                name__in=['OSAR', 'IRB', 'RC']
+            ).exists(),
+            'is_osar': self.is_osar,
+            'is_irb': self.is_irb,
+            'is_rc': self.is_rc,
+            **user_permissions
         }
 
     def get(self, request, *args, **kwargs):
         """Handle GET requests"""
         if not self.test_func():
             return self.handle_no_permission()
-
-        context = self.get_context_data()
-        return render(request, self.template_name, context)
+        return render(request, self.template_name, self.prepare_context())
 
     def post(self, request, *args, **kwargs):
         """Handle POST requests for submission decisions"""
@@ -6529,70 +6860,29 @@ class ReviewSummaryView(LoginRequiredMixin, UserPassesTestMixin, View):
 
         try:
             with transaction.atomic():
-                # Update submission status based on action
+                # Update submission status and lock state
                 if action == 'revision_requested':
                     self.submission.status = 'revision_requested'
                     self.submission.is_locked = False
-                elif action == 'rejected':
-                    self.submission.status = 'rejected'
-                    self.submission.is_locked = True
-                elif action == 'accepted':
-                    self.submission.status = 'accepted'
+                elif action in ['rejected', 'accepted']:
+                    self.submission.status = action
                     self.submission.is_locked = True
                 else:
                     messages.error(request, "Invalid action specified.")
                     return redirect('review:review_summary', submission_id=self.submission.pk)
 
                 self.submission.save()
-
-                # Send notification
                 send_irb_decision_notification(self.submission, action, comments)
-
+                
                 messages.success(
                     request,
                     f"Submission successfully marked as {action.replace('_', ' ').title()}"
                 )
                 
-                return redirect('review:review_summary', submission_id=self.submission.pk)
-
         except Exception as e:
             messages.error(request, f"Error processing decision: {str(e)}")
-            return redirect('review:review_summary', submission_id=self.submission.pk)
-
-    def get_context_data(self):
-        """Prepare context data for template rendering"""
-        review_requests = self.get_review_requests()
-        user_permissions = self.get_user_permissions(self.request.user)
-        version_histories = self.get_version_histories()
-
-        # Calculate stats if reviews exist
-        submission_stats = self.get_submission_stats(review_requests) if review_requests.exists() else {
-            'total_reviews': 0,
-            'completed_reviews': 0,
-            'pending_reviews': 0,
-            'days_since_submission': (
-                timezone.now().date() - 
-                self.submission.date_submitted.date()
-            ).days if self.submission.date_submitted else 0
-        }
-
-        # Check for active reviews
-        has_active_reviews = review_requests.filter(
-            status__in=['pending', 'in_progress']
-        ).exists() if review_requests.exists() else False
-
-        return {
-            'submission': self.submission,
-            'review_requests': review_requests,
-            'version_histories': version_histories,
-            'stats': submission_stats,
-            'has_active_reviews': has_active_reviews,
-            'has_reviews': review_requests.exists(),
-            'is_osar': self.is_osar,
-            'is_irb': self.is_irb,
-            'is_rc': self.is_rc,
-            **user_permissions
-        }
+        
+        return redirect('review:review_summary', submission_id=self.submission.pk)
 ######################
 # Process IRB Decision
 # URL: path('submission/<int:submission_id>/decision/', ProcessIRBDecisionView.as_view(), name='process_decision'),
@@ -6716,7 +7006,8 @@ class AssignKHCCNumberView(LoginRequiredMixin, View):
     template_name = 'review/assign_khcc_number.html'
 
     def dispatch(self, request, *args, **kwargs):
-        if not request.user.groups.filter(name='OSAR').exists():
+        # Update permission check to include IRB members
+        if not (request.user.groups.filter(name__in=['OSAR', 'IRB']).exists()):
             messages.error(request, "You don't have permission to assign KHCC #s.")
             return redirect('review:review_dashboard')
         
@@ -7071,10 +7362,16 @@ def get_context_data(self, **kwargs):
         )
     
     return context
-
 # review/views.py
-class ProcessSubmissionDecisionView(LoginRequiredMixin, PermissionRequiredMixin, View):
-    permission_required = 'submission.change_submission_status'
+class ProcessSubmissionDecisionView(LoginRequiredMixin, View):
+    def dispatch(self, request, *args, **kwargs):
+        # Update permission check to include IRB members
+        if not request.user.groups.filter(name__in=['OSAR', 'IRB']).exists():
+            return JsonResponse({
+                'status': 'error',
+                'message': "You don't have permission to make submission decisions."
+            }, status=403)
+        return super().dispatch(request, *args, **kwargs)
     
     def post(self, request, submission_id):
         submission = get_object_or_404(Submission, pk=submission_id)
@@ -7100,8 +7397,22 @@ class ProcessSubmissionDecisionView(LoginRequiredMixin, PermissionRequiredMixin,
                 
                 submission.save()
                 
+                # Create decision record
+                SubmissionDecision.objects.create(
+                    submission=submission,
+                    decision=action,
+                    comments=comments,
+                    decided_by=request.user
+                )
+                
                 # Send notification
                 send_irb_decision_notification(submission, action, comments)
+                # send_decision_notification(
+                #     submission=submission,
+                #     action=action,
+                #     comments=comments,
+                #     decided_by=request.user
+                # )
                 
                 messages.success(request, f"Submission successfully marked as {action.replace('_', ' ').title()}")
                 
@@ -7329,7 +7640,6 @@ class QualityDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
             'page_title': 'Quality Dashboard',
         })
         return context
-
     def handle_no_permission(self):
         messages.error(
             self.request, 
@@ -7361,3 +7671,182 @@ def check_notes_status(request, submission_id, notepad_type):
         return JsonResponse({
             'error': str(e)
         }, status=500)
+    
+
+
+@login_required 
+def process_action(request, submission_id, action_id):
+    """Process a study action (approve/reject) with custom message"""
+    submission = get_object_or_404(Submission, pk=submission_id)
+    action = get_object_or_404(StudyAction, pk=action_id, submission=submission)
+
+    if not request.user.groups.filter(name__in=['OSAR', 'IRB', 'RC']).exists():
+        return JsonResponse({
+            'status': 'error',
+            'message': 'You do not have permission to process actions'
+        }, status=403)
+
+    if request.method == 'POST':
+        try:
+            decision = request.POST.get('decision')
+            comments = request.POST.get('comments', '').strip()
+            letter_text = request.POST.get('letter_text', '').strip()
+            
+            if not comments or not letter_text:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Both comments and letter text are required'
+                }, status=400)
+
+            with transaction.atomic():
+                # Update action status
+                action.status = 'completed' if decision == 'approve' else 'cancelled'
+                action.notes = comments
+                action.save()
+
+                # Get notification recipients
+                recipients = [action.performed_by]  # Person who submitted the action
+                if action.performed_by != submission.primary_investigator:
+                    recipients.append(submission.primary_investigator)
+
+                # Create notification with customized letter
+                message = Message.objects.create(
+                    sender=get_system_user(),
+                    subject=f'Study Action {decision.title()}d - {submission.title}',
+                    body=f"""
+Dear {action.performed_by.get_full_name()},
+
+Regarding your {action.get_action_type_display()} request for submission "{submission.title}":
+
+{letter_text}
+
+Additional Comments from Reviewer:
+{comments}
+
+Action Details:
+- Submission ID: {submission.temporary_id}
+- Action Type: {action.get_action_type_display()}
+- Decision: {decision.title()}
+- Processed by: {request.user.get_full_name()}
+- Date: {timezone.now().strftime('%Y-%m-%d %H:%M')}
+
+Best regards,
+{request.user.get_full_name()}
+                    """.strip(),
+                    related_submission=submission,
+                    message_type='decision'
+                )
+                
+                # Add recipients
+                for recipient in recipients:
+                    message.recipients.add(recipient)
+
+                # If action was approved, process necessary changes
+                if decision == 'approve':
+                    if action.action_type == 'closure':
+                        submission.status = 'closed'
+                        submission.is_locked = True
+                    elif action.action_type == 'withdrawal':
+                        submission.status = 'withdrawn'
+                        submission.is_locked = True
+                    submission.save()
+
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Action {decision}d successfully'
+                })
+
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)
+
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    }, status=400)
+
+
+
+def generate_action_pdf(study_action, form_entries, user, submission, as_buffer=False):
+    """Generate PDF for a study action"""
+    try:
+        logger.info(f"Generating PDF for action {study_action.id}")
+        
+        buffer = BytesIO()
+        pdf_generator = PDFGenerator(
+            buffer, 
+            submission, 
+            study_action.version, 
+            user
+        )
+        
+        # Add basic submission info
+        pdf_generator.add_header()
+        pdf_generator.add_basic_info()
+        
+        # Add action details
+        pdf_generator.add_study_action_details(study_action)
+        
+        # Add form responses if any
+        if form_entries:
+            pdf_generator.add_dynamic_forms(form_entries)
+        
+        # Add footer
+        pdf_generator.add_footer()
+        pdf_generator.canvas.save()
+        
+        if as_buffer:
+            buffer.seek(0)
+            return buffer
+        
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        filename = f"study_action_{study_action.get_action_type_display()}_{study_action.date_created.strftime('%Y%m%d')}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+            
+    except Exception as e:
+        logger.error(f"Error generating action PDF: {str(e)}")
+        logger.error("PDF generation error details:", exc_info=True)
+        return None
+    
+
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from django.contrib.auth.decorators import login_required
+from submission.models import StudyAction
+from .utils.pdf_generator import generate_action_pdf
+
+@login_required
+def download_action_pdf(request, action_id):
+    """
+    View function to generate and download a PDF for a study action.
+    """
+    # Get the action or return 404
+    action = get_object_or_404(StudyAction.objects.select_related(
+        'submission',
+        'performed_by'
+    ), pk=action_id)
+    
+    # Check if user has permission to view this action
+    if not request.user.groups.filter(name__in=['OSAR', 'IRB', 'RC']).exists():
+        return HttpResponse('Permission denied', status=403)
+    
+    # Get form entries related to this action
+    form_entries = []  # You might need to adjust this based on your data model
+    
+    # Generate the PDF
+    pdf_response = generate_action_pdf(
+        study_action=action,
+        form_entries=form_entries,
+        user=request.user,
+        submission=action.submission
+    )
+    
+    if pdf_response is None:
+        return HttpResponse('Error generating PDF', status=500)
+    
+    return pdf_response
+

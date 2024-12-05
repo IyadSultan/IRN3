@@ -49,3 +49,11 @@ def timesince_in_days(value):
 @register.filter
 def intersect(queryset1, queryset2):
     return set(queryset1) & set(queryset2)
+
+@register.filter
+def split_string(value, delimiter=','):
+    """
+    Split a string into a list using the specified delimiter.
+    Usage: {{ "a,b,c"|split_string:"," }}
+    """
+    return value.split(delimiter)

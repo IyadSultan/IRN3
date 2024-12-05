@@ -56,12 +56,14 @@
                                         <i class="fas fa-file-pdf"></i> Download
                                     </a>
                                     
-                                    {% if not forloop.last %}
-                                        <a href="{% url 'submission:compare_version' submission.pk history.version history.previous_version %}" 
-                                           class="btn btn-sm btn-primary" 
-                                           title="Compare with Previous Version">
-                                            <i class="fas fa-code-compare"></i> Compare Changes
-                                        </a>
+                                    {% if not forloop.first %}
+                                        {% if history.previous_version %}
+                                            <a href="{% url 'submission:compare_version' submission.pk history.version history.previous_version %}" 
+                                               class="btn btn-sm btn-primary" 
+                                               title="Compare with Previous Version">
+                                                <i class="fas fa-code-compare"></i> Compare Changes
+                                            </a>
+                                        {% endif %}
                                     {% endif %}
                                 </div>
                             </td>
@@ -122,16 +124,17 @@
                                             {% else %}
                                                 -
                                             {% endif %}
-                                        </td>
+                                            </td>
+ <!-- In version_history.html -->
                                         <td>
                                             {% if inv.submitted %}
-                                                <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id status.form.version %}" 
-                                                   class="btn btn-sm btn-secondary">
-                                                    <i class="fas fa-file-pdf"></i> View Form
+                                                <a href="{% url 'submission:investigator_form' submission.temporary_id status.form.id %}?view=true" 
+                                                class="btn btn-sm btn-secondary">
+                                                    <i class="fas fa-file"></i> View Form
                                                 </a>
                                             {% elif user == inv.user and not submission.is_locked %}
                                                 <a href="{% url 'submission:investigator_form' submission.temporary_id status.form.id %}" 
-                                                   class="btn btn-sm btn-warning">
+                                                class="btn btn-sm btn-warning">
                                                     <i class="fas fa-edit"></i> Submit Required Form
                                                 </a>
                                             {% else %}
@@ -252,46 +255,7 @@
                         </div>
                     </div>
                 </div>
-<!-- In version_history.html -->
-<!-- OSAR Decision History -->
-<div class="card mb-4">
-    <div class="card-header">
-        <h4 class="mb-0">Review Decisions History</h4>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Decision</th>                      
-                        <th>Comments</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for message in decision_messages %}
-                    <tr>
-                        <td>{{ message.sent_at|date:"Y-m-d H:i" }}</td>
-                        <td>
-                            <span class="badge {% if 'accept' in message.subject|lower %}bg-success
-                                           {% elif 'reject' in message.subject|lower %}bg-danger
-                                           {% else %}bg-warning{% endif %}">
-                                {{ message.subject|cut:"Submission Decision - "|title }}
-                            </span>
-                        </td>
-
-                        <td>{{ message.body|linebreaksbr }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" class="text-center">No decisions have been made yet.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
+                
                 <!-- Navigation -->
                 <div class="mt-4">
                     <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">

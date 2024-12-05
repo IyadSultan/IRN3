@@ -770,8 +770,8 @@ AIDI System
                         notify_osar_of_completion(submission)
 
                     # Increment version after everything is done
-                    submission.version += 1
-                    submission.save()
+                    # submission.version += 1
+                    # submission.save()
 
                     messages.success(
                         request, 
@@ -887,8 +887,8 @@ AIDI System
                             notify_osar_of_completion(submission)
 
                         # Increment version after everything is done
-                        submission.version += 1
-                        submission.save()
+                        # submission.version += 1
+                        # submission.save()
 
                         messages.success(
                             request, 

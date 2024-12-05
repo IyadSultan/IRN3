@@ -178,3 +178,28 @@ class NotepadEntry(models.Model):
         ordering = ['-created_at']
         db_table = 'review_notepad_entry'
 
+
+######################
+# Submission Decision
+######################
+
+class SubmissionDecision(models.Model):
+    DECISION_CHOICES = [
+        ('revision_requested', 'Revision Requested'),
+        ('rejected', 'Rejected'),
+        ('accepted', 'Accepted'),
+    ]
+
+    submission = models.ForeignKey('submission.Submission', on_delete=models.CASCADE, related_name='decisions')
+    decision = models.CharField(max_length=20, choices=DECISION_CHOICES)
+    comments = models.TextField(blank=True)
+    decided_by = models.ForeignKey('auth.User', on_delete=models.CASCADE)
+    date_created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date_created']
+        db_table = 'review_submission_decision'
+
+    def __str__(self):
+        return f"{self.get_decision_display()} for {self.submission}"
+

@@ -64,14 +64,39 @@ class Submission(models.Model):
         self.submitted_by = submitted_by
         self.date_submitted = timezone.now()
         self.is_locked = True
-
-                # Create version history
+        # Create version history
         VersionHistory.objects.create(
             submission=self,
             version=self.version,
             status=self.status,
             date=timezone.now()
         )
+        # Check for required investigator forms
+        required_forms = self.study_type.forms.filter(requested_per_investigator=True)
+        if required_forms.exists():
+            all_investigators = [self.primary_investigator]  # Include PI
+            all_investigators.extend([ci.user for ci in self.coinvestigators.all()])
+            
+            for form in required_forms:
+                for investigator in all_investigators:
+                    if not InvestigatorFormSubmission.objects.filter(
+                        submission=self,
+                        form=form,
+                        investigator=investigator,
+                        version=self.version
+                    ).exists():
+                        self.status = 'document_missing'
+                        self.save()
+                        return
+        
+        # If we reach here, all forms are complete
+        if self.status == 'revision_requested':
+            self.increment_version()
+        self.status = 'submitted'
+        self.save()
+
+
+
         
         # Check for required investigator forms
         required_forms = self.study_type.forms.filter(requested_per_investigator=True)
@@ -120,6 +145,7 @@ class Submission(models.Model):
             date=timezone.now()
         )
         self.version += 1
+
 
     def get_required_investigator_forms(self):
         """Get all forms that require per-investigator submission."""

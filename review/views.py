@@ -34,6 +34,7 @@ from submission.models import Submission
 from submission.utils.pdf_generator import PDFGenerator, generate_submission_pdf
 from users.utils import get_system_user
 
+
 from .forms import ReviewRequestForm
 from .models import ReviewRequest, Review, FormResponse, NotepadEntry
 from .utils.notifications import (
@@ -45,7 +46,7 @@ from .utils.notifications import (
 )
 # Models
 from submission.models import Submission, StudyAction  # Import StudyAction from submission.models
-from .models import Review, ReviewRequest, NotepadEntry
+from .models import Review, ReviewRequest, NotepadEntry, SubmissionDecision
 
 # Utils
 from users.utils import get_system_user
@@ -929,7 +930,8 @@ class AssignKHCCNumberView(LoginRequiredMixin, View):
     template_name = 'review/assign_khcc_number.html'
 
     def dispatch(self, request, *args, **kwargs):
-        if not request.user.groups.filter(name='OSAR').exists():
+        # Update permission check to include IRB members
+        if not (request.user.groups.filter(name__in=['OSAR', 'IRB']).exists()):
             messages.error(request, "You don't have permission to assign KHCC #s.")
             return redirect('review:review_dashboard')
         
@@ -1285,51 +1287,76 @@ def get_context_data(self, **kwargs):
     
     return context
 # review/views.py
-class ProcessSubmissionDecisionView(LoginRequiredMixin, PermissionRequiredMixin, View):
-    permission_required = 'submission.change_submission_status'
+class ProcessSubmissionDecisionView(LoginRequiredMixin, View):
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.groups.filter(name__in=['OSAR', 'IRB']).exists():
+            return JsonResponse({
+                'status': 'error',
+                'message': "You don't have permission to make submission decisions."
+            }, status=403)
+        return super().dispatch(request, *args, **kwargs)
     
     def post(self, request, submission_id):
-        submission = get_object_or_404(Submission, pk=submission_id)
-        action = request.POST.get('action')
-        comments = request.POST.get('comments', '')
-        
         try:
+            # Parse JSON data from request body
+            data = json.loads(request.body)
+            action = data.get('action')
+            comments = data.get('comments', '').strip()
+            
+            # Get submission
+            submission = get_object_or_404(Submission, pk=submission_id)
+            
+            # Validate input
+            if not comments:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Comments are required'
+                }, status=400)
+                
+            if action not in ['revision_requested', 'rejected', 'accepted']:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Invalid action'
+                }, status=400)
+
             with transaction.atomic():
+                # Update submission status
                 if action == 'revision_requested':
                     submission.status = 'revision_requested'
                     submission.is_locked = False
-                elif action == 'rejected':
-                    submission.status = 'rejected'
+                elif action in ['rejected', 'accepted']:
+                    submission.status = action
                     submission.is_locked = True
-                elif action == 'accepted':
-                    submission.status = 'accepted'
-                    submission.is_locked = True
-                else:
-                    return JsonResponse({
-                        'status': 'error',
-                        'message': 'Invalid action'
-                    }, status=400)
-                
+
                 submission.save()
-                
+
+                # Create decision record
+                SubmissionDecision.objects.create(
+                    submission=submission,
+                    decision=action,
+                    comments=comments,
+                    decided_by=request.user
+                )
+
                 # Send notification
                 send_irb_decision_notification(submission, action, comments)
-                
-                messages.success(request, f"Submission successfully marked as {action.replace('_', ' ').title()}")
-                
+
                 return JsonResponse({
                     'status': 'success',
-                    'message': f'Submission status updated to {action}',
-                    'redirect_url': reverse('review:review_summary', args=[submission.pk])
+                    'message': f'Submission successfully marked as {action.replace("_", " ").title()}'
                 })
-                
+
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Invalid JSON data'
+            }, status=400)
         except Exception as e:
+            print(f"Error processing decision: {str(e)}")  # For debugging
             return JsonResponse({
                 'status': 'error',
                 'message': str(e)
             }, status=500)
-        
-
 
 # review/views.py
 
