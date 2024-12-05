@@ -1,5 +1,5 @@
 # Combined Python and HTML files
-# Generated from directory: C:\Users\isultan\Documents\IRN3\submission
+# Generated from directory: C:\Users\USER\Documents\IRN3\submission
 # Total files found: 73
 
 
@@ -4427,8 +4427,8 @@ class Submission(models.Model):
                 self.research_assistants.filter(user=user).exists()):
             return []
 
-        # If user has submit rights and submission is not in 'draft', no forms are pending
-        if user in self.get_submitters() and self.status != 'draft':
+        # If user has submit rights and submission is submitted/pending, no forms are pending
+        if user in self.get_submitters() and self.status in ['submitted', 'document_missing']:
             return []
 
         required_forms = self.get_required_investigator_forms()
@@ -4496,7 +4496,7 @@ class Submission(models.Model):
         non_submitters = self.get_non_submitters()
         
         # For new submissions, include submitters in check
-        if self.status not in ['submitted', 'documents_pending']:
+        if self.status not in ['submitted', 'document_missing']:
             non_submitters.extend(self.get_submitters())
 
         # Check each form
@@ -7119,7 +7119,10 @@ AIDI System
                 messages.error(request, f"Error during submission: {str(e)}")
                 return redirect('submission:dashboard')
 
-        
+        elif action == 'back':
+                logger.error(f"Error in submission finalization: {str(e)}")
+                messages.error(request, f"Error during submission: {str(e)}")
+                return redirect('submission:dashboard')    
         if request.method == 'POST':
             action = request.POST.get('action')
             
@@ -7275,7 +7278,6 @@ AIDI System
     }
 
     return render(request, 'submission/submission_review.html', context)
-
 
 @login_required
 def document_delete(request, submission_id, document_id):

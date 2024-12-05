@@ -305,9 +305,12 @@ def generate_django_form(dynamic_form):
     return DynamicModelForm
 
 class DocumentForm(forms.ModelForm):
+    description = forms.CharField(
+        max_length=255,
+        required=True,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+
     class Meta:
         model = Document
         fields = ['file', 'description']
-        widgets = {
-            'description': forms.TextInput(attrs={'class': 'form-control'}),
-        }

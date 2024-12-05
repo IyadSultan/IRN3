@@ -61,20 +61,40 @@ class Submission(models.Model):
     )
 
     def submit(self, submitted_by):
-        """Handle submission by a specific user."""
         self.submitted_by = submitted_by
         self.date_submitted = timezone.now()
         self.is_locked = True
-        self.status = 'document_missing' if not self.are_all_investigator_forms_complete() else 'submitted'
-        self.save()
-        
-        # Create version history
+
+                # Create version history
         VersionHistory.objects.create(
             submission=self,
             version=self.version,
             status=self.status,
             date=timezone.now()
         )
+        
+        # Check for required investigator forms
+        required_forms = self.study_type.forms.filter(requested_per_investigator=True)
+        if required_forms.exists():
+            all_investigators = [self.primary_investigator]  # Include PI
+            all_investigators.extend([ci.user for ci in self.coinvestigators.all()])
+            
+            for form in required_forms:
+                for investigator in all_investigators:
+                    if not InvestigatorFormSubmission.objects.filter(
+                        submission=self,
+                        form=form,
+                        investigator=investigator,
+                        version=self.version
+                    ).exists():
+                        self.status = 'document_missing'
+                        self.save()
+                        return
+        
+        self.status = 'submitted'
+        self.save()
+        
+
 
     def __str__(self):
         return f"{self.title} (ID: {self.temporary_id}, Version: {self.version})"

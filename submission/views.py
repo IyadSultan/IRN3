@@ -227,8 +227,7 @@ def start_submission(request, submission_id=None):
                     if action == 'save_exit':
                         return redirect('submission:dashboard')
                     elif action == 'save_continue':
-                        return redirect('submission:add_research_assistant', 
-                                     submission_id=submission.temporary_id)
+                         return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
 
             except Exception as e:
                 logger.error(f"Error in start_submission: {str(e)}")
@@ -409,7 +408,7 @@ def add_coinvestigator(request, submission_id):
 
         if action in ['back', 'exit_no_save', 'save_continue']:
             if action == 'back':
-                return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
+                return redirect('submission:start_submission_with_id', submission_id=submission.temporary_id)
             elif action == 'exit_no_save':
                 return redirect('submission:dashboard')
             elif action == 'save_continue':

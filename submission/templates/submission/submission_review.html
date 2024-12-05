@@ -1,249 +1,222 @@
-<!-- submission/review.html -->
-
 {% extends 'users/base.html' %}
 {% load crispy_forms_tags %}
 
 {% block content %}
 <div class="container mt-4">
-    <h1>Submission Review</h1>
-
-    <!-- Primary Investigator Documents Check -->
-    <div class="card mb-4">
+    <div class="card">
         <div class="card-header">
-            <h4>Primary Investigator Documents</h4>
-            <h6>{{ submission.primary_investigator.get_full_name }}</h6>
+            <h2>Submission Review</h2>
+            <h4 class="text-muted">{{ submission.title }}</h4>
         </div>
-        <div class="card-body">
-            {% with profile=submission.primary_investigator.userprofile %}
-            <ul class="list-group">
-                <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                    <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
-                    GCP Certificate
-                    {% if profile.is_gcp_expired %}
-                    <span class="badge bg-danger">Expired</span>
-                    {% endif %}
-                </li>
-                <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                    <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
-                    CV
-                </li>
-                
-                <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                    <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
-                    QRC Certificate
-                </li>
-                <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                    <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
-                    CTC Certificate
-                </li>
-                
-            </ul>
-            {% endwith %}
-        </div>
-    </div>
 
-    <!-- Co-Investigators Documents Check -->
-    {% if submission.coinvestigators.exists %}
-    <div class="card mb-4">
-        <div class="card-header">
-            <h4>Co-Investigators Documents</h4>
-        </div>
         <div class="card-body">
-            {% for coinv in submission.coinvestigators.all %}
-            <div class="mb-4">
-                <h6>{{ coinv.user.get_full_name }} - {{ coinv.get_roles_display }}</h6>
-                {% with profile=coinv.user.userprofile %}
-                <ul class="list-group">
-                    <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
-                        GCP Certificate
-                        {% if profile.is_gcp_expired %}
-                        <span class="badge bg-danger">Expired</span>
-                        {% endif %}
-                    </li>
-                    <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
-                        CV
-                    </li>
-                    <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
-                        QRC Certificate
-                    </li>
-                    <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
-                        CTC Certificate
-                    </li>
-                    
-                </ul>
-                {% endwith %}
+            <!-- Primary Investigator Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Primary Investigator Documents</h4>
+                    <h6>{{ submission.primary_investigator.get_full_name }}</h6>
+                </div>
+                <div class="card-body">
+                    {% with profile=submission.primary_investigator.userprofile %}
+                    <ul class="list-group">
+                        <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                            <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
+                            GCP Certificate
+                            {% if profile.is_gcp_expired %}
+                            <span class="badge bg-danger">Expired</span>
+                            {% endif %}
+                        </li>
+                        <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                            <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
+                            CV
+                        </li>
+                        <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                            <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
+                            QRC Certificate
+                        </li>
+                        <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                            <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
+                            CTC Certificate
+                        </li>
+                    </ul>
+                    {% endwith %}
+                </div>
             </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
 
-    <!-- Research Assistants Documents Check -->
-    {% if submission.research_assistants.exists %}
-    <div class="card mb-4">
-        <div class="card-header">
-            <h4>Research Assistants Documents</h4>
-        </div>
-        <div class="card-body">
-            {% for ra in submission.research_assistants.all %}
-            <div class="mb-4">
-                <h6>{{ ra.user.get_full_name }}</h6>
-                {% with profile=ra.user.userprofile %}
-                <ul class="list-group">
-                    <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
-                        GCP Certificate
-                        {% if profile.is_gcp_expired %}
-                        <span class="badge bg-danger">Expired</span>
-                        {% endif %}
-                    </li>
-                    <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
-                        CV
-                    </li>
-                    <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
-                        QRC Certificate
-                    </li>
-                    <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
-                        CTC Certificate
-                    </li>
-                </ul>
-                {% endwith %}
+            <!-- Co-Investigators Section -->
+            {% if submission.coinvestigators.exists %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Co-Investigators Documents</h4>
+                </div>
+                <div class="card-body">
+                    {% for coinv in submission.coinvestigators.all %}
+                    <div class="mb-4">
+                        <h6>{{ coinv.user.get_full_name }} - {{ coinv.get_roles_display }}</h6>
+                        {% with profile=coinv.user.userprofile %}
+                        <ul class="list-group">
+                            <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                                <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
+                                GCP Certificate
+                                {% if profile.is_gcp_expired %}
+                                <span class="badge bg-danger">Expired</span>
+                                {% endif %}
+                            </li>
+                            <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                                <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
+                                CV
+                            </li>
+                            <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                                <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
+                                QRC Certificate
+                            </li>
+                            <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                                <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
+                                CTC Certificate
+                            </li>
+                        </ul>
+                        {% endwith %}
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
+            {% endif %}
 
-    <!-- Display missing documents -->
-    {% if missing_documents %}
-        <div class="alert alert-danger">
-            <h4>Missing Documents:</h4>
-            <ul>
-                {% for key, value in missing_documents.items %}
+            <!-- Missing Documents Alert -->
+            {% if missing_documents %}
+            <div class="alert alert-danger">
+                <h4>Missing Documents:</h4>
+                <ul>
+                    {% for key, value in missing_documents.items %}
                     <li>{{ key }} - {{ value.name }}
                         <ul>
                             {% for doc in value.documents %}
-                                <li>{{ doc }}</li>
+                            <li>{{ doc }}</li>
                             {% endfor %}
                         </ul>
                     </li>
-                {% endfor %}
-            </ul>
-        </div>
-    {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
 
-    <!-- Display validation errors -->
-    {% if validation_errors %}
-        <div class="alert alert-danger">
-            <h4>Form Validation Errors:</h4>
-            <ul>
-                {% for form_name, errors in validation_errors.items %}
+            <!-- Validation Errors Alert -->
+            {% if validation_errors %}
+            <div class="alert alert-danger">
+                <h4>Form Validation Errors:</h4>
+                <ul>
+                    {% for form_name, errors in validation_errors.items %}
                     <li><strong>{{ form_name }}</strong>
                         <ul>
                             {% for field, error_list in errors.items %}
-                                <li>{{ field }}: {{ error_list|join:", " }}</li>
+                            <li>{{ field }}: {{ error_list|join:", " }}</li>
                             {% endfor %}
                         </ul>
                     </li>
-                {% endfor %}
-            </ul>
-        </div>
-    {% endif %}
-
-    <!-- Document Repository -->
-    <h2>Document Repository</h2>
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        {{ doc_form|crispy }}
-        <button type="submit" name="action" value="upload_document" class="btn btn-primary">Upload Document</button>
-    </form>
-    <table class="table mt-3">
-        <thead>
-            <tr>
-                <th>Filename</th>
-                <th>Description</th>
-                <th>Uploaded By</th>
-                <th>Uploaded At</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for doc in documents %}
-            <tr>
-                <td>{{ doc.file.name|slice:"documents/" }}</td>
-                <td>{{ doc.description }}</td>
-                <td>{{ doc.uploaded_by.get_full_name }}</td>
-                <td>{{ doc.uploaded_at }}</td>
-                <td>
-                    <a href="{{ doc.file.url }}" class="btn btn-sm btn-secondary">Download</a>
-                    <a href="{% url 'submission:document_delete' submission.temporary_id doc.id %}" class="btn btn-sm btn-danger">Delete</a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="5">No documents uploaded.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <!-- Action Buttons -->
-    <form method="post">
-        {% csrf_token %}
-        <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
-            <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
-                <i class="fas fa-arrow-left"></i> Back
-            </button>
-            {% if can_submit %}
-            <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
-                <i class="fas fa-times"></i> Exit without Saving
-            </button>
-            {% endif %}
-            <button type="submit" name="action" value="submit_final" class="btn btn-success">
-                <i class="fas fa-check"></i> Submit Final
-            </button>
-        </div>
-    </form>
-
-    <!-- Loading Indicator -->
-    <div id="loadingIndicator" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 9999;">
-        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; text-align: center;">
-            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-                <span class="visually-hidden">Loading...</span>
+                    {% endfor %}
+                </ul>
             </div>
-            <p class="mt-3 mb-0">I am thinking...</p>
-        </div>
-    </div>
-    <p></p>
-    <!-- KHCC Brain Analysis -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h4>KHCC Brain Analysis</h4>
-        </div>
-        <div class="card-body">
-            <form method="post" id="analysisForm">
+            {% endif %}
+
+            <!-- Document Repository -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Document Repository</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" class="mb-4">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ doc_form.file|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ doc_form.description.id_for_label }}" class="form-label">Description *</label>
+                                {{ doc_form.description }}
+                                {% if doc_form.description.errors %}
+                                <div class="invalid-feedback">
+                                    {{ doc_form.description.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <button type="submit" name="action" value="upload_document" class="btn btn-primary mt-3">
+                            <i class="fas fa-upload"></i> Upload Document
+                        </button>
+                    </form>
+
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Filename</th>
+                                    <th>Description</th>
+                                    <th>Uploaded By</th>
+                                    <th>Uploaded At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for doc in documents %}
+                                <tr>
+                                    <td>{{ doc.file.name|slice:"documents/" }}</td>
+                                    <td>{{ doc.description }}</td>
+                                    <td>{{ doc.uploaded_by.get_full_name }}</td>
+                                    <td>{{ doc.uploaded_at|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{{ doc.file.url }}" class="btn btn-sm btn-secondary">
+                                                <i class="fas fa-download"></i> Download
+                                            </a>
+                                            <a href="{% url 'submission:document_delete' submission.temporary_id doc.id %}" 
+                                               class="btn btn-sm btn-danger"
+                                               onclick="return confirm('Are you sure you want to delete this document?')">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center">No documents uploaded.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <form method="post" class="d-flex gap-2">
                 {% csrf_token %}
-                <button type="submit" name="action" value="analyze_submission" class="btn btn-primary mb-3">
-                    <i class="fas fa-brain"></i> Analyze Submission
+                <button type="submit" name="action" value="back" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back
                 </button>
+                {% if can_submit %}
+                <button type="submit" name="action" value="exit_no_save" class="btn btn-danger">
+                    <i class="fas fa-times"></i> Exit without Saving
+                </button>
+                <button type="submit" name="action" value="submit_final" class="btn btn-success">
+                    <i class="fas fa-check"></i> Submit Final
+                </button>
+                {% endif %}
             </form>
-            
-            {% if gpt_analysis %}
-            <div class="analysis-result markdown-body">
-                {{ gpt_analysis|safe }}
+
+            <!-- Loading Indicator -->
+            <div id="loadingIndicator" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 9999;">
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; text-align: center;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3 mb-0">Processing submission...</p>
+                </div>
             </div>
-            {% endif %}
         </div>
     </div>
 </div>
 
+{% block page_specific_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const finalSubmitForm = document.querySelector('form:last-of-type');
@@ -256,31 +229,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (hasInvalidCertificates) {
                 e.preventDefault();
-                alert('Cannot submit: All team members must have valid certificates (GCP, CV, QRC, CTC) before submission.');
+                alert('Cannot submit: All team members must have valid certificates before submission.');
                 return false;
             }
             
             if (hasMissingDocs || hasValidationErrors) {
                 e.preventDefault();
-                alert('Cannot submit: Please ensure all mandatory fields are filled.');
+                alert('Cannot submit: Please ensure all mandatory fields are filled and required documents are uploaded.');
                 return false;
             }
+
+            document.getElementById('loadingIndicator').style.display = 'block';
         }
     });
-
-    // Loading indicator for analysis
-    const analysisForm = document.getElementById('analysisForm');
-    const loadingIndicator = document.getElementById('loadingIndicator');
-
-    if (analysisForm && loadingIndicator) {
-        analysisForm.addEventListener('submit', function(e) {
-            console.log('Analysis form submitted');  // Debug log
-            loadingIndicator.style.display = 'block';
-        });
-    } else {
-        console.error('Analysis form or loading indicator not found');  // Debug log
-    }
 });
 </script>
+{% endblock %}
 
 {% endblock %}
