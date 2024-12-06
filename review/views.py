@@ -860,8 +860,34 @@ class SubmissionVersionsView(LoginRequiredMixin, TemplateView):
             'histories': histories,
         })
 
+@login_required
 def download_review_pdf(request, review_request_id):
-    review_request = get_object_or_404(ReviewRequest, id=review_request_id)
+    """Download PDF of a review with proper permission checks"""
+    review_request = get_object_or_404(ReviewRequest.objects.select_related(
+        'requested_by',
+        'requested_to',
+        'submission__primary_investigator'
+    ), id=review_request_id)
+    
+    # Check permissions
+    user = request.user
+    user_groups = user.groups.all()
+    
+    # Allow access if user:
+    # 1. Is the requester
+    # 2. Is the reviewer
+    # 3. Is in the same group as the requester (OSAR/IRB/RC)
+    has_permission = any([
+        user == review_request.requested_by,
+        user == review_request.requested_to,
+        any(group.name in ['OSAR', 'IRB', 'RC'] 
+            for group in user_groups 
+            if review_request.requested_by.groups.filter(name=group.name).exists())
+    ])
+    
+    if not has_permission:
+        raise PermissionDenied("You don't have permission to download this review.")
+    
     review = get_object_or_404(
         Review.objects.select_related(
             'review_request',

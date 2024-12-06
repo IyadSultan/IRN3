@@ -189,89 +189,78 @@
         </div>
         <div class="card-body">
             {% if study_actions %}
-                {% for action in study_actions %}
-                <div class="action-item mb-4 pb-4 border-bottom" data-action-id="{{ action.id }}">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h5 class="mb-1">{{ action.action_type }}</h5>
-                            <p class="text-muted mb-1">
-                                Submitted by {{ action.performed_by }} 
-                                on {{ action.date_created }}
-                            </p>
-                        </div>
-                        <span class="badge {% if action.status == 'pending' %}bg-warning{% elif action.status == 'completed' %}bg-success{% else %}bg-danger{% endif %}">
-                            {{ action.status }}
-                        </span>
-                    </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Action Type</th>
+                            <th>Performed By</th>
+                            <th>Status</th>
+                            <th>Date Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for action in study_actions %}
+                            <tr>
+                                <td>{{ action.action_type }}</td>
+                                <td>{{ action.performed_by }}</td>
+                                <td>
+                                    <span class="badge {% if action.status == 'pending' %}bg-warning{% elif action.status == 'completed' %}bg-success{% else %}bg-danger{% endif %}">
+                                        {{ action.status }}
+                                    </span>
+                                </td>
+                                <td>{{ action.date_created }}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        {% if action.documents.exists %}
+                                            <a href="{{ action.pdf_url }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-file-pdf"></i> View PDF
+                                            </a>
+                                        {% endif %}
+                                        
+                                        <a href="{% url 'review:download_action_pdf' action.id %}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="fas fa-print"></i> Print
+                                        </a>
 
-                    {% if action.notes %}
-                    <div class="mt-2 bg-light p-2 rounded">
-                        <small class="text-muted">Notes:</small>
-                        <p class="mb-0">{{ action.notes }}</p>
-                    </div>
-                    {% endif %}
+                                        {% if action.status == 'pending' and can_process_actions %}
+                                            <button type="button" class="btn btn-sm btn-primary process-action-btn" data-action-id="{{ action.id }}">
+                                                Process
+                                            </button>
+                                        {% endif %}
+                                    </div>
 
-                    <div class="mt-3">
-                        {% if action.documents.exists %}
-                            <a href="{{ action.pdf_url }}" 
-                               class="btn btn-sm btn-outline-primary me-2">
-                                <i class="fas fa-file-pdf"></i> View Attached PDF
-                            </a>
-                        {% endif %}
-                        
-                        <a href="{% url 'review:download_action_pdf' action.id %}" 
-                           class="btn btn-sm btn-outline-secondary me-2">
-                            <i class="fas fa-print"></i> Print Action
-                        </a>
-
-                        {% if action.status == 'pending' and can_process_actions %}
-                            <button type="button" 
-                                    class="btn btn-sm btn-primary process-action-btn"
-                                    data-action-id="{{ action.id }}">
-                                Process Action
-                            </button>
-                        {% endif %}
-                    </div>
-
-                    <!-- Process Action Form -->
-                    <div class="process-action-form mt-3 bg-light p-3 rounded d-none" id="process-form-{{ action.id }}">
-                        <form>
-                            <div class="mb-3">
-                                <label for="letter-{{ action.id }}" class="form-label">Decision Letter</label>
-                                <textarea class="form-control" 
-                                          id="letter-{{ action.id }}" 
-                                          rows="5" 
-                                          required
-                                          placeholder="Enter your decision letter text here..."></textarea>
-                                <small class="form-text text-muted">This will be sent to the investigator.</small>
-                            </div>
-                            <div class="mb-3">
-                                <label for="comments-{{ action.id }}" class="form-label">Internal Comments</label>
-                                <textarea class="form-control" 
-                                          id="comments-{{ action.id }}" 
-                                          rows="3" 
-                                          required
-                                          placeholder="Enter any internal comments about this decision..."></textarea>
-                                <small class="form-text text-muted">These comments will be stored with the action record.</small>
-                            </div>
-                            <div class="d-flex justify-content-end gap-2">
-                                <button type="button" 
-                                        class="btn btn-success approve-btn"
-                                        data-action-id="{{ action.id }}">
-                                    <i class="fas fa-check"></i> Approve
-                                </button>
-                                <button type="button" 
-                                        class="btn btn-danger reject-btn"
-                                        data-action-id="{{ action.id }}">
-                                    <i class="fas fa-times"></i> Reject
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-                {% endfor %}
+                                    <!-- Process Action Form -->
+                                    <div class="process-action-form mt-3 bg-light p-3 rounded d-none" id="process-form-{{ action.id }}">
+                                        <form>
+                                            <div class="mb-3">
+                                                <label for="letter-{{ action.id }}" class="form-label">Decision Letter</label>
+                                                <textarea class="form-control" id="letter-{{ action.id }}" rows="5" required placeholder="Enter your decision letter text here..."></textarea>
+                                                <small class="form-text text-muted">This will be sent to the investigator.</small>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="comments-{{ action.id }}" class="form-label">Internal Comments</label>
+                                                <textarea class="form-control" id="comments-{{ action.id }}" rows="3" required placeholder="Enter any internal comments about this decision..."></textarea>
+                                                <small class="form-text text-muted">These comments will be stored with the action record.</small>
+                                            </div>
+                                            <div class="d-flex justify-content-end gap-2">
+                                                <button type="button" class="btn btn-success approve-btn" data-action-id="{{ action.id }}">
+                                                    <i class="fas fa-check"></i> Approve
+                                                </button>
+                                                <button type="button" class="btn btn-danger reject-btn" data-action-id="{{ action.id }}">
+                                                    <i class="fas fa-times"></i> Reject
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             {% else %}
-                <p class="text-muted mb-0">No actions have been recorded yet.</p>
+                <div class="alert alert-info">
+                    No actions have been recorded yet.
+                </div>
             {% endif %}
         </div>
     </div>
