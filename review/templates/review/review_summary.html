@@ -2,6 +2,12 @@
 
 {% block content %}
 <div class="container">
+    <div class="mb-3">
+        <a href="{% url 'review:review_dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+
     <h2>Review Summary for {{ submission.title }}</h2>
     
     <!-- Basic Submission Info -->

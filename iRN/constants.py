@@ -2,6 +2,13 @@ from django.core.cache import cache
 from django.apps import apps
 from django.db import OperationalError
 
+# user names for coordinators
+osar_coordinator = 'Bayan'
+irb_coordinator = ['isultan', 'yacoub']
+rc_coordinator = 'ashehadeh'
+
+
+
 def get_status_choices():
     """Get status choices for review requests."""
     DEFAULT_CHOICES = [
@@ -65,6 +72,8 @@ SUBMISSION_STATUS_CHOICES = [
     ('closed', 'Closed'),
     ('withdrawn', 'Withdrawn'),
     ('document_missing', 'Document Missing'),
+    ('provisional_approval', 'Provisional Approval'),
+    ('suspended', 'Suspended'),
 ]
 
 def get_submission_status_choices():

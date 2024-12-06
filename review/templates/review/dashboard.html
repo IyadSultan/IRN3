@@ -148,7 +148,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <tr>
                                     <td>{{ submission.khcc_number|default:"-" }}</td>
                                     <td>{{ submission.title }}</td>
-                                    <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
+                                    <td>{{ submission.date_submitted|date:"Y-m-d"|default:"-" }}</td>
                                     <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
                                     <td>
                                         {% if submission.review_requests.exists %}
@@ -259,25 +259,34 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                                 <div class="action-buttons">
                                                     <button type="button" 
                                                             class="btn btn-warning btn-sm decision-btn" 
-                                                            style="width: 85px;"
+                                                            style="width: 100px;"
                                                             data-bs-toggle="modal" 
                                                             data-bs-target="#decisionModal"
                                                             data-submission-id="{{ submission.pk }}"
                                                             data-action="revision_requested">
-                                                        <i class="fas fa-undo"></i>Revision
+                                                        <i class="fas fa-undo"></i> Revision
                                                     </button>
                                                     <button type="button" 
                                                             class="btn btn-danger btn-sm decision-btn" 
-                                                            style="width: 85px;"
+                                                            style="width: 100px;"
                                                             data-bs-toggle="modal" 
                                                             data-bs-target="#decisionModal"
                                                             data-submission-id="{{ submission.pk }}"
                                                             data-action="rejected">
                                                         <i class="fas fa-times"></i> Reject
                                                     </button>
-                                                    <button type="button" 
+                                                        <button type="button" 
+                                                                    class="btn btn-info btn-sm decision-btn" 
+                                                                    style="width: 100px;"
+                                                                    data-bs-toggle="modal" 
+                                                                    data-bs-target="#decisionModal"
+                                                                    data-submission-id="{{ submission.pk }}"
+                                                                    data-action="provisional_approval">
+                                                                <i class="fas fa-check-circle"></i>Provisional
+                                                            </button>
+                                                            <button type="button" 
                                                             class="btn btn-success btn-sm decision-btn" 
-                                                            style="width: 85px;"
+                                                            style="width: 100px;"
                                                             data-bs-toggle="modal" 
                                                             data-bs-target="#decisionModal"
                                                             data-submission-id="{{ submission.pk }}"
@@ -285,6 +294,19 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                                         <i class="fas fa-check"></i> Accept
                                                     </button>
                                                 </div>
+                                            {% endif %}
+                                            {% if submission.status == 'accepted' %}
+                                            <div class="action-buttons">
+                                                <button type="button" 
+                                                        class="btn btn-danger btn-sm decision-btn" 
+                                                        style="width: 100px;"
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#decisionModal"
+                                                        data-submission-id="{{ submission.pk }}"
+                                                        data-action="suspended">
+                                                    <i class="fas fa-pause"></i> Suspend
+                                                </button>
+                                            </div>
                                             {% endif %}
                                         {% endif %}
                                     </td>

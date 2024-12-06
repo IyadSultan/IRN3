@@ -1048,14 +1048,58 @@ class ToggleSubmissionVisibilityView(LoginRequiredMixin, View):
                     'message': 'Invalid toggle type'
                 }, status=400)
             
+            # Get the previous state to check if we're turning visibility ON
+            previous_state = getattr(submission, f'show_in_{toggle_type}', False)
+            
+            # Toggle the visibility
             if toggle_type == 'irb':
-                submission.show_in_irb = not getattr(submission, 'show_in_irb', False)
+                submission.show_in_irb = not previous_state
                 visible = submission.show_in_irb
             else:  # toggle_type == 'rc'
-                submission.show_in_rc = not getattr(submission, 'show_in_rc', False)
+                submission.show_in_rc = not previous_state
                 visible = submission.show_in_rc
             
             submission.save(update_fields=[f'show_in_{toggle_type}'])
+            
+            # Send notification if visibility was turned ON
+            if visible and not previous_state:
+                from iRN.constants import irb_coordinator, rc_coordinator
+                
+                # Determine which coordinators to notify
+                if toggle_type == 'irb':
+                    coordinator_usernames = irb_coordinator
+                else:  # toggle_type == 'rc'
+                    coordinator_usernames = [rc_coordinator]
+                
+                # Convert usernames to User objects
+                User = get_user_model()
+                coordinator_users = User.objects.filter(username__in=coordinator_usernames)
+                
+                # Create and send notification message
+                message = Message.objects.create(
+                    sender=get_system_user(),
+                    subject=f'New Submission Visible to {toggle_type.upper()}',
+                    body=f"""
+Dear {toggle_type.upper()} Coordinator,
+
+A new submission has been shared with the {toggle_type.upper()} office:
+
+Title: {submission.title}
+Primary Investigator: {submission.primary_investigator.get_full_name()}
+KHCC Number: {submission.khcc_number or 'Not assigned'}
+
+You can view this submission in your dashboard.
+
+Best regards,
+OSAR
+                    """.strip(),
+                    related_submission=submission,
+                    message_type='visibility'
+                )
+                
+                # Add all coordinators as recipients
+                for coordinator in coordinator_users:
+                    message.recipients.add(coordinator)
             
             return JsonResponse({
                 'status': 'success',
@@ -1288,42 +1332,44 @@ def get_context_data(self, **kwargs):
     return context
 # review/views.py
 class ProcessSubmissionDecisionView(LoginRequiredMixin, View):
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.groups.filter(name__in=['OSAR', 'IRB']).exists():
-            return JsonResponse({
-                'status': 'error',
-                'message': "You don't have permission to make submission decisions."
-            }, status=403)
-        return super().dispatch(request, *args, **kwargs)
-    
     def post(self, request, submission_id):
         try:
-            # Parse JSON data from request body
             data = json.loads(request.body)
             action = data.get('action')
             comments = data.get('comments', '').strip()
             
-            # Get submission
             submission = get_object_or_404(Submission, pk=submission_id)
             
-            # Validate input
             if not comments:
                 return JsonResponse({
                     'status': 'error',
                     'message': 'Comments are required'
                 }, status=400)
                 
-            if action not in ['revision_requested', 'rejected', 'accepted']:
+            # Update valid actions list
+            if action not in ['revision_requested', 'rejected', 'accepted', 'provisional_approval', 'suspended']:
                 return JsonResponse({
                     'status': 'error',
                     'message': 'Invalid action'
                 }, status=400)
 
             with transaction.atomic():
-                # Update submission status
-                if action == 'revision_requested':
+                # Update submission status based on action
+                if action == 'suspended':
+                    if submission.status != 'accepted':
+                        return JsonResponse({
+                            'status': 'error',
+                            'message': 'Only accepted submissions can be suspended'
+                        }, status=400)
+                    
+                    submission.status = 'suspended'
+                    submission.is_locked = True
+                elif action == 'revision_requested':
                     submission.status = 'revision_requested'
                     submission.is_locked = False
+                elif action == 'provisional_approval':
+                    submission.status = 'provisional_approval'
+                    submission.is_locked = True
                 elif action in ['rejected', 'accepted']:
                     submission.status = action
                     submission.is_locked = True
@@ -1339,7 +1385,29 @@ class ProcessSubmissionDecisionView(LoginRequiredMixin, View):
                 )
 
                 # Send notification
-                send_irb_decision_notification(submission, action, comments)
+                if action == 'suspended':
+                    message = Message.objects.create(
+                        sender=get_system_user(),
+                        subject=f'Study Suspended - {submission.title}',
+                        body=f"""
+Dear {submission.primary_investigator.get_full_name()},
+
+Your study "{submission.title}" has been suspended.
+
+Please refer to the OSAR office for further details and instructions on how to proceed.
+
+Comments from the reviewer:
+{comments}
+
+Best regards,
+Research Administration System
+                        """.strip(),
+                        related_submission=submission,
+                        message_type='decision'
+                    )
+                    message.recipients.add(submission.primary_investigator)
+                else:
+                    send_irb_decision_notification(submission, action, comments)
 
                 return JsonResponse({
                     'status': 'success',
@@ -1352,7 +1420,7 @@ class ProcessSubmissionDecisionView(LoginRequiredMixin, View):
                 'message': 'Invalid JSON data'
             }, status=400)
         except Exception as e:
-            print(f"Error processing decision: {str(e)}")  # For debugging
+            print(f"Error processing decision: {str(e)}")
             return JsonResponse({
                 'status': 'error',
                 'message': str(e)
@@ -1659,7 +1727,7 @@ Action Details:
 - Date: {timezone.now().strftime('%Y-%m-%d %H:%M')}
 
 Best regards,
-{request.user.get_full_name()}
+Office of Scientific Affairs and Research (OSAR)
                     """.strip(),
                     related_submission=submission,
                     message_type='decision'

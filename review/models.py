@@ -188,6 +188,8 @@ class SubmissionDecision(models.Model):
         ('revision_requested', 'Revision Requested'),
         ('rejected', 'Rejected'),
         ('accepted', 'Accepted'),
+        ('provisional_approval', 'Provisional Approval'),
+        ('suspended', 'Suspended'),
     ]
 
     submission = models.ForeignKey('submission.Submission', on_delete=models.CASCADE, related_name='decisions')
