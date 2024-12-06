@@ -299,43 +299,28 @@ def generate_action_pdf(submission, study_action, form_entries, user, as_buffer=
         logger.info(f"Generating PDF for action {study_action.id} of submission {submission.temporary_id}")
         
         buffer = BytesIO()
-        pdf_generator = ActionPDFGenerator(buffer, study_action, submission, form_entries)
+        # Create the PDF generator with all required parameters
+        pdf_generator = ActionPDFGenerator(
+            buffer=buffer,
+            action=study_action,
+            submission=submission,
+            form_responses=form_entries
+        )
         
-        # Add header
-        pdf_generator.add_header()
-        
-        # Add basic submission identifier
-        pdf_generator.write_wrapped_text(f"Submission ID: {submission.temporary_id}")
-        pdf_generator.write_wrapped_text(f"Title: {submission.title}")
-        pdf_generator.y -= pdf_generator.line_height
-        
-        # Add action-specific information
-        pdf_generator.add_section_header(f"{study_action.get_action_type_display()}")
-        pdf_generator.write_wrapped_text(f"Date: {study_action.date_created.strftime('%Y-%m-%d %H:%M')}")
-        pdf_generator.write_wrapped_text(f"Submitted by: {study_action.performed_by.get_full_name()}")
-        pdf_generator.y -= pdf_generator.line_height
-        
-        # Add only the form entries for this action
-        pdf_generator.add_section_header("Form Details")
-        pdf_generator.add_form_responses()
-        
-        # Add footer
-        pdf_generator.add_footer()
-        pdf_generator.canvas.save()
+        # Use the generator's methods to create the PDF
+        pdf_generator.generate()  # This will call all necessary methods in the right order
         
         if as_buffer:
             buffer.seek(0)
             return buffer
-        else:
-            buffer.seek(0)
-            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-            response['Content-Disposition'] = (
-                f'attachment; filename="submission_{submission.temporary_id}_'
-                f'{study_action.action_type}_{study_action.date_created.strftime("%Y%m%d")}.pdf"'
-            )
-            return response
+        
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        filename = f"study_action_{study_action.get_action_type_display()}_{study_action.date_created.strftime('%Y%m%d')}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
             
     except Exception as e:
         logger.error(f"Error generating action PDF: {str(e)}")
-        logger.error("Action PDF generation error details:", exc_info=True)
+        logger.error("PDF generation error details:", exc_info=True)
         return None

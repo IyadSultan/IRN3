@@ -45,7 +45,7 @@ from .utils.notifications import (
     send_irb_decision_notification
 )
 # Models
-from submission.models import Submission, StudyAction  # Import StudyAction from submission.models
+from submission.models import Submission, StudyAction, FormDataEntry  # Import StudyAction from submission.models
 from .models import Review, ReviewRequest, NotepadEntry, SubmissionDecision
 
 # Utils
@@ -1820,25 +1820,38 @@ def download_action_pdf(request, action_id):
     """
     View function to generate and download a PDF for a study action.
     """
-    # Get the action or return 404
+    # Get the action with related data
     action = get_object_or_404(StudyAction.objects.select_related(
         'submission',
         'performed_by'
     ), pk=action_id)
     
-    # Check if user has permission to view this action
+    # Check permissions
     if not request.user.groups.filter(name__in=['OSAR', 'IRB', 'RC']).exists():
         return HttpResponse('Permission denied', status=403)
     
-    # Get form entries related to this action
-    form_entries = []  # You might need to adjust this based on your data model
+    # Get form entries related to this specific action
+    form_entries = FormDataEntry.objects.filter(
+        submission=action.submission,
+        study_action=action  # This is the key change - filter by study_action
+    ).select_related('form')
+    
+    # Organize form data by form
+    form_data = {}
+    for entry in form_entries:
+        if entry.form_id not in form_data:
+            form_data[entry.form_id] = {
+                'form': entry.form,
+                'fields': {}
+            }
+        form_data[entry.form_id]['fields'][entry.field_name] = entry.value
     
     # Generate the PDF
     pdf_response = generate_action_pdf(
+        submission=action.submission,
         study_action=action,
-        form_entries=form_entries,
-        user=request.user,
-        submission=action.submission
+        form_entries=form_data,
+        user=request.user
     )
     
     if pdf_response is None:
