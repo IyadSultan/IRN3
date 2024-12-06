@@ -1,4 +1,5 @@
 {% extends 'users/base.html' %}
+{% load submission_tags %}
 {% block content %}
 <div class="container mt-4">
     <div class="card">
@@ -30,6 +31,7 @@
                             <th>Version</th>
                             <th>Status</th>
                             <th>Date</th>
+                            <th>Submitted By</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -45,7 +47,7 @@
                             <td>{{ history.date|date:"M d, Y H:i" }}</td>
                             <td>
                                 {% if submission.submitted_by and history.version == submission.version %}
-                                    Submitted by: {{ submission.submitted_by.get_full_name }}
+                                    {{ submission.submitted_by.get_full_name }}
                                 {% endif %}
                             </td>
                             <td>
@@ -56,14 +58,20 @@
                                         <i class="fas fa-file-pdf"></i> Download
                                     </a>
                                     
-                                    {% if not forloop.first %}
-                                        {% if history.previous_version %}
-                                            <a href="{% url 'submission:compare_version' submission.pk history.version history.previous_version %}" 
-                                               class="btn btn-sm btn-primary" 
-                                               title="Compare with Previous Version">
-                                                <i class="fas fa-code-compare"></i> Compare Changes
-                                            </a>
-                                        {% endif %}
+                                    {% if history.version > 1 %}
+                                        <a href="{% url 'submission:compare_version' submission.temporary_id history.version history.version|add:"-1" %}" 
+                                           class="btn btn-sm btn-info" 
+                                           title="Compare with Previous Version">
+                                            <i class="fas fa-code-compare"></i> Compare with v{{ history.version|add:"-1" }}
+                                        </a>
+                                    {% endif %}
+                                    
+                                    {% if history.version != submission.version %}
+                                        <a href="{% url 'submission:compare_version' submission.temporary_id history.version submission.version %}" 
+                                           class="btn btn-sm btn-primary" 
+                                           title="Compare with Latest Version">
+                                            <i class="fas fa-code-compare"></i> Compare with Latest
+                                        </a>
                                     {% endif %}
                                 </div>
                             </td>

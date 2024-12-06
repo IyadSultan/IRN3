@@ -1,5 +1,5 @@
 {% extends 'users/base.html' %}
-
+{% load static %}
 {% block content %}
 <div class="container mt-4">
     <div class="card">
@@ -18,8 +18,8 @@
                                 <thead>
                                     <tr>
                                         <th style="width: 30%">Field</th>
-                                        <th style="width: 35%">Previous Value (v{{ previous_version }})</th>
-                                        <th style="width: 35%">Current Value (v{{ version }})</th>
+                                        <th style="width: 35%">Current Version (v{{ previous_version }})</th>
+                                        <th style="width: 35%">Previous Version (v{{ version }})</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -69,5 +69,14 @@
     .bg-light-green {
         background-color: #d4edda;
     }
+    table td span[style*="background-color"] {
+        padding: 2px 4px;
+        border-radius: 2px;
+        display: inline-block;
+    }
 </style>
+
+{% endblock %}
+{% block page_specific_js %}
+<script src="{% static 'js/version-compare.js' %}"></script>
 {% endblock %}

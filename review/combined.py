@@ -1,5 +1,5 @@
 # Combined Python and HTML files
-# Generated from directory: C:\Users\USER\Documents\IRN3\review
+# Generated from directory: C:\Users\isult\Dropbox\AI\Projects\IRN3\review
 # Total files found: 63
 
 
@@ -288,6 +288,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% load review_tags %}
+{% csrf_token %}
 
 
 
@@ -422,9 +423,11 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                         <th>Visibility</th>
                                     {% endif %}
                                     <th>Actions</th>
-                                    {% if is_osar and submission.status not in 'accepted,rejected,closed,withdrawn'|stringformat:'s'|split_string or is_irb and submission.status not in 'accepted,rejected,closed,withdrawn'|stringformat:'s'|split_string %}
-                                        <th>Decision</th>
-                                    {% endif %}
+                                    <th>
+                                        {% if is_osar or is_irb %}
+                                            Decision
+                                        {% endif %}
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -432,7 +435,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                 <tr>
                                     <td>{{ submission.khcc_number|default:"-" }}</td>
                                     <td>{{ submission.title }}</td>
-                                    <td>{{ submission.date_submitted|date:"Y-m-d" }}</td>
+                                    <td>{{ submission.date_submitted|date:"Y-m-d"|default:"-" }}</td>
                                     <td>{{ submission.primary_investigator.userprofile.full_name }}</td>
                                     <td>
                                         {% if submission.review_requests.exists %}
@@ -442,7 +445,7 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                                     <strong>
                                                         <a href="{% url 'messaging:compose_message' %}?recipient={{ request.requested_to.id }}&submission={{ submission.id }}" 
                                                            class="text-primary text-decoration-none">
-                                                            {{ request.requested_to.user}}
+                                                            {{ request.requested_to.userprofile.user}}
                                                         </a>
                                                     </strong>
                                                 </li>
@@ -537,39 +540,63 @@ const VisibilityToggles = ({ submissionId, initialIrbState, initialRcState }) =>
                                             </a>
                                         </div>
                                     </td>
-                                    {% if is_osar and submission.status not in 'accepted,rejected,closed,withdrawn'|stringformat:'s'|split_string or is_irb and submission.status not in 'accepted,rejected,closed,withdrawn'|stringformat:'s'|split_string %}
                                     <td>
-                                        <div class="action-buttons">
-                                            <button type="button" 
-                                                    class="btn btn-warning btn-sm decision-btn" 
-                                                    style="width: 85px;"
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#decisionModal"
-                                                    data-submission-id="{{ submission.pk }}"
-                                                    data-action="revision_requested">
-                                                <i class="fas fa-undo"></i>Revision
-                                            </button>
-                                            <button type="button" 
-                                                    class="btn btn-danger btn-sm decision-btn" 
-                                                    style="width: 85px;"
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#decisionModal"
-                                                    data-submission-id="{{ submission.pk }}"
-                                                    data-action="rejected">
-                                                <i class="fas fa-times"></i> Reject
-                                            </button>
-                                            <button type="button" 
-                                                    class="btn btn-success btn-sm decision-btn" 
-                                                    data-bs-toggle="modal" 
-                                                    style="width: 85px;"
-                                                    data-bs-target="#decisionModal"
-                                                    data-submission-id="{{ submission.pk }}"
-                                                    data-action="accepted">
-                                                <i class="fas fa-check"></i> Accept
-                                            </button>
-                                        </div>
+                                        {% if is_osar or is_irb %}
+                                            {% if submission.status not in 'accepted,rejected,closed,withdrawn'|stringformat:'s'|split_string %}
+                                                <div class="action-buttons">
+                                                    <button type="button" 
+                                                            class="btn btn-warning btn-sm decision-btn" 
+                                                            style="width: 100px;"
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#decisionModal"
+                                                            data-submission-id="{{ submission.pk }}"
+                                                            data-action="revision_requested">
+                                                        <i class="fas fa-undo"></i> Revision
+                                                    </button>
+                                                    <button type="button" 
+                                                            class="btn btn-danger btn-sm decision-btn" 
+                                                            style="width: 100px;"
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#decisionModal"
+                                                            data-submission-id="{{ submission.pk }}"
+                                                            data-action="rejected">
+                                                        <i class="fas fa-times"></i> Reject
+                                                    </button>
+                                                        <button type="button" 
+                                                                    class="btn btn-info btn-sm decision-btn" 
+                                                                    style="width: 100px;"
+                                                                    data-bs-toggle="modal" 
+                                                                    data-bs-target="#decisionModal"
+                                                                    data-submission-id="{{ submission.pk }}"
+                                                                    data-action="provisional_approval">
+                                                                <i class="fas fa-check-circle"></i>Provisional
+                                                            </button>
+                                                            <button type="button" 
+                                                            class="btn btn-success btn-sm decision-btn" 
+                                                            style="width: 100px;"
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#decisionModal"
+                                                            data-submission-id="{{ submission.pk }}"
+                                                            data-action="accepted">
+                                                        <i class="fas fa-check"></i> Accept
+                                                    </button>
+                                                </div>
+                                            {% endif %}
+                                            {% if submission.status == 'accepted' %}
+                                            <div class="action-buttons">
+                                                <button type="button" 
+                                                        class="btn btn-danger btn-sm decision-btn" 
+                                                        style="width: 100px;"
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#decisionModal"
+                                                        data-submission-id="{{ submission.pk }}"
+                                                        data-action="suspended">
+                                                    <i class="fas fa-pause"></i> Suspend
+                                                </button>
+                                            </div>
+                                            {% endif %}
+                                        {% endif %}
                                     </td>
-                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -783,46 +810,65 @@ $(document).ready(function() {
         // Reset submit button
         submitButton.disabled = false;
         submitButton.innerHTML = 'Submit Decision';
+
+        console.log('Modal opened for submission:', currentSubmissionId, 'action:', decisionAction.value);
     });
 
-    // Handle decision submission
-    submitButton.addEventListener('click', function() {
-        const comments = document.getElementById('comments').value.trim();
-        if (!comments) {
-            alert('Please provide comments for your decision');
-            return;
+ // Handle decision submission
+submitButton.addEventListener('click', function() {
+    const comments = document.getElementById('comments').value.trim();
+    if (!comments) {
+        alert('Please provide comments for your decision');
+        return;
+    }
+
+    // Show loading state
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+
+    // Create the request data
+    const requestData = {
+        action: decisionAction.value,
+        comments: comments
+    };
+
+    console.log('Submitting decision:', requestData);
+
+    fetch(`/review/submission/${currentSubmissionId}/process-decision/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.status === 'success') {
+            // Hide modal before reload
+            const modalInstance = bootstrap.Modal.getInstance(decisionModal);
+            modalInstance.hide();
+            
+            // Show success message
+            alert('Decision submitted successfully!');
+            
+            // Reload page
+            window.location.reload();
+        } else {
+            throw new Error(data.message || 'An error occurred');
         }
-
-        // Show loading state
-        this.disabled = true;
-        this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
-
-        const formData = new FormData(decisionForm);
-        
-        fetch(`/review/submission/${currentSubmissionId}/process-decision/`, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                window.location.reload();
-            } else {
-                alert(data.message || 'An error occurred');
-                this.disabled = false;
-                this.innerHTML = 'Submit Decision';
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred. Please try again.');
-            this.disabled = false;
-            this.innerHTML = 'Submit Decision';
-        });
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred. Please try again.');
+        this.disabled = false;
+        this.innerHTML = 'Submit Decision';
     });
+});
 
     // Add color classes to status badges
     document.querySelectorAll('.status-badge').forEach(badge => {
@@ -2920,6 +2966,12 @@ $(document).ready(function() {
 
 {% block content %}
 <div class="container">
+    <div class="mb-3">
+        <a href="{% url 'review:review_dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+
     <h2>Review Summary for {{ submission.title }}</h2>
     
     <!-- Basic Submission Info -->
@@ -3101,89 +3153,78 @@ $(document).ready(function() {
         </div>
         <div class="card-body">
             {% if study_actions %}
-                {% for action in study_actions %}
-                <div class="action-item mb-4 pb-4 border-bottom" data-action-id="{{ action.id }}">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h5 class="mb-1">{{ action.action_type }}</h5>
-                            <p class="text-muted mb-1">
-                                Submitted by {{ action.performed_by }} 
-                                on {{ action.date_created }}
-                            </p>
-                        </div>
-                        <span class="badge {% if action.status == 'pending' %}bg-warning{% elif action.status == 'completed' %}bg-success{% else %}bg-danger{% endif %}">
-                            {{ action.status }}
-                        </span>
-                    </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Action Type</th>
+                            <th>Performed By</th>
+                            <th>Status</th>
+                            <th>Date Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for action in study_actions %}
+                            <tr>
+                                <td>{{ action.action_type }}</td>
+                                <td>{{ action.performed_by }}</td>
+                                <td>
+                                    <span class="badge {% if action.status == 'pending' %}bg-warning{% elif action.status == 'completed' %}bg-success{% else %}bg-danger{% endif %}">
+                                        {{ action.status }}
+                                    </span>
+                                </td>
+                                <td>{{ action.date_created }}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        {% if action.documents.exists %}
+                                            <a href="{{ action.pdf_url }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-file-pdf"></i> View PDF
+                                            </a>
+                                        {% endif %}
+                                        
+                                        <a href="{% url 'review:download_action_pdf' action.id %}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="fas fa-print"></i> Print
+                                        </a>
 
-                    {% if action.notes %}
-                    <div class="mt-2 bg-light p-2 rounded">
-                        <small class="text-muted">Notes:</small>
-                        <p class="mb-0">{{ action.notes }}</p>
-                    </div>
-                    {% endif %}
+                                        {% if action.status == 'pending' and can_process_actions %}
+                                            <button type="button" class="btn btn-sm btn-primary process-action-btn" data-action-id="{{ action.id }}">
+                                                Process
+                                            </button>
+                                        {% endif %}
+                                    </div>
 
-                    <div class="mt-3">
-                        {% if action.documents.exists %}
-                            <a href="{{ action.pdf_url }}" 
-                               class="btn btn-sm btn-outline-primary me-2">
-                                <i class="fas fa-file-pdf"></i> View Attached PDF
-                            </a>
-                        {% endif %}
-                        
-                        <a href="{% url 'review:download_action_pdf' action.id %}" 
-                           class="btn btn-sm btn-outline-secondary me-2">
-                            <i class="fas fa-print"></i> Print Action
-                        </a>
-
-                        {% if action.status == 'pending' and can_process_actions %}
-                            <button type="button" 
-                                    class="btn btn-sm btn-primary process-action-btn"
-                                    data-action-id="{{ action.id }}">
-                                Process Action
-                            </button>
-                        {% endif %}
-                    </div>
-
-                    <!-- Process Action Form -->
-                    <div class="process-action-form mt-3 bg-light p-3 rounded d-none" id="process-form-{{ action.id }}">
-                        <form>
-                            <div class="mb-3">
-                                <label for="letter-{{ action.id }}" class="form-label">Decision Letter</label>
-                                <textarea class="form-control" 
-                                          id="letter-{{ action.id }}" 
-                                          rows="5" 
-                                          required
-                                          placeholder="Enter your decision letter text here..."></textarea>
-                                <small class="form-text text-muted">This will be sent to the investigator.</small>
-                            </div>
-                            <div class="mb-3">
-                                <label for="comments-{{ action.id }}" class="form-label">Internal Comments</label>
-                                <textarea class="form-control" 
-                                          id="comments-{{ action.id }}" 
-                                          rows="3" 
-                                          required
-                                          placeholder="Enter any internal comments about this decision..."></textarea>
-                                <small class="form-text text-muted">These comments will be stored with the action record.</small>
-                            </div>
-                            <div class="d-flex justify-content-end gap-2">
-                                <button type="button" 
-                                        class="btn btn-success approve-btn"
-                                        data-action-id="{{ action.id }}">
-                                    <i class="fas fa-check"></i> Approve
-                                </button>
-                                <button type="button" 
-                                        class="btn btn-danger reject-btn"
-                                        data-action-id="{{ action.id }}">
-                                    <i class="fas fa-times"></i> Reject
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-                {% endfor %}
+                                    <!-- Process Action Form -->
+                                    <div class="process-action-form mt-3 bg-light p-3 rounded d-none" id="process-form-{{ action.id }}">
+                                        <form>
+                                            <div class="mb-3">
+                                                <label for="letter-{{ action.id }}" class="form-label">Decision Letter</label>
+                                                <textarea class="form-control" id="letter-{{ action.id }}" rows="5" required placeholder="Enter your decision letter text here..."></textarea>
+                                                <small class="form-text text-muted">This will be sent to the investigator.</small>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="comments-{{ action.id }}" class="form-label">Internal Comments</label>
+                                                <textarea class="form-control" id="comments-{{ action.id }}" rows="3" required placeholder="Enter any internal comments about this decision..."></textarea>
+                                                <small class="form-text text-muted">These comments will be stored with the action record.</small>
+                                            </div>
+                                            <div class="d-flex justify-content-end gap-2">
+                                                <button type="button" class="btn btn-success approve-btn" data-action-id="{{ action.id }}">
+                                                    <i class="fas fa-check"></i> Approve
+                                                </button>
+                                                <button type="button" class="btn btn-danger reject-btn" data-action-id="{{ action.id }}">
+                                                    <i class="fas fa-times"></i> Reject
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             {% else %}
-                <p class="text-muted mb-0">No actions have been recorded yet.</p>
+                <div class="alert alert-info">
+                    No actions have been recorded yet.
+                </div>
             {% endif %}
         </div>
     </div>
@@ -4886,6 +4927,8 @@ class SubmissionDecision(models.Model):
         ('revision_requested', 'Revision Requested'),
         ('rejected', 'Rejected'),
         ('accepted', 'Accepted'),
+        ('provisional_approval', 'Provisional Approval'),
+        ('suspended', 'Suspended'),
     ]
 
     submission = models.ForeignKey('submission.Submission', on_delete=models.CASCADE, related_name='decisions')
@@ -6032,45 +6075,30 @@ def generate_action_pdf(submission, study_action, form_entries, user, as_buffer=
         logger.info(f"Generating PDF for action {study_action.id} of submission {submission.temporary_id}")
         
         buffer = BytesIO()
-        pdf_generator = ActionPDFGenerator(buffer, study_action, submission, form_entries)
+        # Create the PDF generator with all required parameters
+        pdf_generator = ActionPDFGenerator(
+            buffer=buffer,
+            action=study_action,
+            submission=submission,
+            form_responses=form_entries
+        )
         
-        # Add header
-        pdf_generator.add_header()
-        
-        # Add basic submission identifier
-        pdf_generator.write_wrapped_text(f"Submission ID: {submission.temporary_id}")
-        pdf_generator.write_wrapped_text(f"Title: {submission.title}")
-        pdf_generator.y -= pdf_generator.line_height
-        
-        # Add action-specific information
-        pdf_generator.add_section_header(f"{study_action.get_action_type_display()}")
-        pdf_generator.write_wrapped_text(f"Date: {study_action.date_created.strftime('%Y-%m-%d %H:%M')}")
-        pdf_generator.write_wrapped_text(f"Submitted by: {study_action.performed_by.get_full_name()}")
-        pdf_generator.y -= pdf_generator.line_height
-        
-        # Add only the form entries for this action
-        pdf_generator.add_section_header("Form Details")
-        pdf_generator.add_form_responses()
-        
-        # Add footer
-        pdf_generator.add_footer()
-        pdf_generator.canvas.save()
+        # Use the generator's methods to create the PDF
+        pdf_generator.generate()  # This will call all necessary methods in the right order
         
         if as_buffer:
             buffer.seek(0)
             return buffer
-        else:
-            buffer.seek(0)
-            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-            response['Content-Disposition'] = (
-                f'attachment; filename="submission_{submission.temporary_id}_'
-                f'{study_action.action_type}_{study_action.date_created.strftime("%Y%m%d")}.pdf"'
-            )
-            return response
+        
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        filename = f"study_action_{study_action.get_action_type_display()}_{study_action.date_created.strftime('%Y%m%d')}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
             
     except Exception as e:
         logger.error(f"Error generating action PDF: {str(e)}")
-        logger.error("Action PDF generation error details:", exc_info=True)
+        logger.error("PDF generation error details:", exc_info=True)
         return None
 
 # Contents from: .\views.py
@@ -6121,7 +6149,7 @@ from .utils.notifications import (
     send_irb_decision_notification
 )
 # Models
-from submission.models import Submission, StudyAction  # Import StudyAction from submission.models
+from submission.models import Submission, StudyAction, FormDataEntry  # Import StudyAction from submission.models
 from .models import Review, ReviewRequest, NotepadEntry, SubmissionDecision
 
 # Utils
@@ -6936,8 +6964,34 @@ class SubmissionVersionsView(LoginRequiredMixin, TemplateView):
             'histories': histories,
         })
 
+@login_required
 def download_review_pdf(request, review_request_id):
-    review_request = get_object_or_404(ReviewRequest, id=review_request_id)
+    """Download PDF of a review with proper permission checks"""
+    review_request = get_object_or_404(ReviewRequest.objects.select_related(
+        'requested_by',
+        'requested_to',
+        'submission__primary_investigator'
+    ), id=review_request_id)
+    
+    # Check permissions
+    user = request.user
+    user_groups = user.groups.all()
+    
+    # Allow access if user:
+    # 1. Is the requester
+    # 2. Is the reviewer
+    # 3. Is in the same group as the requester (OSAR/IRB/RC)
+    has_permission = any([
+        user == review_request.requested_by,
+        user == review_request.requested_to,
+        any(group.name in ['OSAR', 'IRB', 'RC'] 
+            for group in user_groups 
+            if review_request.requested_by.groups.filter(name=group.name).exists())
+    ])
+    
+    if not has_permission:
+        raise PermissionDenied("You don't have permission to download this review.")
+    
     review = get_object_or_404(
         Review.objects.select_related(
             'review_request',
@@ -7124,14 +7178,58 @@ class ToggleSubmissionVisibilityView(LoginRequiredMixin, View):
                     'message': 'Invalid toggle type'
                 }, status=400)
             
+            # Get the previous state to check if we're turning visibility ON
+            previous_state = getattr(submission, f'show_in_{toggle_type}', False)
+            
+            # Toggle the visibility
             if toggle_type == 'irb':
-                submission.show_in_irb = not getattr(submission, 'show_in_irb', False)
+                submission.show_in_irb = not previous_state
                 visible = submission.show_in_irb
             else:  # toggle_type == 'rc'
-                submission.show_in_rc = not getattr(submission, 'show_in_rc', False)
+                submission.show_in_rc = not previous_state
                 visible = submission.show_in_rc
             
             submission.save(update_fields=[f'show_in_{toggle_type}'])
+            
+            # Send notification if visibility was turned ON
+            if visible and not previous_state:
+                from iRN.constants import irb_coordinator, rc_coordinator
+                
+                # Determine which coordinators to notify
+                if toggle_type == 'irb':
+                    coordinator_usernames = irb_coordinator
+                else:  # toggle_type == 'rc'
+                    coordinator_usernames = [rc_coordinator]
+                
+                # Convert usernames to User objects
+                User = get_user_model()
+                coordinator_users = User.objects.filter(username__in=coordinator_usernames)
+                
+                # Create and send notification message
+                message = Message.objects.create(
+                    sender=get_system_user(),
+                    subject=f'New Submission Visible to {toggle_type.upper()}',
+                    body=f"""
+Dear {toggle_type.upper()} Coordinator,
+
+A new submission has been shared with the {toggle_type.upper()} office:
+
+Title: {submission.title}
+Primary Investigator: {submission.primary_investigator.get_full_name()}
+KHCC Number: {submission.khcc_number or 'Not assigned'}
+
+You can view this submission in your dashboard.
+
+Best regards,
+OSAR
+                    """.strip(),
+                    related_submission=submission,
+                    message_type='visibility'
+                )
+                
+                # Add all coordinators as recipients
+                for coordinator in coordinator_users:
+                    message.recipients.add(coordinator)
             
             return JsonResponse({
                 'status': 'success',
@@ -7364,39 +7462,50 @@ def get_context_data(self, **kwargs):
     return context
 # review/views.py
 class ProcessSubmissionDecisionView(LoginRequiredMixin, View):
-    def dispatch(self, request, *args, **kwargs):
-        # Update permission check to include IRB members
-        if not request.user.groups.filter(name__in=['OSAR', 'IRB']).exists():
-            return JsonResponse({
-                'status': 'error',
-                'message': "You don't have permission to make submission decisions."
-            }, status=403)
-        return super().dispatch(request, *args, **kwargs)
-    
     def post(self, request, submission_id):
-        submission = get_object_or_404(Submission, pk=submission_id)
-        action = request.POST.get('action')
-        comments = request.POST.get('comments', '')
-        
         try:
+            data = json.loads(request.body)
+            action = data.get('action')
+            comments = data.get('comments', '').strip()
+            
+            submission = get_object_or_404(Submission, pk=submission_id)
+            
+            if not comments:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Comments are required'
+                }, status=400)
+                
+            # Update valid actions list
+            if action not in ['revision_requested', 'rejected', 'accepted', 'provisional_approval', 'suspended']:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Invalid action'
+                }, status=400)
+
             with transaction.atomic():
-                if action == 'revision_requested':
+                # Update submission status based on action
+                if action == 'suspended':
+                    if submission.status != 'accepted':
+                        return JsonResponse({
+                            'status': 'error',
+                            'message': 'Only accepted submissions can be suspended'
+                        }, status=400)
+                    
+                    submission.status = 'suspended'
+                    submission.is_locked = True
+                elif action == 'revision_requested':
                     submission.status = 'revision_requested'
                     submission.is_locked = False
-                elif action == 'rejected':
-                    submission.status = 'rejected'
+                elif action == 'provisional_approval':
+                    submission.status = 'provisional_approval'
                     submission.is_locked = True
-                elif action == 'accepted':
-                    submission.status = 'accepted'
+                elif action in ['rejected', 'accepted']:
+                    submission.status = action
                     submission.is_locked = True
-                else:
-                    return JsonResponse({
-                        'status': 'error',
-                        'message': 'Invalid action'
-                    }, status=400)
-                
+
                 submission.save()
-                
+
                 # Create decision record
                 SubmissionDecision.objects.create(
                     submission=submission,
@@ -7404,31 +7513,48 @@ class ProcessSubmissionDecisionView(LoginRequiredMixin, View):
                     comments=comments,
                     decided_by=request.user
                 )
-                
+
                 # Send notification
-                send_irb_decision_notification(submission, action, comments)
-                # send_decision_notification(
-                #     submission=submission,
-                #     action=action,
-                #     comments=comments,
-                #     decided_by=request.user
-                # )
-                
-                messages.success(request, f"Submission successfully marked as {action.replace('_', ' ').title()}")
-                
+                if action == 'suspended':
+                    message = Message.objects.create(
+                        sender=get_system_user(),
+                        subject=f'Study Suspended - {submission.title}',
+                        body=f"""
+Dear {submission.primary_investigator.get_full_name()},
+
+Your study "{submission.title}" has been suspended.
+
+Please refer to the OSAR office for further details and instructions on how to proceed.
+
+Comments from the reviewer:
+{comments}
+
+Best regards,
+Research Administration System
+                        """.strip(),
+                        related_submission=submission,
+                        message_type='decision'
+                    )
+                    message.recipients.add(submission.primary_investigator)
+                else:
+                    send_irb_decision_notification(submission, action, comments)
+
                 return JsonResponse({
                     'status': 'success',
-                    'message': f'Submission status updated to {action}',
-                    'redirect_url': reverse('review:review_summary', args=[submission.pk])
+                    'message': f'Submission successfully marked as {action.replace("_", " ").title()}'
                 })
-                
+
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Invalid JSON data'
+            }, status=400)
         except Exception as e:
+            print(f"Error processing decision: {str(e)}")
             return JsonResponse({
                 'status': 'error',
                 'message': str(e)
             }, status=500)
-        
-
 
 # review/views.py
 
@@ -7731,7 +7857,7 @@ Action Details:
 - Date: {timezone.now().strftime('%Y-%m-%d %H:%M')}
 
 Best regards,
-{request.user.get_full_name()}
+Office of Scientific Affairs and Research (OSAR)
                     """.strip(),
                     related_submission=submission,
                     message_type='decision'
@@ -7824,25 +7950,38 @@ def download_action_pdf(request, action_id):
     """
     View function to generate and download a PDF for a study action.
     """
-    # Get the action or return 404
+    # Get the action with related data
     action = get_object_or_404(StudyAction.objects.select_related(
         'submission',
         'performed_by'
     ), pk=action_id)
     
-    # Check if user has permission to view this action
+    # Check permissions
     if not request.user.groups.filter(name__in=['OSAR', 'IRB', 'RC']).exists():
         return HttpResponse('Permission denied', status=403)
     
-    # Get form entries related to this action
-    form_entries = []  # You might need to adjust this based on your data model
+    # Get form entries related to this specific action
+    form_entries = FormDataEntry.objects.filter(
+        submission=action.submission,
+        study_action=action  # This is the key change - filter by study_action
+    ).select_related('form')
+    
+    # Organize form data by form
+    form_data = {}
+    for entry in form_entries:
+        if entry.form_id not in form_data:
+            form_data[entry.form_id] = {
+                'form': entry.form,
+                'fields': {}
+            }
+        form_data[entry.form_id]['fields'][entry.field_name] = entry.value
     
     # Generate the PDF
     pdf_response = generate_action_pdf(
+        submission=action.submission,
         study_action=action,
-        form_entries=form_entries,
-        user=request.user,
-        submission=action.submission
+        form_entries=form_data,
+        user=request.user
     )
     
     if pdf_response is None:
