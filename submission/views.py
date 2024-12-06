@@ -528,46 +528,64 @@ def submission_form(request, submission_id, form_id):
             if action == 'back':
                 if previous_form:
                     return redirect('submission:submission_form', 
-                                  submission_id=submission.temporary_id, 
-                                  form_id=previous_form.id)
+                                submission_id=submission.temporary_id, 
+                                form_id=previous_form.id)
                 return redirect('submission:add_coinvestigator', 
-                              submission_id=submission.temporary_id)
+                            submission_id=submission.temporary_id)
             return redirect('submission:dashboard')
 
         # Create form instance
         DynamicFormClass = generate_django_form(dynamic_form)
         
-        # Save form fields
-        for field in dynamic_form.fields.all():
-            field_name = field.name
-            
-            # Handle checkbox fields differently
-            if field.field_type == 'checkbox':
-                values = request.POST.getlist(f'form_{dynamic_form.id}-{field_name}')
-                value = json.dumps(values) if values else '[]'
-            else:
-                value = request.POST.get(f'form_{dynamic_form.id}-{field_name}', '')
-                
-            FormDataEntry.objects.update_or_create(
-                submission=submission,
-                form=dynamic_form,
-                field_name=field_name,
-                version=submission.version,
-                defaults={'value': value}
-            )
-        
-        # Handle post-save navigation
-        if action == 'save_exit':
+        try:
+            with transaction.atomic():
+                # Save form fields
+                for field in dynamic_form.fields.all():
+                    field_name = field.name
+                    
+                    # Handle checkbox fields differently
+                    if field.field_type == 'checkbox':
+                        values = request.POST.getlist(f'form_{dynamic_form.id}-{field_name}')
+                        value = json.dumps(values) if values else '[]'
+                    else:
+                        value = request.POST.get(f'form_{dynamic_form.id}-{field_name}', '')
+                    
+                    # Delete any existing entries for this field and version
+                    FormDataEntry.objects.filter(
+                        submission=submission,
+                        form=dynamic_form,
+                        field_name=field_name,
+                        version=submission.version
+                    ).delete()
+                    
+                    # Create new entry
+                    FormDataEntry.objects.create(
+                        submission=submission,
+                        form=dynamic_form,
+                        field_name=field_name,
+                        version=submission.version,
+                        value=value
+                    )
+
+                messages.success(request, 'Form saved successfully.')
+
+                # Handle post-save navigation
+                if action == 'save_exit':
+                    return redirect('submission:dashboard')
+                elif action == 'save_continue':
+                    next_form = get_next_form(submission, dynamic_form)
+                    if next_form:
+                        return redirect('submission:submission_form', 
+                                    submission_id=submission.temporary_id, 
+                                    form_id=next_form.id)
+                    return redirect('submission:submission_review', 
+                                submission_id=submission.temporary_id)
+
+        except Exception as e:
+            logger.error(f"Error saving form data: {str(e)}")
+            messages.error(request, "An error occurred while saving the form.")
             return redirect('submission:dashboard')
-        elif action == 'save_continue':
-            next_form = get_next_form(submission, dynamic_form)
-            if next_form:
-                return redirect('submission:submission_form', 
-                              submission_id=submission.temporary_id, 
-                              form_id=next_form.id)
-            return redirect('submission:submission_review', 
-                          submission_id=submission.temporary_id)
-    
+
     # GET request handling
     DynamicFormClass = generate_django_form(dynamic_form)
     current_data = {}
@@ -577,28 +595,10 @@ def submission_form(request, submission_id, form_id):
         submission=submission,
         form=dynamic_form,
         version=submission.version
-    )
+    ).order_by('-id')  # Get the latest entry for each field
     
     for entry in entries:
-        field = dynamic_form.fields.get(name=entry.field_name)
-        if field:
-            if field.field_type == 'checkbox':
-                try:
-                    current_data[entry.field_name] = json.loads(entry.value)
-                except json.JSONDecodeError:
-                    current_data[entry.field_name] = []
-            else:
-                current_data[entry.field_name] = entry.value
-
-    # If no current data and not version 1, get previous version's data
-    if not current_data and submission.version > 1 and not submission.is_locked:
-        previous_entries = FormDataEntry.objects.filter(
-            submission=submission,
-            form=dynamic_form,
-            version=submission.version - 1
-        )
-        
-        for entry in previous_entries:
+        if entry.field_name not in current_data:  # Only take the first entry for each field
             field = dynamic_form.fields.get(name=entry.field_name)
             if field:
                 if field.field_type == 'checkbox':
