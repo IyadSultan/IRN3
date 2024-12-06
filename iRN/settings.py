@@ -64,9 +64,11 @@ INSTALLED_APPS = [
     'users.apps.UsersConfig',
     'review',
     'feedback',
+    'django_apscheduler',
     
     
 ]
+
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -288,3 +290,6 @@ LOGGING = {
 # from users.settings import get_system_email, get_system_name
 # system_email = get_system_email()
 # system_name = get_system_name()
+
+# Add this to your settings.py
+SITE_DOMAIN = os.getenv('SITE_DOMAIN', 'irn.khcc.jo')

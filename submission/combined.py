@@ -1903,6 +1903,38 @@ $(document).ready(function() {
         </div>
     </div>
 </div>
+<div class="card mb-4"></div>
+    <div class="card-header">
+        <h4>KHCC Brain Analysis</h4>
+    </div>
+    <div class="card-body">
+        <form method="post" id="analysisForm">
+            {% csrf_token %}
+            <button type="submit" name="action" value="analyze_submission" class="btn btn-primary mb-3">
+                <i class="fas fa-brain"></i> Analyze Submission
+            </button>
+        </form>
+        
+        <!-- Analysis Loading Indicator -->
+        <div id="analysisLoadingIndicator" style="display: none;">
+            <div class="d-flex align-items-center justify-content-center">
+                <div class="spinner-border text-primary me-3" role="status">
+                    <span class="visually-hidden">Analyzing...</span>
+                </div>
+                <span>KHCC Brain is analyzing your submission...</span>
+            </div>
+        </div>
+        
+        {% if gpt_analysis %}
+        <div class="analysis-result">
+            <h5>Analysis Results</h5>
+            <div class="border p-3 bg-light">
+                {{ gpt_analysis|linebreaks }}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
 
 {% block page_specific_js %}
 <script>
@@ -1929,6 +1961,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             document.getElementById('loadingIndicator').style.display = 'block';
         }
+    });
+
+    // Analysis form submission handler
+    const analysisForm = document.getElementById('analysisForm');
+    const analysisLoadingIndicator = document.getElementById('analysisLoadingIndicator');
+    
+    analysisForm.addEventListener('submit', function(e) {
+        analysisLoadingIndicator.style.display = 'flex';
     });
 });
 </script>
@@ -6951,46 +6991,64 @@ def submission_form(request, submission_id, form_id):
             if action == 'back':
                 if previous_form:
                     return redirect('submission:submission_form', 
-                                  submission_id=submission.temporary_id, 
-                                  form_id=previous_form.id)
+                                submission_id=submission.temporary_id, 
+                                form_id=previous_form.id)
                 return redirect('submission:add_coinvestigator', 
-                              submission_id=submission.temporary_id)
+                            submission_id=submission.temporary_id)
             return redirect('submission:dashboard')
 
         # Create form instance
         DynamicFormClass = generate_django_form(dynamic_form)
         
-        # Save form fields
-        for field in dynamic_form.fields.all():
-            field_name = field.name
-            
-            # Handle checkbox fields differently
-            if field.field_type == 'checkbox':
-                values = request.POST.getlist(f'form_{dynamic_form.id}-{field_name}')
-                value = json.dumps(values) if values else '[]'
-            else:
-                value = request.POST.get(f'form_{dynamic_form.id}-{field_name}', '')
-                
-            FormDataEntry.objects.update_or_create(
-                submission=submission,
-                form=dynamic_form,
-                field_name=field_name,
-                version=submission.version,
-                defaults={'value': value}
-            )
-        
-        # Handle post-save navigation
-        if action == 'save_exit':
+        try:
+            with transaction.atomic():
+                # Save form fields
+                for field in dynamic_form.fields.all():
+                    field_name = field.name
+                    
+                    # Handle checkbox fields differently
+                    if field.field_type == 'checkbox':
+                        values = request.POST.getlist(f'form_{dynamic_form.id}-{field_name}')
+                        value = json.dumps(values) if values else '[]'
+                    else:
+                        value = request.POST.get(f'form_{dynamic_form.id}-{field_name}', '')
+                    
+                    # Delete any existing entries for this field and version
+                    FormDataEntry.objects.filter(
+                        submission=submission,
+                        form=dynamic_form,
+                        field_name=field_name,
+                        version=submission.version
+                    ).delete()
+                    
+                    # Create new entry
+                    FormDataEntry.objects.create(
+                        submission=submission,
+                        form=dynamic_form,
+                        field_name=field_name,
+                        version=submission.version,
+                        value=value
+                    )
+
+                messages.success(request, 'Form saved successfully.')
+
+                # Handle post-save navigation
+                if action == 'save_exit':
+                    return redirect('submission:dashboard')
+                elif action == 'save_continue':
+                    next_form = get_next_form(submission, dynamic_form)
+                    if next_form:
+                        return redirect('submission:submission_form', 
+                                    submission_id=submission.temporary_id, 
+                                    form_id=next_form.id)
+                    return redirect('submission:submission_review', 
+                                submission_id=submission.temporary_id)
+
+        except Exception as e:
+            logger.error(f"Error saving form data: {str(e)}")
+            messages.error(request, "An error occurred while saving the form.")
             return redirect('submission:dashboard')
-        elif action == 'save_continue':
-            next_form = get_next_form(submission, dynamic_form)
-            if next_form:
-                return redirect('submission:submission_form', 
-                              submission_id=submission.temporary_id, 
-                              form_id=next_form.id)
-            return redirect('submission:submission_review', 
-                          submission_id=submission.temporary_id)
-    
+
     # GET request handling
     DynamicFormClass = generate_django_form(dynamic_form)
     current_data = {}
@@ -7000,28 +7058,10 @@ def submission_form(request, submission_id, form_id):
         submission=submission,
         form=dynamic_form,
         version=submission.version
-    )
+    ).order_by('-id')  # Get the latest entry for each field
     
     for entry in entries:
-        field = dynamic_form.fields.get(name=entry.field_name)
-        if field:
-            if field.field_type == 'checkbox':
-                try:
-                    current_data[entry.field_name] = json.loads(entry.value)
-                except json.JSONDecodeError:
-                    current_data[entry.field_name] = []
-            else:
-                current_data[entry.field_name] = entry.value
-
-    # If no current data and not version 1, get previous version's data
-    if not current_data and submission.version > 1 and not submission.is_locked:
-        previous_entries = FormDataEntry.objects.filter(
-            submission=submission,
-            form=dynamic_form,
-            version=submission.version - 1
-        )
-        
-        for entry in previous_entries:
+        if entry.field_name not in current_data:  # Only take the first entry for each field
             field = dynamic_form.fields.get(name=entry.field_name)
             if field:
                 if field.field_type == 'checkbox':
@@ -7045,7 +7085,6 @@ def submission_form(request, submission_id, form_id):
         'previous_form': previous_form,
     }
     return render(request, 'submission/dynamic_form.html', context)
-
 
 @login_required
 @check_submission_permission('submit')
@@ -7077,15 +7116,13 @@ def submission_review(request, submission_id):
         errors = {}
         
         for field_name, field in form_instance.fields.items():
-            if isinstance(field, forms.MultipleChoiceField):
-                field_key = f'form_{dynamic_form.id}-{field_name}'
-                field_value = saved_data.get(field_key)
-                if not field_value and field.required:
+            field_key = f'form_{dynamic_form.id}-{field_name}'
+            field_value = saved_data.get(field_key, form_instance.data.get(field_key))
+            if field.required:
+                if isinstance(field, forms.MultipleChoiceField) and not field_value:
                     is_valid = False
                     errors[field_name] = ['Please select at least one option']
-            else:
-                field_value = form_instance.data.get(f'form_{dynamic_form.id}-{field_name}')
-                if field.required and not field_value:
+                elif not isinstance(field, forms.MultipleChoiceField) and not field_value:
                     is_valid = False
                     errors[field_name] = ['This field is required']
 
@@ -7099,25 +7136,25 @@ def submission_review(request, submission_id):
         action = request.POST.get('action')
         
         if action == 'submit_final':
-            # Check for required certificates
+            # Re-check for missing documents (certificates)
             missing_certs = check_researcher_documents(submission)
             if missing_certs:
                 messages.error(request, 'Cannot submit: All team members must have valid certificates uploaded in the system.')
                 return redirect('submission:submission_review', submission_id=submission_id)
             
-            # Check for missing documents or validation errors
+            # Check for missing documents or validation errors before final submission
             if missing_documents or validation_errors:
                 messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
                 return redirect('submission:submission_review', submission_id=submission_id)
 
+            # Finalize submission
             try:
                 with transaction.atomic():
-                    # Submit the submission and track who submitted it
                     submission.submitted_by = request.user
                     submission.date_submitted = timezone.now()
                     submission.is_locked = True
 
-                    # Check for pending forms from non-submitter team members
+                    # Check if team members still have pending investigator forms
                     non_submitters = submission.get_non_submitters()
                     required_forms = submission.get_required_investigator_forms()
                     
@@ -7130,11 +7167,9 @@ def submission_review(request, submission_id):
                         if has_pending_forms:
                             break
 
-                    # Set appropriate status
                     submission.status = 'document_missing' if has_pending_forms else 'submitted'
                     submission.save()
                     
-                    # Create version history entry with submitter info
                     VersionHistory.objects.create(
                         submission=submission,
                         version=submission.version,
@@ -7143,22 +7178,19 @@ def submission_review(request, submission_id):
                         submitted_by=request.user
                     )
 
-                    # Generate submission PDF
+                    # Generate PDF
                     buffer = generate_submission_pdf(
                         submission=submission,
                         version=submission.version,
                         user=request.user,
                         as_buffer=True
                     )
-
                     if not buffer:
                         raise ValueError("Failed to generate PDF for submission")
 
-                    # Get system user for notifications
+                    # Notify PI
                     system_user = get_system_user()
                     pdf_filename = f"submission_{submission.temporary_id}_v{submission.version}.pdf"
-
-                    # Send notification to PI
                     pi_message = Message.objects.create(
                         sender=system_user,
                         subject=f'Submission {submission.temporary_id} - Version {submission.version} {"Awaiting Forms" if has_pending_forms else "Confirmation"}',
@@ -7180,21 +7212,14 @@ AIDI System
                         related_submission=submission
                     )
                     pi_message.recipients.add(submission.primary_investigator)
-                    
-                    # Attach PDF to PI message
+
                     pi_attachment = MessageAttachment(message=pi_message)
                     pi_attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
 
                     if has_pending_forms:
-                        # Notify team members about pending forms
                         notify_pending_forms(submission)
                     else:
-                        # Notify OSAR only if all forms are complete
                         notify_osar_of_completion(submission)
-
-                    # Increment version after everything is done
-                    # submission.version += 1
-                    # submission.save()
 
                     messages.success(
                         request, 
@@ -7209,130 +7234,14 @@ AIDI System
                 return redirect('submission:dashboard')
 
         elif action == 'back':
-                logger.error(f"Error in submission finalization: {str(e)}")
-                messages.error(request, f"Error during submission: {str(e)}")
-                return redirect('submission:dashboard')    
-        if request.method == 'POST':
-            action = request.POST.get('action')
-            
-        if action == 'submit_final':
-            missing_certs = check_researcher_documents(submission)
-            if missing_certs:
-                messages.error(request, 'Cannot submit: All team members must have valid certificates uploaded in the system.')
-                return redirect('submission:submission_review', submission_id=submission_id)
-            
-            if missing_documents or validation_errors:
-                messages.error(request, 'Please resolve the missing documents and form errors before final submission.')
-            else:
-                try:
-                    with transaction.atomic():
-                        # Check for required investigator forms
-                        required_forms = submission.study_type.forms.filter(requested_per_investigator=True)
-                        team_members = []
-                        team_members.extend([ci.user for ci in submission.coinvestigators.all()])
-                        team_members.extend([ra.user for ra in submission.research_assistants.all()])
-                        
-                        # Check if there are pending forms for any team member
-                        has_pending_forms = False
-                        for member in team_members:
-                            for form in required_forms:
-                                if not InvestigatorFormSubmission.objects.filter(
-                                    submission=submission,
-                                    form=form,
-                                    investigator=member,
-                                    version=submission.version
-                                ).exists():
-                                    has_pending_forms = True
-                                    break
-                            if has_pending_forms:
-                                break
-
-                        # Set status based on pending forms
-                        submission.is_locked = True
-                        submission.status = 'document_missing' if has_pending_forms else 'submitted'
-                        submission.date_submitted = timezone.now()
-                        
-                        # Create version history entry
-                        VersionHistory.objects.create(
-                            submission=submission,
-                            version=submission.version,
-                            status=submission.status,
-                            date=timezone.now()
-                        )
-
-                        # Generate PDF
-                        buffer = generate_submission_pdf(
-                            submission=submission,
-                            version=submission.version,
-                            user=request.user,
-                            as_buffer=True
-                        )
-
-                        if not buffer:
-                            raise ValueError("Failed to generate PDF for submission")
-
-                        # Get system user for automated messages
-                        system_user = get_system_user()
-                        
-                        # Create PDF filename
-                        pdf_filename = f"submission_{submission.temporary_id}_v{submission.version}.pdf"
-
-                        # Send confirmation to PI with appropriate message
-                        pi_message = Message.objects.create(
-                            sender=system_user,
-                            subject=f'Submission {submission.temporary_id} - Version {submission.version} {"Awaiting Forms" if has_pending_forms else "Confirmation"}',
-                            body=f"""
-Dear {submission.primary_investigator.userprofile.full_name},
-
-Your submission (ID: {submission.temporary_id}) has been successfully received.
-{'Note: The submission is pending required forms from team members.' if has_pending_forms else 'All required forms have been completed.'}
-
-{'The submission will be forwarded for review once all team members complete their required forms.' if has_pending_forms else 'Your submission will now be reviewed by OSAR.'}
-
-Please find the attached PDF for your records.
-
-Best regards,
-AIDI System
-                            """.strip(),
-                            related_submission=submission
-                        )
-                        pi_message.recipients.add(submission.primary_investigator)
-                        
-                        # Attach PDF to PI message
-                        pi_attachment = MessageAttachment(message=pi_message)
-                        pi_attachment.file.save(pdf_filename, ContentFile(buffer.getvalue()))
-
-                        if has_pending_forms:
-                            # Notify team members about pending forms
-                            notify_pending_forms(submission)
-                        else:
-                            # Notify OSAR only if all forms are complete
-                            notify_osar_of_completion(submission)
-
-                        # Increment version after everything is done
-                        # submission.version += 1
-                        # submission.save()
-
-                        messages.success(
-                            request, 
-                            'Submission completed.' + 
-                            (' Awaiting required forms from team members.' if has_pending_forms else ' Sent to OSAR for review.')
-                        )
-                        return redirect('submission:dashboard')
-
-                except Exception as e:
-                    logger.error(f"Error in submission finalization: {str(e)}")
-                    messages.error(request, f"Error during submission: {str(e)}")
-                    return redirect('submission:dashboard')
-
-        elif action == 'back':
+            # Just go back to the last form or co-investigator step
             last_form = submission.study_type.forms.order_by('-order').first()
             if last_form:
                 return redirect('submission:submission_form',
-                              submission_id=submission.temporary_id,
-                              form_id=last_form.id)
+                                submission_id=submission.temporary_id,
+                                form_id=last_form.id)
             return redirect('submission:add_coinvestigator',
-                          submission_id=submission.temporary_id)
+                            submission_id=submission.temporary_id)
 
         elif action == 'exit_no_save':
             return redirect('submission:dashboard')
@@ -7343,7 +7252,6 @@ AIDI System
                 document = doc_form.save(commit=False)
                 document.submission = submission
                 document.uploaded_by = request.user
-                
                 ext = document.file.name.split('.')[-1].lower()
                 if ext in Document.ALLOWED_EXTENSIONS:
                     document.save()
@@ -7356,6 +7264,32 @@ AIDI System
             else:
                 messages.error(request, 'Please correct the errors in the document form.')
 
+        elif action == 'analyze_submission':
+            try:
+                cache_key = f'gpt_analysis_{submission.temporary_id}_{submission.version}'
+                analysis = cache.get(cache_key)
+                
+                if not analysis:
+                    analyzer = ResearchAnalyzer(submission, submission.version)
+                    analysis = analyzer.analyze_submission()
+                    
+                    if analysis and not analysis.startswith("Error"):
+                        cache.set(cache_key, analysis, 3600)
+                    
+                context = {
+                    'submission': submission,
+                    'missing_documents': missing_documents,
+                    'validation_errors': validation_errors,
+                    'documents': documents,
+                    'doc_form': doc_form,
+                    'gpt_analysis': analysis
+                }
+                return render(request, 'submission/submission_review.html', context)
+                
+            except Exception as e:
+                logger.error(f"Error in GPT analysis: {str(e)}")
+                messages.error(request, "Error generating analysis. Please try again later.")
+
     context = {
         'submission': submission,
         'missing_documents': missing_documents,
@@ -7367,6 +7301,8 @@ AIDI System
     }
 
     return render(request, 'submission/submission_review.html', context)
+
+
 
 @login_required
 def document_delete(request, submission_id, document_id):
