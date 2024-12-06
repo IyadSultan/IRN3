@@ -1,6 +1,6 @@
 # Combined Python and HTML files
-# Generated from directory: C:\Users\USER\Documents\IRN3\submission
-# Total files found: 73
+# Generated from directory: C:\Users\isult\Dropbox\AI\Projects\IRN3\submission
+# Total files found: 75
 
 
 
@@ -221,7 +221,7 @@
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                             <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2" formnovalidate>
-                                <i class="fas fa-arrow-left"></i> Back
+                                <i class="fas fa-arrow-left"></i> Back to Start
                             </button>
                             <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2" formnovalidate>
                                 <i class="fas fa-times"></i> Exit without Saving
@@ -229,12 +229,13 @@
                             <button type="submit" name="action" value="save_exit" class="btn btn-primary me-md-2">
                                 <i class="fas fa-save"></i> Save and Exit
                             </button>
-                            <button type="submit" name="action" value="save_add_another" class="btn btn-info me-md-2">
-                                <i class="fas fa-plus"></i> Add Co-investigator
-                            </button>
                             <button type="submit" name="action" value="save_continue" class="btn btn-success">
                                 <i class="fas fa-arrow-right"></i> Save and Continue
                             </button>
+                            <button type="submit" name="action" value="save_add_another" class="btn btn-info me-md-2">
+                                <i class="fas fa-plus"></i> Add Co-investigator
+                            </button>
+
                         </div>
                     </form>
                 </div>
@@ -550,7 +551,7 @@ $(document).ready(function() {
 
 # Contents from: .\templates\submission\compare_versions.html
 {% extends 'users/base.html' %}
-
+{% load static %}
 {% block content %}
 <div class="container mt-4">
     <div class="card">
@@ -569,8 +570,8 @@ $(document).ready(function() {
                                 <thead>
                                     <tr>
                                         <th style="width: 30%">Field</th>
-                                        <th style="width: 35%">Previous Value (v{{ previous_version }})</th>
-                                        <th style="width: 35%">Current Value (v{{ version }})</th>
+                                        <th style="width: 35%">Current Version (v{{ previous_version }})</th>
+                                        <th style="width: 35%">Previous Version (v{{ version }})</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -620,7 +621,16 @@ $(document).ready(function() {
     .bg-light-green {
         background-color: #d4edda;
     }
+    table td span[style*="background-color"] {
+        padding: 2px 4px;
+        border-radius: 2px;
+        display: inline-block;
+    }
 </style>
+
+{% endblock %}
+{% block page_specific_js %}
+<script src="{% static 'js/version-compare.js' %}"></script>
 {% endblock %}
 
 # Contents from: .\templates\submission\dashboard.html
@@ -1290,7 +1300,6 @@ $(document).ready(function() {
                             <label for="user_role" class="form-label">What is your role in this submission?</label>
                             <select name="user_role" id="user_role" class="form-select" required>
                                 <option value="">Select your role...</option>
-                                <option value="research_assistant">Research Assistant</option>
                                 <option value="coinvestigator">Co-Investigator</option>
                             </select>
                             
@@ -1677,252 +1686,225 @@ $(document).ready(function() {
 
 
 # Contents from: .\templates\submission\submission_review.html
-<!-- submission/review.html -->
-
 {% extends 'users/base.html' %}
 {% load crispy_forms_tags %}
 
 {% block content %}
 <div class="container mt-4">
-    <h1>Submission Review</h1>
-
-    <!-- Primary Investigator Documents Check -->
-    <div class="card mb-4">
+    <div class="card">
         <div class="card-header">
-            <h4>Primary Investigator Documents</h4>
-            <h6>{{ submission.primary_investigator.get_full_name }}</h6>
+            <h2>Submission Review</h2>
+            <h4 class="text-muted">{{ submission.title }}</h4>
         </div>
-        <div class="card-body">
-            {% with profile=submission.primary_investigator.userprofile %}
-            <ul class="list-group">
-                <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                    <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
-                    GCP Certificate
-                    {% if profile.is_gcp_expired %}
-                    <span class="badge bg-danger">Expired</span>
-                    {% endif %}
-                </li>
-                <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                    <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
-                    CV
-                </li>
-                
-                <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                    <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
-                    QRC Certificate
-                </li>
-                <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                    <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
-                    CTC Certificate
-                </li>
-                
-            </ul>
-            {% endwith %}
-        </div>
-    </div>
 
-    <!-- Co-Investigators Documents Check -->
-    {% if submission.coinvestigators.exists %}
-    <div class="card mb-4">
-        <div class="card-header">
-            <h4>Co-Investigators Documents</h4>
-        </div>
         <div class="card-body">
-            {% for coinv in submission.coinvestigators.all %}
-            <div class="mb-4">
-                <h6>{{ coinv.user.get_full_name }} - {{ coinv.get_roles_display }}</h6>
-                {% with profile=coinv.user.userprofile %}
-                <ul class="list-group">
-                    <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
-                        GCP Certificate
-                        {% if profile.is_gcp_expired %}
-                        <span class="badge bg-danger">Expired</span>
-                        {% endif %}
-                    </li>
-                    <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
-                        CV
-                    </li>
-                    <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
-                        QRC Certificate
-                    </li>
-                    <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
-                        CTC Certificate
-                    </li>
-                    
-                </ul>
-                {% endwith %}
+            <!-- Primary Investigator Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Primary Investigator Documents</h4>
+                    <h6>{{ submission.primary_investigator.get_full_name }}</h6>
+                </div>
+                <div class="card-body">
+                    {% with profile=submission.primary_investigator.userprofile %}
+                    <ul class="list-group">
+                        <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                            <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
+                            GCP Certificate
+                            {% if profile.is_gcp_expired %}
+                            <span class="badge bg-danger">Expired</span>
+                            {% endif %}
+                        </li>
+                        <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                            <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
+                            CV
+                        </li>
+                        <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                            <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
+                            QRC Certificate
+                        </li>
+                        <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                            <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
+                            CTC Certificate
+                        </li>
+                    </ul>
+                    {% endwith %}
+                </div>
             </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
 
-    <!-- Research Assistants Documents Check -->
-    {% if submission.research_assistants.exists %}
-    <div class="card mb-4">
-        <div class="card-header">
-            <h4>Research Assistants Documents</h4>
-        </div>
-        <div class="card-body">
-            {% for ra in submission.research_assistants.all %}
-            <div class="mb-4">
-                <h6>{{ ra.user.get_full_name }}</h6>
-                {% with profile=ra.user.userprofile %}
-                <ul class="list-group">
-                    <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
-                        GCP Certificate
-                        {% if profile.is_gcp_expired %}
-                        <span class="badge bg-danger">Expired</span>
-                        {% endif %}
-                    </li>
-                    <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
-                        CV
-                    </li>
-                    <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
-                        QRC Certificate
-                    </li>
-                    <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
-                        <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
-                        CTC Certificate
-                    </li>
-                </ul>
-                {% endwith %}
+            <!-- Co-Investigators Section -->
+            {% if submission.coinvestigators.exists %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Co-Investigators Documents</h4>
+                </div>
+                <div class="card-body">
+                    {% for coinv in submission.coinvestigators.all %}
+                    <div class="mb-4">
+                        <h6>{{ coinv.user.get_full_name }} - {{ coinv.get_roles_display }}</h6>
+                        {% with profile=coinv.user.userprofile %}
+                        <ul class="list-group">
+                            <li class="list-group-item {% if profile.has_valid_gcp %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                                <i class="fas {% if profile.has_valid_gcp %}fa-check{% else %}fa-times{% endif %}"></i>
+                                GCP Certificate
+                                {% if profile.is_gcp_expired %}
+                                <span class="badge bg-danger">Expired</span>
+                                {% endif %}
+                            </li>
+                            <li class="list-group-item {% if profile.has_cv %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                                <i class="fas {% if profile.has_cv %}fa-check{% else %}fa-times{% endif %}"></i>
+                                CV
+                            </li>
+                            <li class="list-group-item {% if profile.has_qrc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                                <i class="fas {% if profile.has_qrc %}fa-check{% else %}fa-times{% endif %}"></i>
+                                QRC Certificate
+                            </li>
+                            <li class="list-group-item {% if profile.has_ctc %}list-group-item-success{% else %}list-group-item-danger{% endif %}">
+                                <i class="fas {% if profile.has_ctc %}fa-check{% else %}fa-times{% endif %}"></i>
+                                CTC Certificate
+                            </li>
+                        </ul>
+                        {% endwith %}
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
+            {% endif %}
 
-    <!-- Display missing documents -->
-    {% if missing_documents %}
-        <div class="alert alert-danger">
-            <h4>Missing Documents:</h4>
-            <ul>
-                {% for key, value in missing_documents.items %}
+            <!-- Missing Documents Alert -->
+            {% if missing_documents %}
+            <div class="alert alert-danger">
+                <h4>Missing Documents:</h4>
+                <ul>
+                    {% for key, value in missing_documents.items %}
                     <li>{{ key }} - {{ value.name }}
                         <ul>
                             {% for doc in value.documents %}
-                                <li>{{ doc }}</li>
+                            <li>{{ doc }}</li>
                             {% endfor %}
                         </ul>
                     </li>
-                {% endfor %}
-            </ul>
-        </div>
-    {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
 
-    <!-- Display validation errors -->
-    {% if validation_errors %}
-        <div class="alert alert-danger">
-            <h4>Form Validation Errors:</h4>
-            <ul>
-                {% for form_name, errors in validation_errors.items %}
+            <!-- Validation Errors Alert -->
+            {% if validation_errors %}
+            <div class="alert alert-danger">
+                <h4>Form Validation Errors:</h4>
+                <ul>
+                    {% for form_name, errors in validation_errors.items %}
                     <li><strong>{{ form_name }}</strong>
                         <ul>
                             {% for field, error_list in errors.items %}
-                                <li>{{ field }}: {{ error_list|join:", " }}</li>
+                            <li>{{ field }}: {{ error_list|join:", " }}</li>
                             {% endfor %}
                         </ul>
                     </li>
-                {% endfor %}
-            </ul>
-        </div>
-    {% endif %}
-
-    <!-- Document Repository -->
-    <h2>Document Repository</h2>
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        {{ doc_form|crispy }}
-        <button type="submit" name="action" value="upload_document" class="btn btn-primary">Upload Document</button>
-    </form>
-    <table class="table mt-3">
-        <thead>
-            <tr>
-                <th>Filename</th>
-                <th>Description</th>
-                <th>Uploaded By</th>
-                <th>Uploaded At</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for doc in documents %}
-            <tr>
-                <td>{{ doc.file.name|slice:"documents/" }}</td>
-                <td>{{ doc.description }}</td>
-                <td>{{ doc.uploaded_by.get_full_name }}</td>
-                <td>{{ doc.uploaded_at }}</td>
-                <td>
-                    <a href="{{ doc.file.url }}" class="btn btn-sm btn-secondary">Download</a>
-                    <a href="{% url 'submission:document_delete' submission.temporary_id doc.id %}" class="btn btn-sm btn-danger">Delete</a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="5">No documents uploaded.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <!-- Action Buttons -->
-    <form method="post">
-        {% csrf_token %}
-        <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
-            <button type="submit" name="action" value="back" class="btn btn-secondary me-md-2">
-                <i class="fas fa-arrow-left"></i> Back
-            </button>
-            {% if can_submit %}
-            <button type="submit" name="action" value="exit_no_save" class="btn btn-danger me-md-2">
-                <i class="fas fa-times"></i> Exit without Saving
-            </button>
-            {% endif %}
-            <button type="submit" name="action" value="submit_final" class="btn btn-success">
-                <i class="fas fa-check"></i> Submit Final
-            </button>
-        </div>
-    </form>
-
-    <!-- Loading Indicator -->
-    <div id="loadingIndicator" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 9999;">
-        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; text-align: center;">
-            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-                <span class="visually-hidden">Loading...</span>
+                    {% endfor %}
+                </ul>
             </div>
-            <p class="mt-3 mb-0">I am thinking...</p>
-        </div>
-    </div>
-    <p></p>
-    <!-- KHCC Brain Analysis -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h4>KHCC Brain Analysis</h4>
-        </div>
-        <div class="card-body">
-            <form method="post" id="analysisForm">
+            {% endif %}
+
+            <!-- Document Repository -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Document Repository</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" class="mb-4">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ doc_form.file|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ doc_form.description.id_for_label }}" class="form-label">Description *</label>
+                                {{ doc_form.description }}
+                                {% if doc_form.description.errors %}
+                                <div class="invalid-feedback">
+                                    {{ doc_form.description.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <button type="submit" name="action" value="upload_document" class="btn btn-primary mt-3">
+                            <i class="fas fa-upload"></i> Upload Document
+                        </button>
+                    </form>
+
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Filename</th>
+                                    <th>Description</th>
+                                    <th>Uploaded By</th>
+                                    <th>Uploaded At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for doc in documents %}
+                                <tr>
+                                    <td>{{ doc.file.name|slice:"documents/" }}</td>
+                                    <td>{{ doc.description }}</td>
+                                    <td>{{ doc.uploaded_by.get_full_name }}</td>
+                                    <td>{{ doc.uploaded_at|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{{ doc.file.url }}" class="btn btn-sm btn-secondary">
+                                                <i class="fas fa-download"></i> Download
+                                            </a>
+                                            <a href="{% url 'submission:document_delete' submission.temporary_id doc.id %}" 
+                                               class="btn btn-sm btn-danger"
+                                               onclick="return confirm('Are you sure you want to delete this document?')">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center">No documents uploaded.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <form method="post" class="d-flex gap-2">
                 {% csrf_token %}
-                <button type="submit" name="action" value="analyze_submission" class="btn btn-primary mb-3">
-                    <i class="fas fa-brain"></i> Analyze Submission
+                <button type="submit" name="action" value="back" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back
                 </button>
+                {% if can_submit %}
+                <button type="submit" name="action" value="exit_no_save" class="btn btn-danger">
+                    <i class="fas fa-times"></i> Exit without Saving
+                </button>
+                <button type="submit" name="action" value="submit_final" class="btn btn-success">
+                    <i class="fas fa-check"></i> Submit Final
+                </button>
+                {% endif %}
             </form>
-            
-            {% if gpt_analysis %}
-            <div class="analysis-result markdown-body">
-                {{ gpt_analysis|safe }}
+
+            <!-- Loading Indicator -->
+            <div id="loadingIndicator" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 9999;">
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; text-align: center;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3 mb-0">Processing submission...</p>
+                </div>
             </div>
-            {% endif %}
         </div>
     </div>
 </div>
 
+{% block page_specific_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const finalSubmitForm = document.querySelector('form:last-of-type');
@@ -1935,37 +1917,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (hasInvalidCertificates) {
                 e.preventDefault();
-                alert('Cannot submit: All team members must have valid certificates (GCP, CV, QRC, CTC) before submission.');
+                alert('Cannot submit: All team members must have valid certificates before submission.');
                 return false;
             }
             
             if (hasMissingDocs || hasValidationErrors) {
                 e.preventDefault();
-                alert('Cannot submit: Please ensure all mandatory fields are filled.');
+                alert('Cannot submit: Please ensure all mandatory fields are filled and required documents are uploaded.');
                 return false;
             }
+
+            document.getElementById('loadingIndicator').style.display = 'block';
         }
     });
-
-    // Loading indicator for analysis
-    const analysisForm = document.getElementById('analysisForm');
-    const loadingIndicator = document.getElementById('loadingIndicator');
-
-    if (analysisForm && loadingIndicator) {
-        analysisForm.addEventListener('submit', function(e) {
-            console.log('Analysis form submitted');  // Debug log
-            loadingIndicator.style.display = 'block';
-        });
-    } else {
-        console.error('Analysis form or loading indicator not found');  // Debug log
-    }
 });
 </script>
+{% endblock %}
 
 {% endblock %}
 
 # Contents from: .\templates\submission\version_history.html
 {% extends 'users/base.html' %}
+{% load submission_tags %}
 {% block content %}
 <div class="container mt-4">
     <div class="card">
@@ -1997,6 +1970,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <th>Version</th>
                             <th>Status</th>
                             <th>Date</th>
+                            <th>Submitted By</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -2012,7 +1986,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <td>{{ history.date|date:"M d, Y H:i" }}</td>
                             <td>
                                 {% if submission.submitted_by and history.version == submission.version %}
-                                    Submitted by: {{ submission.submitted_by.get_full_name }}
+                                    {{ submission.submitted_by.get_full_name }}
                                 {% endif %}
                             </td>
                             <td>
@@ -2023,13 +1997,21 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <i class="fas fa-file-pdf"></i> Download
                                     </a>
                                     
-                                    {% if not forloop.last %}
-                                        <a href="{% url 'submission:compare_version' submission.pk history.version history.previous_version %}" 
-                                           class="btn btn-sm btn-primary" 
+                                    {% if history.version > 1 %}
+                                        <a href="{% url 'submission:compare_version' submission.temporary_id history.version history.version|add:"-1" %}" 
+                                           class="btn btn-sm btn-info" 
                                            title="Compare with Previous Version">
-                                            <i class="fas fa-code-compare"></i> Compare Changes
+                                            <i class="fas fa-code-compare"></i> Compare with v{{ history.version|add:"-1" }}
                                         </a>
                                     {% endif %}
+                                    
+                                    <!-- {% if history.version != submission.version %}
+                                        <a href="{% url 'submission:compare_version' submission.temporary_id history.version submission.version %}" 
+                                           class="btn btn-sm btn-primary" 
+                                           title="Compare with Latest Version">
+                                            <i class="fas fa-code-compare"></i> Compare with Latest
+                                        </a>
+                                    {% endif %} -->
                                 </div>
                             </td>
                         </tr>
@@ -2089,16 +2071,17 @@ document.addEventListener('DOMContentLoaded', function() {
                                             {% else %}
                                                 -
                                             {% endif %}
-                                        </td>
+                                            </td>
+ <!-- In version_history.html -->
                                         <td>
                                             {% if inv.submitted %}
-                                                <a href="{% url 'submission:download_submission_pdf_version' submission.temporary_id status.form.version %}" 
-                                                   class="btn btn-sm btn-secondary">
-                                                    <i class="fas fa-file-pdf"></i> View Form
+                                                <a href="{% url 'submission:investigator_form' submission.temporary_id status.form.id %}?view=true" 
+                                                class="btn btn-sm btn-secondary">
+                                                    <i class="fas fa-file"></i> View Form
                                                 </a>
                                             {% elif user == inv.user and not submission.is_locked %}
                                                 <a href="{% url 'submission:investigator_form' submission.temporary_id status.form.id %}" 
-                                                   class="btn btn-sm btn-warning">
+                                                class="btn btn-sm btn-warning">
                                                     <i class="fas fa-edit"></i> Submit Required Form
                                                 </a>
                                             {% else %}
@@ -2219,46 +2202,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                 </div>
-<!-- In version_history.html -->
-<!-- OSAR Decision History -->
-<div class="card mb-4">
-    <div class="card-header">
-        <h4 class="mb-0">Review Decisions History</h4>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Decision</th>                      
-                        <th>Comments</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for message in decision_messages %}
-                    <tr>
-                        <td>{{ message.sent_at|date:"Y-m-d H:i" }}</td>
-                        <td>
-                            <span class="badge {% if 'accept' in message.subject|lower %}bg-success
-                                           {% elif 'reject' in message.subject|lower %}bg-danger
-                                           {% else %}bg-warning{% endif %}">
-                                {{ message.subject|cut:"Submission Decision - "|title }}
-                            </span>
-                        </td>
-
-                        <td>{{ message.body|linebreaksbr }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" class="text-center">No decisions have been made yet.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
+                
                 <!-- Navigation -->
                 <div class="mt-4">
                     <a href="{% url 'submission:dashboard' %}" class="btn btn-secondary">
@@ -2923,12 +2867,15 @@ def generate_django_form(dynamic_form):
     return DynamicModelForm
 
 class DocumentForm(forms.ModelForm):
+    description = forms.CharField(
+        max_length=255,
+        required=True,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+
     class Meta:
         model = Document
         fields = ['file', 'description']
-        widgets = {
-            'description': forms.TextInput(attrs={'class': 'form-control'}),
-        }
 
 # Contents from: .\gpt_analysis.py
 # gpt_analysis.py
@@ -4271,6 +4218,87 @@ class Migration(migrations.Migration):
     ]
 
 
+# Contents from: .\migrations\0027_alter_submission_options_and_more.py
+# Generated by Django 5.1.3 on 2024-12-05 17:33
+
+from django.conf import settings
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("forms_builder", "0003_merge_20241108_1706"),
+        ("submission", "0026_formdataentry_study_action"),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
+
+    operations = [
+        migrations.AlterModelOptions(
+            name="submission",
+            options={"ordering": ["-date_created"]},
+        ),
+        migrations.AddIndex(
+            model_name="submission",
+            index=models.Index(fields=["status"], name="submission__status_832d62_idx"),
+        ),
+        migrations.AddIndex(
+            model_name="submission",
+            index=models.Index(
+                fields=["khcc_number"], name="submission__khcc_nu_653cf0_idx"
+            ),
+        ),
+        migrations.AddIndex(
+            model_name="submission",
+            index=models.Index(
+                fields=["primary_investigator"], name="submission__primary_7bae28_idx"
+            ),
+        ),
+        migrations.AddIndex(
+            model_name="submission",
+            index=models.Index(
+                fields=["is_archived"], name="submission__is_arch_0823ea_idx"
+            ),
+        ),
+    ]
+
+
+# Contents from: .\migrations\0028_alter_submission_options_and_more.py
+# Generated by Django 5.1.3 on 2024-12-05 17:35
+
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("submission", "0027_alter_submission_options_and_more"),
+    ]
+
+    operations = [
+        migrations.AlterModelOptions(
+            name="submission",
+            options={},
+        ),
+        migrations.RemoveIndex(
+            model_name="submission",
+            name="submission__status_832d62_idx",
+        ),
+        migrations.RemoveIndex(
+            model_name="submission",
+            name="submission__khcc_nu_653cf0_idx",
+        ),
+        migrations.RemoveIndex(
+            model_name="submission",
+            name="submission__primary_7bae28_idx",
+        ),
+        migrations.RemoveIndex(
+            model_name="submission",
+            name="submission__is_arch_0823ea_idx",
+        ),
+    ]
+
+
 # Contents from: .\migrations\__init__.py
 
 
@@ -4338,13 +4366,9 @@ class Submission(models.Model):
     )
 
     def submit(self, submitted_by):
-        """Handle submission by a specific user."""
         self.submitted_by = submitted_by
         self.date_submitted = timezone.now()
         self.is_locked = True
-        self.status = 'document_missing' if not self.are_all_investigator_forms_complete() else 'submitted'
-        self.save()
-        
         # Create version history
         VersionHistory.objects.create(
             submission=self,
@@ -4352,6 +4376,55 @@ class Submission(models.Model):
             status=self.status,
             date=timezone.now()
         )
+        # Check for required investigator forms
+        required_forms = self.study_type.forms.filter(requested_per_investigator=True)
+        if required_forms.exists():
+            all_investigators = [self.primary_investigator]  # Include PI
+            all_investigators.extend([ci.user for ci in self.coinvestigators.all()])
+            
+            for form in required_forms:
+                for investigator in all_investigators:
+                    if not InvestigatorFormSubmission.objects.filter(
+                        submission=self,
+                        form=form,
+                        investigator=investigator,
+                        version=self.version
+                    ).exists():
+                        self.status = 'document_missing'
+                        self.save()
+                        return
+        
+        # If we reach here, all forms are complete
+        if self.status == 'revision_requested':
+            self.increment_version()
+        self.status = 'submitted'
+        self.save()
+
+
+
+        
+        # Check for required investigator forms
+        required_forms = self.study_type.forms.filter(requested_per_investigator=True)
+        if required_forms.exists():
+            all_investigators = [self.primary_investigator]  # Include PI
+            all_investigators.extend([ci.user for ci in self.coinvestigators.all()])
+            
+            for form in required_forms:
+                for investigator in all_investigators:
+                    if not InvestigatorFormSubmission.objects.filter(
+                        submission=self,
+                        form=form,
+                        investigator=investigator,
+                        version=self.version
+                    ).exists():
+                        self.status = 'document_missing'
+                        self.save()
+                        return
+        
+        self.status = 'submitted'
+        self.save()
+        
+
 
     def __str__(self):
         return f"{self.title} (ID: {self.temporary_id}, Version: {self.version})"
@@ -4377,6 +4450,7 @@ class Submission(models.Model):
             date=timezone.now()
         )
         self.version += 1
+
 
     def get_required_investigator_forms(self):
         """Get all forms that require per-investigator submission."""
@@ -5001,8 +5075,24 @@ from django import template
 register = template.Library()
 
 @register.filter
-def replace_underscore(value):
-    return value.replace('_', '-')
+def next(value, arg):
+    """
+    Returns the next item from a list
+    """
+    try:
+        return value[int(arg) + 1]
+    except:
+        return None
+
+@register.filter
+def attr(obj, attr):
+    """
+    Gets an attribute of an object dynamically
+    """
+    try:
+        return getattr(obj, attr)
+    except:
+        return None
 
 
 # Contents from: .\tests\__init__.py
@@ -6560,8 +6650,7 @@ def start_submission(request, submission_id=None):
                     if action == 'save_exit':
                         return redirect('submission:dashboard')
                     elif action == 'save_continue':
-                        return redirect('submission:add_research_assistant', 
-                                     submission_id=submission.temporary_id)
+                         return redirect('submission:add_coinvestigator', submission_id=submission.temporary_id)
 
             except Exception as e:
                 logger.error(f"Error in start_submission: {str(e)}")
@@ -6742,7 +6831,7 @@ def add_coinvestigator(request, submission_id):
 
         if action in ['back', 'exit_no_save', 'save_continue']:
             if action == 'back':
-                return redirect('submission:add_research_assistant', submission_id=submission.temporary_id)
+                return redirect('submission:start_submission_with_id', submission_id=submission.temporary_id)
             elif action == 'exit_no_save':
                 return redirect('submission:dashboard')
             elif action == 'save_continue':
@@ -7104,8 +7193,8 @@ AIDI System
                         notify_osar_of_completion(submission)
 
                     # Increment version after everything is done
-                    submission.version += 1
-                    submission.save()
+                    # submission.version += 1
+                    # submission.save()
 
                     messages.success(
                         request, 
@@ -7221,8 +7310,8 @@ AIDI System
                             notify_osar_of_completion(submission)
 
                         # Increment version after everything is done
-                        submission.version += 1
-                        submission.save()
+                        # submission.version += 1
+                        # submission.save()
 
                         messages.success(
                             request, 
